@@ -108,3 +108,7 @@ InitTestScene*.unity*
 
 # Claude Code project settings
 .claude/
+
+# Dev/test artifacts (smoke-test screenshots)
+/[Aa]ssets/Screenshots/
+/[Aa]ssets/Screenshots.meta
