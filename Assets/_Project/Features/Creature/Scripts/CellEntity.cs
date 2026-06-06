@@ -1,6 +1,7 @@
 using System;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
+using Leeway.Creature.Domain;
 using UnityEngine;
 
 namespace Leeway.Creature
@@ -29,17 +30,8 @@ namespace Leeway.Creature
         public event Action<CellEntity> Died;
 
         /// <summary>Aktualna prędkość ruchu — maleje wraz ze wzrostem komórki.</summary>
-        public float CurrentSpeed
-        {
-            get
-            {
-                float sizeRatio = _config.BaseSize / Mathf.Max(_size.Value, 0.1f);
-                return Mathf.Clamp(
-                    _config.BaseSpeed * sizeRatio,
-                    _config.BaseSpeed * _config.SpeedFloorRatio,
-                    _config.MaxSpeed);
-            }
-        }
+        public float CurrentSpeed =>
+            CellRules.MoveSpeed(_config.BaseSize, _size.Value, _config.BaseSpeed, _config.MaxSpeed, _config.SpeedFloorRatio);
 
         public override void OnStartServer()
         {
@@ -69,8 +61,7 @@ namespace Leeway.Creature
         public bool CanEat(CellEntity other)
         {
             if (other == null || other == this) return false;
-            return _isAlive.Value && other._isAlive.Value
-                && _size.Value > other._size.Value * _config.EatSizeRatio;
+            return CellRules.CanEat(_isAlive.Value, other._isAlive.Value, _size.Value, other._size.Value, _config.EatSizeRatio);
         }
 
         /// <summary>Server-side: próbuje zjeść komórkę, z którą nastąpiła kolizja triggera.</summary>
@@ -85,7 +76,7 @@ namespace Leeway.Creature
         public void Eat(CellEntity food)
         {
             if (!CanEat(food)) return;
-            GrowBy(food._size.Value * _config.GrowthPerEat);
+            GrowBy(CellRules.GrowthAmount(food._size.Value, _config.GrowthPerEat));
             food.Die();
         }
 
