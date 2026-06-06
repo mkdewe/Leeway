@@ -1,5 +1,5 @@
 using FishNet.Object;
-using Leeway.Creature.AI;
+using Leeway.Creature.Domain;
 using UnityEngine;
 
 namespace Leeway.Creature
@@ -7,8 +7,6 @@ namespace Leeway.Creature
     [RequireComponent(typeof(Rigidbody2D))]
     public class NpcCellController : CellEntity
     {
-        public enum NpcType { Food, Predator }
-
         [SerializeField] private NpcType _npcType = NpcType.Food;
         [SerializeField] private float _chaseRadius = 8f;
         [SerializeField] private float _fleeRadius = 5f;
@@ -48,8 +46,16 @@ namespace Leeway.Creature
 
             ScanSurroundings(out CellEntity closestFood, out CellEntity closestThreat);
 
-            Vector2 target = _behavior.DecideTarget(this, closestFood, closestThreat, _wanderTarget);
-            ApplyMovement(target);
+            var perception = new NpcPerception(
+                selfPosition: transform.position,
+                fleeDistance: Config.FleeDistance,
+                hasThreat: closestThreat != null,
+                threatPosition: closestThreat != null ? closestThreat.transform.position : Vector2.zero,
+                hasFood: closestFood != null,
+                foodPosition: closestFood != null ? closestFood.transform.position : Vector2.zero,
+                wanderTarget: _wanderTarget);
+
+            ApplyMovement(_behavior.DecideTarget(in perception));
         }
 
         private void ScanSurroundings(out CellEntity closestFood, out CellEntity closestThreat)
