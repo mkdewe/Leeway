@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89edc8a3957d04488699da6f3478fa0, type: 3}
+  m_Name: Part_TailFin
+  m_EditorClassIdentifier: Assembly-CSharp::Leeway.CreatureEditor.CreaturePartDefinition
+  <PartKey>k__BackingField: loco.tail_fin
+  <DisplayName>k__BackingField: Tail fin
+  <Category>k__BackingField: 0
+  <AllowedSites>k__BackingField: 4
+  <MirrorCapable>k__BackingField: 0
+  <Prefab>k__BackingField: {fileID: 3597726044502063517, guid: 70ecfa4a54609914ea6efe3b247b1584, type: 3}
+  <SkinOffset>k__BackingField: 0
+  <Stats>k__BackingField:
+    HpBonus: 0
+    SpeedBonus: 1.8
+    DamageBonus: 0
+    SenseRadiusBonus: 0
+    MassKg: 0.4
+  <BendPoints>k__BackingField: 3
+  <SegmentLength>k__BackingField: 0.14
+  <Cost>k__BackingField: 25
+  _cachedPartId: 263459112

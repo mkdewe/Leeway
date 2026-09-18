@@ -1,0 +1,31 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89edc8a3957d04488699da6f3478fa0, type: 3}
+  m_Name: Part_loco_hoof_legs
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
+  <PartKey>k__BackingField: loco.hoof_legs
+  <DisplayName>k__BackingField: Hoofed legs
+  <Category>k__BackingField: 0
+  <AllowedSites>k__BackingField: 2
+  <MirrorCapable>k__BackingField: 1
+  <Prefab>k__BackingField: {fileID: 1588847057620654193, guid: 8271568ef1de88447b26d50c89457ff7, type: 3}
+  <SkinOffset>k__BackingField: -0.03
+  <Stats>k__BackingField:
+    HpBonus: 6
+    SpeedBonus: 2
+    DamageBonus: 0
+    SenseRadiusBonus: 0
+    MassKg: 1.4
+  <BendPoints>k__BackingField: 2
+  <SegmentLength>k__BackingField: 0.3
+  <Cost>k__BackingField: 30
+  _cachedPartId: -179235692

@@ -7,10 +7,10 @@ using UnityEngine;
 namespace Leeway.Creature
 {
     /// <summary>
-    /// Bazowa komórka sieciowa. Trzyma autorytatywny (serwerowy) stan i reguły
-    /// jedzenia/wzrostu/śmierci. Wizualizacja (skala) jest w <see cref="CellVisuals"/>,
-    /// a stan jest wystawiany na zewnątrz jako właściwości tylko-do-odczytu + czyste
-    /// zdarzenia C#, żeby konsumenci (HUD, kamera) nie zależeli od API SyncVar FishNet.
+    /// The base networked cell. It holds the authoritative (server-side) state and the rules for
+    /// eating, growth and death. The visuals (scale) live in <see cref="CellVisuals"/>, and the state
+    /// is exposed as read-only properties plus plain C# events, so consumers (the HUD, the camera) do
+    /// not depend on FishNet's SyncVar API.
     /// </summary>
     public class CellEntity : NetworkBehaviour
     {
@@ -29,7 +29,7 @@ namespace Leeway.Creature
         public event Action<float> HpChanged;
         public event Action<CellEntity> Died;
 
-        /// <summary>Aktualna prędkość ruchu — maleje wraz ze wzrostem komórki.</summary>
+        /// <summary>The current movement speed — it falls off as the cell grows.</summary>
         public float CurrentSpeed =>
             CellRules.MoveSpeed(_config.BaseSize, _size.Value, _config.BaseSpeed, _config.MaxSpeed, _config.SpeedFloorRatio);
 
@@ -64,7 +64,7 @@ namespace Leeway.Creature
             return CellRules.CanEat(_isAlive.Value, other._isAlive.Value, _size.Value, other._size.Value, _config.EatSizeRatio);
         }
 
-        /// <summary>Server-side: próbuje zjeść komórkę, z którą nastąpiła kolizja triggera.</summary>
+        /// <summary>Server-side: tries to eat the cell that triggered the collision.</summary>
         [Server]
         public void TryEat(Collider2D other)
         {

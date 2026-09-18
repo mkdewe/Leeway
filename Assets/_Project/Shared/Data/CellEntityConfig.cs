@@ -14,12 +14,12 @@ namespace Leeway.Creature
         [field: SerializeField] public float EatSizeRatio { get; private set; } = 1.15f;
         [field: SerializeField] public float GrowthPerEat { get; private set; } = 0.25f;
 
-        [Header("Ruch")]
-        [Tooltip("Dolny limit prędkości jako ułamek BaseSpeed (gdy komórka jest duża).")]
+        [Header("Movement")]
+        [Tooltip("Lower speed bound as a fraction of BaseSpeed (when the cell is large).")]
         [field: SerializeField] public float SpeedFloorRatio { get; private set; } = 0.3f;
 
         [Header("AI")]
-        [Tooltip("Jak daleko NPC ucieka od zagrożenia.")]
+        [Tooltip("How far an NPC flees from a threat.")]
         [field: SerializeField] public float FleeDistance { get; private set; } = 8f;
     }
 }

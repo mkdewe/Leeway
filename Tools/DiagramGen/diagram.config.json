@@ -1,0 +1,98 @@
+{
+  "sourceRoot": "Assets/_Project",
+  "outDir": "Docs/Architecture",
+  "excludePathParts": [
+    "/Tests/"
+  ],
+  "detail": "public-contract",
+  "lifecycle": "hide",
+  "unityLifecycle": [
+    "Awake",
+    "Start",
+    "Update",
+    "FixedUpdate",
+    "LateUpdate",
+    "OnEnable",
+    "OnDisable",
+    "OnDestroy",
+    "OnValidate",
+    "Reset",
+    "OnApplicationQuit",
+    "OnApplicationPause",
+    "OnDrawGizmos",
+    "OnDrawGizmosSelected",
+    "OnGUI",
+    "OnTriggerEnter",
+    "OnTriggerExit",
+    "OnTriggerStay",
+    "OnCollisionEnter",
+    "OnCollisionExit",
+    "OnCollisionStay",
+    "OnBecameVisible",
+    "OnBecameInvisible",
+    "OnAnimatorMove",
+    "OnAnimatorIK"
+  ],
+  "fishnetLifecycle": [
+    "OnStartServer",
+    "OnStopServer",
+    "OnStartClient",
+    "OnStopClient",
+    "OnStartNetwork",
+    "OnStopNetwork",
+    "OnOwnershipServer",
+    "OnOwnershipClient",
+    "OnSpawnServer",
+    "OnDespawnServer",
+    "CreateReconcile",
+    "TimeManager_OnTick",
+    "OnTick",
+    "OnPostTick"
+  ],
+  "boilerplate": [
+    "Dispose",
+    "GetTick",
+    "SetTick",
+    "Equals",
+    "GetHashCode",
+    "ToString",
+    "CompareTo",
+    "Configure",
+    "GetEnumerator"
+  ],
+  "codegenPrefixes": [
+    "RpcWriter___",
+    "RpcLogic___",
+    "RpcReader___",
+    "SyncVar_",
+    "NetworkInitialize"
+  ],
+  "stereotypeByBase": {
+    "NetworkBehaviour": "NetworkBehaviour",
+    "MonoBehaviour": "MonoBehaviour",
+    "ScriptableObject": "ScriptableObject",
+    "LifetimeScope": "LifetimeScope",
+    "IReplicateData": "ReplicateData",
+    "IReconcileData": "ReconcileData"
+  },
+  "memberMarkerAttributes": {
+    "SerializeField": "SF",
+    "Server": "Server",
+    "ServerRpc": "ServerRpc",
+    "ObserversRpc": "ObserversRpc",
+    "TargetRpc": "TargetRpc",
+    "Client": "Client",
+    "Replicate": "Replicate",
+    "Reconcile": "Reconcile"
+  },
+  "syncWrappers": [
+    "SyncVar",
+    "SyncList",
+    "SyncDictionary",
+    "SyncHashSet",
+    "SyncTimer",
+    "SyncStopwatch"
+  ],
+  "minTypesPerGroup": 3,
+  "maxTypesPerDiagram": 26
+}

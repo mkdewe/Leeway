@@ -113,3 +113,7 @@ InitTestScene*.unity*
 # Dev/test artifacts (smoke-test screenshots)
 /[Aa]ssets/Screenshots/
 /[Aa]ssets/Screenshots.meta
+
+# Narzędzia deweloperskie (generator diagramów)
+/Tools/**/node_modules/
+/Tools/**/package-lock.json

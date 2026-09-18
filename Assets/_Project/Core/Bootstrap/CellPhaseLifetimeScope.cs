@@ -1,29 +1,19 @@
-using Leeway.Creature;
-using MessagePipe;
 using VContainer;
 using VContainer.Unity;
 
 namespace Leeway.Core
 {
     /// <summary>
-    /// Bootstrap fazy komórki. Inicjalizuje magistralę MessagePipe używaną do
-    /// luźnej komunikacji między systemami (gracz → kamera/HUD).
+    /// Bootstrap for the cell phase. It initialises the MessagePipe bus used for loose communication
+    /// between systems (player → camera/HUD).
     ///
-    /// Używamy <see cref="GlobalMessagePipe"/>, bo obiekty sieciowe są tworzone
-    /// w runtime przez FishNet i nie przechodzą przez wstrzykiwanie VContainera —
-    /// to oficjalna ścieżka MessagePipe dla takich przypadków. Po dodaniu pakietu
-    /// MessagePipe.VContainer można przejść na pełne DI (RegisterMessagePipe).
+    /// We use <see cref="GlobalMessagePipe"/> because networked objects are created at runtime by
+    /// FishNet and never go through VContainer's injection — this is MessagePipe's official route for
+    /// such cases. Once the MessagePipe.VContainer package is added, we can move to full DI
+    /// (RegisterMessagePipe).
     /// </summary>
     public class CellPhaseLifetimeScope : LifetimeScope
     {
-        protected override void Configure(IContainerBuilder builder)
-        {
-            if (GlobalMessagePipe.IsInitialized) return;
-
-            var messagePipe = new BuiltinContainerBuilder();
-            messagePipe.AddMessagePipe();
-            messagePipe.AddMessageBroker<LocalCellChangedMessage>();
-            GlobalMessagePipe.SetProvider(messagePipe.BuildServiceProvider());
-        }
+        protected override void Configure(IContainerBuilder builder) => LeewayMessageBrokers.TryInstall();
     }
 }

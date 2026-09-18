@@ -65,13 +65,13 @@ namespace Leeway.UI
                 _evolutionSlider.value = size;
             }
             if (_sizeText != null)
-                _sizeText.text = $"Rozmiar: {size:F2}";
+                _sizeText.text = $"Size: {size:F2}";
         }
 
         private void Update()
         {
             if (_statusText == null || _localCell == null) return;
-            _statusText.text = _localCell.IsAlive ? "Zyjesz!" : "Umarles...";
+            _statusText.text = _localCell.IsAlive ? "Alive!" : "You died...";
         }
     }
 }

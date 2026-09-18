@@ -3,9 +3,9 @@ using UnityEngine;
 namespace Leeway.Creature
 {
     /// <summary>
-    /// Jedyny właściciel skali wizualnej komórki (SRP — logika gry nie dotyka
-    /// <c>transform</c>). Skalę bazową bierze z rozmiaru <see cref="CellEntity"/>,
-    /// a na wierzch nakłada delikatny „wobble/pulse", żeby komórka żyła.
+    /// The sole owner of the cell's visual scale (SRP — game logic never touches
+    /// <c>transform</c>). It takes the base scale from <see cref="CellEntity"/>'s size and layers a
+    /// gentle wobble and pulse on top, so the cell feels alive.
     /// </summary>
     [RequireComponent(typeof(CellEntity))]
     public class CellVisuals : MonoBehaviour

@@ -15,7 +15,7 @@ namespace Leeway.Tests
         [Test]
         public void CanEat_WhenEqualSizes_ReturnsFalse()
         {
-            // 1.0 > 1.0 * 1.15 = 1.15 -> false (to był pierwotny bug: wszyscy ten sam rozmiar)
+            // 1.0 > 1.0 * 1.15 = 1.15 -> false (this was the original bug: everyone the same size)
             Assert.IsFalse(CellRules.CanEat(true, true, 1.0f, 1.0f, 1.15f));
         }
 
@@ -41,7 +41,7 @@ namespace Leeway.Tests
         [Test]
         public void MoveSpeed_WhenSmaller_IsFaster()
         {
-            // ratio = 1 / 0.5 = 2 -> 10 (w granicach)
+            // ratio = 1 / 0.5 = 2 -> 10 (within bounds)
             float speed = CellRules.MoveSpeed(1f, 0.5f, 5f, 12f, 0.3f);
             Assert.AreEqual(10f, speed, 0.0001f);
         }

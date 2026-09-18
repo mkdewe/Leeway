@@ -1,9 +1,9 @@
 namespace Leeway.Creature
 {
     /// <summary>
-    /// Publikowany przez MessagePipe, gdy zmienia się lokalna komórka gracza
-    /// (spawn → <see cref="Cell"/> != null, despawn/śmierć → null). Pozwala kamerze
-    /// i HUD reagować bez bezpośredniej zależności od kontrolera gracza (DIP).
+    /// Published through MessagePipe when the player's local cell changes
+    /// (spawn → <see cref="Cell"/> != null, despawn/death → null). It lets the camera and the HUD
+    /// react without depending directly on the player controller (DIP).
     /// </summary>
     public readonly struct LocalCellChangedMessage
     {

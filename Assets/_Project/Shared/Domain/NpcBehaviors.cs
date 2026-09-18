@@ -5,8 +5,8 @@ namespace Leeway.Creature.Domain
     public enum NpcType { Food, Predator }
 
     /// <summary>
-    /// Migawka percepcji NPC przekazywana do strategii — czysty kontekst danych
-    /// (bez MonoBehaviour), dzięki czemu decyzje AI są testowalne jednostkowo.
+    /// A snapshot of an NPC's perception handed to a strategy — pure data context (no
+    /// MonoBehaviour), which keeps the AI decisions unit-testable.
     /// </summary>
     public readonly struct NpcPerception
     {
@@ -32,8 +32,8 @@ namespace Leeway.Creature.Domain
     }
 
     /// <summary>
-    /// Strategia decyzyjna NPC. Nowy typ zachowania = nowa klasa, bez modyfikacji
-    /// istniejących (OCP).
+    /// An NPC decision strategy. A new kind of behaviour means a new class, with no changes to the
+    /// existing ones (open/closed).
     /// </summary>
     public interface INpcBehavior
     {
@@ -51,7 +51,7 @@ namespace Leeway.Creature.Domain
         }
     }
 
-    /// <summary>Ofiara — błądzi, ucieka przed zagrożeniem, nigdy nie poluje.</summary>
+    /// <summary>Prey — wanders, flees from threats, never hunts.</summary>
     public sealed class FoodBehavior : NpcBehavior
     {
         public override Vector2 DecideTarget(in NpcPerception p)
@@ -61,7 +61,7 @@ namespace Leeway.Creature.Domain
         }
     }
 
-    /// <summary>Drapieżnik — ucieka przed większym, w przeciwnym razie goni ofiarę.</summary>
+    /// <summary>Predator — flees from anything bigger, otherwise chases prey.</summary>
     public sealed class PredatorBehavior : NpcBehavior
     {
         public override Vector2 DecideTarget(in NpcPerception p)
