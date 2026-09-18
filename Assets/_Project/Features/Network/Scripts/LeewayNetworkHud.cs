@@ -6,13 +6,23 @@ using UnityEngine;
 namespace Leeway.Network
 {
     /// <summary>
-    /// Minimalny HUD sieciowy (Host / Server / Client / Stop) oparty na OnGUI.
-    /// Zastępuje demo FishNet `NetworkHudCanvases`, które rzuca NRE przy aktywnym
-    /// nowym Input System (niepodpięte _serverIndicator / _clientIndicator).
+    /// A minimal network HUD (Host / Server / Client / Stop) built on OnGUI.
+    /// It replaces FishNet's `NetworkHudCanvases` demo, which throws an NRE when the new Input System
+    /// is active (its _serverIndicator / _clientIndicator are left unwired).
     /// </summary>
     public class LeewayNetworkHud : MonoBehaviour
     {
+        private const float Margin = 12f;
+        private const float PanelWidth = 220f;
+        private const float PanelHeight = 156f;
+        private const float CollapsedHeight = 56f;
+        private const float ButtonHeight = 30f;
+        private const float ToggleHeight = 22f;
+
         [SerializeField] private bool _autoStartHostInEditor;
+
+        /// <summary>Whether the panel is showing its buttons. A connected session collapses it until the player expands it again.</summary>
+        private bool _expanded;
 
         private NetworkManager _networkManager;
         private LocalConnectionState _serverState = LocalConnectionState.Stopped;
@@ -23,7 +33,7 @@ namespace Leeway.Network
             _networkManager = InstanceFinder.NetworkManager;
             if (_networkManager == null)
             {
-                Debug.LogError("[LeewayNetworkHud] Nie znaleziono NetworkManager.");
+                Debug.LogError("[LeewayNetworkHud] No NetworkManager found.");
                 return;
             }
 
@@ -51,39 +61,65 @@ namespace Leeway.Network
         {
             if (_networkManager == null) return;
 
-            GUILayout.BeginArea(new Rect(10, 10, 220, 300));
-
             bool serverStopped = _serverState == LocalConnectionState.Stopped;
             bool clientStopped = _clientState == LocalConnectionState.Stopped;
 
-            if (serverStopped && clientStopped)
+            // While nothing is running, this panel is the only way to start a session, so it shows
+            // itself in full. Once connected it collapses to a single line: the buttons are then needed
+            // once every quarter of an hour, but they would occupy the corner of the screen for the
+            // whole time you are playing.
+            bool idle = serverStopped && clientStopped;
+            bool open = idle || _expanded;
+
+            float height = open ? PanelHeight : CollapsedHeight;
+
+            // Bottom-left, not top-left. The upper half of the screen belongs to the editor UI — stats
+            // on the left, palette on the right — and this HUD draws in raw pixels with no way to join
+            // the canvas layout and get out of its way.
+            GUILayout.BeginArea(new Rect(Margin, Screen.height - height - Margin, PanelWidth, height));
+
+            GUILayout.Label($"Network — server: {Short(_serverState)}, client: {Short(_clientState)}");
+
+            if (!idle && GUILayout.Button(_expanded ? "Collapse" : "Expand", GUILayout.Height(ToggleHeight)))
+                _expanded = !_expanded;
+
+            if (!open)
             {
-                if (GUILayout.Button("Host (Server + Client)", GUILayout.Height(36)))
-                {
-                    _networkManager.ServerManager.StartConnection();
-                    _networkManager.ClientManager.StartConnection();
-                }
+                GUILayout.EndArea();
+                return;
             }
 
-            string serverLabel = serverStopped ? "Start Server" : "Stop Server";
-            if (GUILayout.Button(serverLabel, GUILayout.Height(36)))
+            if (idle && GUILayout.Button("Host (server + client)", GUILayout.Height(ButtonHeight)))
+            {
+                _networkManager.ServerManager.StartConnection();
+                _networkManager.ClientManager.StartConnection();
+            }
+
+            string serverLabel = serverStopped ? "Start server" : "Stop server";
+            if (GUILayout.Button(serverLabel, GUILayout.Height(ButtonHeight)))
             {
                 if (serverStopped) _networkManager.ServerManager.StartConnection();
                 else _networkManager.ServerManager.StopConnection(true);
             }
 
-            string clientLabel = clientStopped ? "Start Client" : "Stop Client";
-            if (GUILayout.Button(clientLabel, GUILayout.Height(36)))
+            string clientLabel = clientStopped ? "Start client" : "Stop client";
+            if (GUILayout.Button(clientLabel, GUILayout.Height(ButtonHeight)))
             {
                 if (clientStopped) _networkManager.ClientManager.StartConnection();
                 else _networkManager.ClientManager.StopConnection();
             }
 
-            GUILayout.Space(8);
-            GUILayout.Label($"Server: {_serverState}");
-            GUILayout.Label($"Client: {_clientState}");
-
             GUILayout.EndArea();
         }
+
+        /// <summary>A short name for the state — the full one does not fit on the collapsed line.</summary>
+        private static string Short(LocalConnectionState state) => state switch
+        {
+            LocalConnectionState.Stopped => "stopped",
+            LocalConnectionState.Starting => "starting…",
+            LocalConnectionState.Started => "running",
+            LocalConnectionState.Stopping => "stopping…",
+            _ => state.ToString(),
+        };
     }
 }

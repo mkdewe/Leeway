@@ -1,0 +1,1928 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<graphml xmlns="http://graphml.graphdrawing.org/xmlns">
+  <key id="label" for="node" attr.name="label" attr.type="string"/>
+  <key id="group" for="node" attr.name="group" attr.type="string"/>
+  <key id="assembly" for="node" attr.name="assembly" attr.type="string"/>
+  <key id="stereotype" for="node" attr.name="stereotype" attr.type="string"/>
+  <key id="members" for="node" attr.name="members" attr.type="int"/>
+  <key id="kind" for="edge" attr.name="kind" attr.type="string"/>
+  <graph id="Leeway" edgedefault="directed">
+    <node id="AttachmentSite">
+      <data key="label">AttachmentSite</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="BudgetReport">
+      <data key="label">BudgetReport</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">4</data>
+    </node>
+    <node id="BuiltCreatureBody">
+      <data key="label">BuiltCreatureBody</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype"></data>
+      <data key="members">6</data>
+    </node>
+    <node id="CellCamera">
+      <data key="label">CellCamera</data>
+      <data key="group">Features/Camera</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">4</data>
+    </node>
+    <node id="CellEntity">
+      <data key="label">CellEntity</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">18</data>
+    </node>
+    <node id="CellEntityConfig">
+      <data key="label">CellEntityConfig</data>
+      <data key="group">Shared/Data</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ScriptableObject</data>
+      <data key="members">10</data>
+    </node>
+    <node id="CellMoveData">
+      <data key="label">CellMoveData</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ReplicateData</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CellPhaseGameManager">
+      <data key="label">CellPhaseGameManager</data>
+      <data key="group">Features/GamePhases</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">12</data>
+    </node>
+    <node id="CellPhaseLifetimeScope">
+      <data key="label">CellPhaseLifetimeScope</data>
+      <data key="group">Core/Bootstrap</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">LifetimeScope</data>
+      <data key="members">0</data>
+    </node>
+    <node id="CellReconcileData">
+      <data key="label">CellReconcileData</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ReconcileData</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CellRules">
+      <data key="label">CellRules</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CellStageHUD">
+      <data key="label">CellStageHUD</data>
+      <data key="group">Features/UI</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">4</data>
+    </node>
+    <node id="CellVisuals">
+      <data key="label">CellVisuals</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">4</data>
+    </node>
+    <node id="CreatureBody">
+      <data key="label">CreatureBody</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">35</data>
+    </node>
+    <node id="CreatureBodyBuilder">
+      <data key="label">CreatureBodyBuilder</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CreatureBodyBuildSettings">
+      <data key="label">CreatureBodyBuildSettings</data>
+      <data key="group">Features/CreatureEditor/Scripts/Data</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">ScriptableObject</data>
+      <data key="members">6</data>
+    </node>
+    <node id="CreatureBodyPreview">
+      <data key="label">CreatureBodyPreview</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">19</data>
+    </node>
+    <node id="CreatureBodyRebuiltMessage">
+      <data key="label">CreatureBodyRebuiltMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CreatureBudget">
+      <data key="label">CreatureBudget</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CreatureCamera">
+      <data key="label">CreatureCamera</data>
+      <data key="group">Features/Camera</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">0</data>
+    </node>
+    <node id="CreatureColliderFitter">
+      <data key="label">CreatureColliderFitter</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">1</data>
+    </node>
+    <node id="CreatureEditorCameraRig">
+      <data key="label">CreatureEditorCameraRig</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">7</data>
+    </node>
+    <node id="CreatureEditorController">
+      <data key="label">CreatureEditorController</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">19</data>
+    </node>
+    <node id="CreatureEditorGameManager">
+      <data key="label">CreatureEditorGameManager</data>
+      <data key="group">Features/GamePhases</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">7</data>
+    </node>
+    <node id="CreatureEditorHud">
+      <data key="label">CreatureEditorHud</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">7</data>
+    </node>
+    <node id="CreatureEditorInput">
+      <data key="label">CreatureEditorInput</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">14</data>
+    </node>
+    <node id="CreatureEditorLifetimeScope">
+      <data key="label">CreatureEditorLifetimeScope</data>
+      <data key="group">Core/Bootstrap</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">LifetimeScope</data>
+      <data key="members">0</data>
+    </node>
+    <node id="CreatureEditorMode">
+      <data key="label">CreatureEditorMode</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="CreatureEditorOrbitInput">
+      <data key="label">CreatureEditorOrbitInput</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">5</data>
+    </node>
+    <node id="CreatureEditorPartSelectionChangedMessage">
+      <data key="label">CreatureEditorPartSelectionChangedMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreatureEditorSelectionChangedMessage">
+      <data key="label">CreatureEditorSelectionChangedMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">1</data>
+    </node>
+    <node id="CreatureEditorSession">
+      <data key="label">CreatureEditorSession</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">27</data>
+    </node>
+    <node id="CreatureEditorSessionChangedMessage">
+      <data key="label">CreatureEditorSessionChangedMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">1</data>
+    </node>
+    <node id="CreatureEntity">
+      <data key="label">CreatureEntity</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">18</data>
+    </node>
+    <node id="CreatureEntityConfig">
+      <data key="label">CreatureEntityConfig</data>
+      <data key="group">Shared/Data</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ScriptableObject</data>
+      <data key="members">9</data>
+    </node>
+    <node id="CreatureGenome">
+      <data key="label">CreatureGenome</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">18</data>
+    </node>
+    <node id="CreatureGenomeNetworkSerializer">
+      <data key="label">CreatureGenomeNetworkSerializer</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="CreatureLocomotion">
+      <data key="label">CreatureLocomotion</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">6</data>
+    </node>
+    <node id="CreatureMoveData">
+      <data key="label">CreatureMoveData</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ReplicateData</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreatureOrbitCamera">
+      <data key="label">CreatureOrbitCamera</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">5</data>
+    </node>
+    <node id="CreaturePaletteItem">
+      <data key="label">CreaturePaletteItem</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">6</data>
+    </node>
+    <node id="CreaturePartCatalog">
+      <data key="label">CreaturePartCatalog</data>
+      <data key="group">Features/CreatureEditor/Scripts/Data</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">ScriptableObject</data>
+      <data key="members">7</data>
+    </node>
+    <node id="CreaturePartDefinition">
+      <data key="label">CreaturePartDefinition</data>
+      <data key="group">Features/CreatureEditor/Scripts/Data</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">ScriptableObject</data>
+      <data key="members">15</data>
+    </node>
+    <node id="CreaturePartInstance">
+      <data key="label">CreaturePartInstance</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">struct</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreaturePartInstantiator">
+      <data key="label">CreaturePartInstantiator</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">1</data>
+    </node>
+    <node id="CreaturePartPalette">
+      <data key="label">CreaturePartPalette</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">11</data>
+    </node>
+    <node id="CreaturePerception">
+      <data key="label">CreaturePerception</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">7</data>
+    </node>
+    <node id="CreaturePhaseGameManager">
+      <data key="label">CreaturePhaseGameManager</data>
+      <data key="group">Features/GamePhases</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">15</data>
+    </node>
+    <node id="CreaturePhaseLifetimeScope">
+      <data key="label">CreaturePhaseLifetimeScope</data>
+      <data key="group">Core/Bootstrap</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">LifetimeScope</data>
+      <data key="members">0</data>
+    </node>
+    <node id="CreatureRagdoll">
+      <data key="label">CreatureRagdoll</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">12</data>
+    </node>
+    <node id="CreatureReconcileData">
+      <data key="label">CreatureReconcileData</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">ReconcileData</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreatureRigBuilder">
+      <data key="label">CreatureRigBuilder</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreatureRules">
+      <data key="label">CreatureRules</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">3</data>
+    </node>
+    <node id="CreatureShover">
+      <data key="label">CreatureShover</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">8</data>
+    </node>
+    <node id="CreatureStats">
+      <data key="label">CreatureStats</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">6</data>
+    </node>
+    <node id="CreatureStatTuning">
+      <data key="label">CreatureStatTuning</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">13</data>
+    </node>
+    <node id="CreatureSuspension">
+      <data key="label">CreatureSuspension</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">8</data>
+    </node>
+    <node id="CreatureVisuals">
+      <data key="label">CreatureVisuals</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">3</data>
+    </node>
+    <node id="DeterministicRng">
+      <data key="label">DeterministicRng</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">4</data>
+    </node>
+    <node id="EditorPad">
+      <data key="label">EditorPad</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">1</data>
+    </node>
+    <node id="FoodBehavior">
+      <data key="label">FoodBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">1</data>
+    </node>
+    <node id="FoodItem">
+      <data key="label">FoodItem</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">3</data>
+    </node>
+    <node id="GaitProfile">
+      <data key="label">GaitProfile</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">8</data>
+    </node>
+    <node id="GaitStyle">
+      <data key="label">GaitStyle</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="GenomeCodec">
+      <data key="label">GenomeCodec</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">10</data>
+    </node>
+    <node id="GenomeCommitResultMessage">
+      <data key="label">GenomeCommitResultMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">2</data>
+    </node>
+    <node id="GenomeEditOperations">
+      <data key="label">GenomeEditOperations</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">15</data>
+    </node>
+    <node id="GenomeError">
+      <data key="label">GenomeError</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="GenomeLimits">
+      <data key="label">GenomeLimits</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">14</data>
+    </node>
+    <node id="GenomePayload">
+      <data key="label">GenomePayload</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">struct</data>
+      <data key="members">5</data>
+    </node>
+    <node id="GenomeStatRules">
+      <data key="label">GenomeStatRules</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="GenomeValidationResult">
+      <data key="label">GenomeValidationResult</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">5</data>
+    </node>
+    <node id="GenomeValidator">
+      <data key="label">GenomeValidator</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="GizmoAxis">
+      <data key="label">GizmoAxis</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="INpcBehavior">
+      <data key="label">INpcBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">interface</data>
+      <data key="members">0</data>
+    </node>
+    <node id="INpcCreatureBehavior">
+      <data key="label">INpcCreatureBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">interface</data>
+      <data key="members">0</data>
+    </node>
+    <node id="KnockdownState">
+      <data key="label">KnockdownState</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">struct</data>
+      <data key="members">5</data>
+    </node>
+    <node id="LeewayMessageBrokers">
+      <data key="label">LeewayMessageBrokers</data>
+      <data key="group">Core/Bootstrap</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">static</data>
+      <data key="members">1</data>
+    </node>
+    <node id="LeewayNetworkHud">
+      <data key="label">LeewayNetworkHud</data>
+      <data key="group">Features/Network</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">1</data>
+    </node>
+    <node id="LegLimits">
+      <data key="label">LegLimits</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="LegSpec">
+      <data key="label">LegSpec</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">9</data>
+    </node>
+    <node id="LimbIk">
+      <data key="label">LimbIk</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="LocalCellChangedMessage">
+      <data key="label">LocalCellChangedMessage</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">message</data>
+      <data key="members">1</data>
+    </node>
+    <node id="LocalCreatureBodyChangedMessage">
+      <data key="label">LocalCreatureBodyChangedMessage</data>
+      <data key="group">Features/CreatureEditor/Scripts/Messages</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">message</data>
+      <data key="members">1</data>
+    </node>
+    <node id="LocalCreatureChangedMessage">
+      <data key="label">LocalCreatureChangedMessage</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">message</data>
+      <data key="members">1</data>
+    </node>
+    <node id="LocomotionSteering">
+      <data key="label">LocomotionSteering</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="NpcBehavior">
+      <data key="label">NpcBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">2</data>
+    </node>
+    <node id="NpcBehaviorFactory">
+      <data key="label">NpcBehaviorFactory</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">1</data>
+    </node>
+    <node id="NpcCellController">
+      <data key="label">NpcCellController</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">5</data>
+    </node>
+    <node id="NpcCreatureBehavior">
+      <data key="label">NpcCreatureBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">2</data>
+    </node>
+    <node id="NpcCreatureBehaviorFactory">
+      <data key="label">NpcCreatureBehaviorFactory</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">1</data>
+    </node>
+    <node id="NpcCreatureController">
+      <data key="label">NpcCreatureController</data>
+      <data key="group">Features/Creature/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">7</data>
+    </node>
+    <node id="NpcCreatureType">
+      <data key="label">NpcCreatureType</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="NpcPerception">
+      <data key="label">NpcPerception</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">7</data>
+    </node>
+    <node id="NpcType">
+      <data key="label">NpcType</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="PartCategory">
+      <data key="label">PartCategory</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="PartDragGhost">
+      <data key="label">PartDragGhost</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">10</data>
+    </node>
+    <node id="PartGene">
+      <data key="label">PartGene</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">12</data>
+    </node>
+    <node id="PartHandle">
+      <data key="label">PartHandle</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">4</data>
+    </node>
+    <node id="PartHandleSet">
+      <data key="label">PartHandleSet</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">6</data>
+    </node>
+    <node id="PartOrientation">
+      <data key="label">PartOrientation</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="PartPlacement">
+      <data key="label">PartPlacement</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="PartPose">
+      <data key="label">PartPose</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">4</data>
+    </node>
+    <node id="PartRotationGizmo">
+      <data key="label">PartRotationGizmo</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">12</data>
+    </node>
+    <node id="PartRule">
+      <data key="label">PartRule</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">8</data>
+    </node>
+    <node id="PartRuleSet">
+      <data key="label">PartRuleSet</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">8</data>
+    </node>
+    <node id="PartStatContribution">
+      <data key="label">PartStatContribution</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">5</data>
+    </node>
+    <node id="PlayerCellController">
+      <data key="label">PlayerCellController</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">2</data>
+    </node>
+    <node id="PlayerCreatureController">
+      <data key="label">PlayerCreatureController</data>
+      <data key="group">Features/Player/Scripts</data>
+      <data key="assembly">Assembly-CSharp</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">4</data>
+    </node>
+    <node id="PlaygroundCreatureController">
+      <data key="label">PlaygroundCreatureController</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">NetworkBehaviour</data>
+      <data key="members">5</data>
+    </node>
+    <node id="PlaygroundMoveData">
+      <data key="label">PlaygroundMoveData</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">ReplicateData</data>
+      <data key="members">3</data>
+    </node>
+    <node id="PlaygroundReconcileData">
+      <data key="label">PlaygroundReconcileData</data>
+      <data key="group">Features/CreatureEditor/Scripts/Runtime</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">ReconcileData</data>
+      <data key="members">3</data>
+    </node>
+    <node id="PredatorBehavior">
+      <data key="label">PredatorBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">1</data>
+    </node>
+    <node id="PredatorCreatureBehavior">
+      <data key="label">PredatorCreatureBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">1</data>
+    </node>
+    <node id="PreyBehavior">
+      <data key="label">PreyBehavior</data>
+      <data key="group">Shared/Domain</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">1</data>
+    </node>
+    <node id="ProceduralLeg">
+      <data key="label">ProceduralLeg</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype"></data>
+      <data key="members">5</data>
+    </node>
+    <node id="SpineAnchor">
+      <data key="label">SpineAnchor</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">4</data>
+    </node>
+    <node id="SpineEnd">
+      <data key="label">SpineEnd</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">enum</data>
+      <data key="members">0</data>
+    </node>
+    <node id="SpineExtendGizmo">
+      <data key="label">SpineExtendGizmo</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">13</data>
+    </node>
+    <node id="SpineMeshGenerator">
+      <data key="label">SpineMeshGenerator</data>
+      <data key="group">Features/CreatureEditor/Scripts/Build</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="StableHash">
+      <data key="label">StableHash</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">3</data>
+    </node>
+    <node id="StarterGenomeFactory">
+      <data key="label">StarterGenomeFactory</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">static</data>
+      <data key="members">2</data>
+    </node>
+    <node id="Suspension">
+      <data key="label">Suspension</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">7</data>
+    </node>
+    <node id="VertebraGene">
+      <data key="label">VertebraGene</data>
+      <data key="group">Shared/Domain/CreatureEditor</data>
+      <data key="assembly">Leeway.Domain</data>
+      <data key="stereotype">domain</data>
+      <data key="members">6</data>
+    </node>
+    <node id="VertebraHandle">
+      <data key="label">VertebraHandle</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">3</data>
+    </node>
+    <node id="VertebraHandleSet">
+      <data key="label">VertebraHandleSet</data>
+      <data key="group">Features/CreatureEditor/Scripts/Editing</data>
+      <data key="assembly">Leeway.CreatureEditor</data>
+      <data key="stereotype">MonoBehaviour</data>
+      <data key="members">10</data>
+    </node>
+    <edge id="e0" source="BuiltCreatureBody" target="CreaturePartInstance">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e1" source="BuiltCreatureBody" target="CreatureStats">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e2" source="CellCamera" target="CellEntity">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e3" source="CellCamera" target="LocalCellChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e4" source="CellEntity" target="CellEntityConfig">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e5" source="CellEntity" target="CellRules">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e6" source="CellPhaseGameManager" target="CellEntity">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e7" source="CellPhaseLifetimeScope" target="LeewayMessageBrokers">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e8" source="CellStageHUD" target="CellEntity">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e9" source="CellStageHUD" target="LocalCellChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e10" source="CellVisuals" target="CellEntity">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e11" source="CreatureBodyBuilder" target="BuiltCreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e12" source="CreatureBodyBuilder" target="CreatureBodyBuildSettings">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e13" source="CreatureBodyBuilder" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e14" source="CreatureBodyBuilder" target="CreaturePartCatalog">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e15" source="CreatureBodyBuilder" target="CreaturePartInstance">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e16" source="CreatureBodyBuilder" target="CreaturePartInstantiator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e17" source="CreatureBodyBuilder" target="CreatureRigBuilder">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e18" source="CreatureBodyBuilder" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e19" source="CreatureBodyBuilder" target="CreatureStatTuning">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e20" source="CreatureBodyBuilder" target="GenomeStatRules">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e21" source="CreatureBodyBuilder" target="PartRuleSet">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e22" source="CreatureBodyBuilder" target="SpineMeshGenerator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e23" source="CreatureBody" target="BuiltCreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e24" source="CreatureBody" target="CreatureBodyBuilder">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e25" source="CreatureBody" target="CreatureBodyBuildSettings">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e26" source="CreatureBody" target="CreatureColliderFitter">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e27" source="CreatureBody" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e28" source="CreatureBody" target="CreaturePartCatalog">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e29" source="CreatureBody" target="CreatureRagdoll">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e30" source="CreatureBody" target="CreatureRigBuilder">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e31" source="CreatureBody" target="CreatureStats">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e32" source="CreatureBody" target="CreatureStatTuning">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e33" source="CreatureBody" target="GenomeCommitResultMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e34" source="CreatureBody" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e35" source="CreatureBody" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e36" source="CreatureBody" target="GenomePayload">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e37" source="CreatureBody" target="GenomeValidationResult">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e38" source="CreatureBody" target="GenomeValidator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e39" source="CreatureBody" target="KnockdownState">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e40" source="CreatureBody" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e41" source="CreatureBodyPreview" target="BuiltCreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e42" source="CreatureBodyPreview" target="CreatureBodyBuilder">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e43" source="CreatureBodyPreview" target="CreatureBodyBuildSettings">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e44" source="CreatureBodyPreview" target="CreatureColliderFitter">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e45" source="CreatureBodyPreview" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e46" source="CreatureBodyPreview" target="CreaturePartCatalog">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e47" source="CreatureBodyPreview" target="CreaturePartInstance">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e48" source="CreatureBodyPreview" target="CreatureRigBuilder">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e49" source="CreatureBodyPreview" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e50" source="CreatureBodyPreview" target="CreatureStatTuning">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e51" source="CreatureBodyPreview" target="GenomeEditOperations">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e52" source="CreatureBodyPreview" target="GenomeError">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e53" source="CreatureBodyPreview" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e54" source="CreatureBodyPreview" target="StarterGenomeFactory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e55" source="CreatureBodyRebuiltMessage" target="CreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e56" source="CreatureBodyRebuiltMessage" target="CreatureStats">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e57" source="CreatureBudget" target="BudgetReport">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e58" source="CreatureBudget" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e59" source="CreatureBudget" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e60" source="CreatureBudget" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e61" source="CreatureCamera" target="LocalCreatureChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e62" source="CreatureColliderFitter" target="CreatureBodyBuildSettings">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e63" source="CreatureColliderFitter" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e64" source="CreatureEditorCameraRig" target="CreatureEditorMode">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e65" source="CreatureEditorController" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e66" source="CreatureEditorController" target="CreatureBodyPreview">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e67" source="CreatureEditorController" target="CreatureEditorCameraRig">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e68" source="CreatureEditorController" target="CreatureEditorInput">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e69" source="CreatureEditorController" target="CreatureEditorMode">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e70" source="CreatureEditorController" target="CreatureEditorPartSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e71" source="CreatureEditorController" target="CreatureEditorSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e72" source="CreatureEditorController" target="CreatureEditorSession">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e73" source="CreatureEditorController" target="CreatureEditorSessionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e74" source="CreatureEditorController" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e75" source="CreatureEditorController" target="CreaturePartCatalog">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e76" source="CreatureEditorController" target="CreaturePartDefinition">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e77" source="CreatureEditorController" target="CreaturePartInstance">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e78" source="CreatureEditorController" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e79" source="CreatureEditorController" target="GenomeError">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e80" source="CreatureEditorController" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e81" source="CreatureEditorController" target="GenomeValidationResult">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e82" source="CreatureEditorController" target="GenomeValidator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e83" source="CreatureEditorController" target="GizmoAxis">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e84" source="CreatureEditorController" target="LocalCreatureBodyChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e85" source="CreatureEditorController" target="PartCategory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e86" source="CreatureEditorController" target="PartDragGhost">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e87" source="CreatureEditorController" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e88" source="CreatureEditorController" target="PartHandle">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e89" source="CreatureEditorController" target="PartPlacement">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e90" source="CreatureEditorController" target="PartPose">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e91" source="CreatureEditorController" target="PartRotationGizmo">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e92" source="CreatureEditorController" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e93" source="CreatureEditorController" target="SpineEnd">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e94" source="CreatureEditorController" target="SpineExtendGizmo">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e95" source="CreatureEditorController" target="VertebraHandle">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e96" source="CreatureEditorController" target="VertebraHandleSet">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e97" source="CreatureEditorGameManager" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e98" source="CreatureEditorGameManager" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e99" source="CreatureEditorGameManager" target="CreaturePartCatalog">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e100" source="CreatureEditorGameManager" target="GenomeError">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e101" source="CreatureEditorGameManager" target="PartRuleSet">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e102" source="CreatureEditorGameManager" target="StarterGenomeFactory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e103" source="CreatureEditorHud" target="BudgetReport">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e104" source="CreatureEditorHud" target="CreatureBudget">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e105" source="CreatureEditorHud" target="CreatureEditorController">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e106" source="CreatureEditorHud" target="CreatureEditorPartSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e107" source="CreatureEditorHud" target="CreatureEditorSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e108" source="CreatureEditorHud" target="CreatureEditorSession">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e109" source="CreatureEditorHud" target="CreatureEditorSessionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e110" source="CreatureEditorHud" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e111" source="CreatureEditorHud" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e112" source="CreatureEditorHud" target="CreatureStatTuning">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e113" source="CreatureEditorHud" target="GenomeCommitResultMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e114" source="CreatureEditorHud" target="GenomeError">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e115" source="CreatureEditorHud" target="GenomeStatRules">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e116" source="CreatureEditorLifetimeScope" target="LeewayMessageBrokers">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e117" source="CreatureEditorOrbitInput" target="CreatureEditorInput">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e118" source="CreatureEditorSessionChangedMessage" target="CreatureEditorSession">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e119" source="CreatureEditorSession" target="CreatureBodyPreview">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e120" source="CreatureEditorSession" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e121" source="CreatureEditorSession" target="GenomeEditOperations">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e122" source="CreatureEditorSession" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e123" source="CreatureEditorSession" target="GenomeValidationResult">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e124" source="CreatureEditorSession" target="GenomeValidator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e125" source="CreatureEditorSession" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e126" source="CreatureEditorSession" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e127" source="CreatureEntity" target="CreatureEntityConfig">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e128" source="CreatureEntity" target="CreatureRules">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e129" source="CreatureEntity" target="FoodItem">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e130" source="CreatureGenomeNetworkSerializer" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e131" source="CreatureGenomeNetworkSerializer" target="GenomePayload">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e132" source="CreatureGenome" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e133" source="CreatureGenome" target="PartGene">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e134" source="CreatureGenome" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e135" source="CreatureGenome" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e136" source="CreatureGenome" target="VertebraGene">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e137" source="CreatureLocomotion" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e138" source="CreatureLocomotion" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e139" source="CreatureLocomotion" target="CreaturePartInstance">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e140" source="CreatureLocomotion" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e141" source="CreatureLocomotion" target="GaitProfile">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e142" source="CreatureLocomotion" target="LegSpec">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e143" source="CreatureLocomotion" target="PartCategory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e144" source="CreatureLocomotion" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e145" source="CreatureLocomotion" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e146" source="CreatureLocomotion" target="PartRuleSet">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e147" source="CreatureLocomotion" target="ProceduralLeg">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e148" source="CreaturePaletteItem" target="CreatureEditorController">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e149" source="CreaturePartCatalog" target="CreaturePartDefinition">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e150" source="CreaturePartCatalog" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e151" source="CreaturePartCatalog" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e152" source="CreaturePartCatalog" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e153" source="CreaturePartDefinition" target="AttachmentSite">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e154" source="CreaturePartDefinition" target="LegLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e155" source="CreaturePartDefinition" target="LegSpec">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e156" source="CreaturePartDefinition" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e157" source="CreaturePartDefinition" target="PartRule">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e158" source="CreaturePartDefinition" target="PartStatContribution">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e159" source="CreaturePartDefinition" target="StableHash">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e160" source="CreaturePartInstantiator" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e161" source="CreaturePartInstantiator" target="CreaturePartCatalog">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e162" source="CreaturePartInstantiator" target="CreaturePartDefinition">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e163" source="CreaturePartInstantiator" target="CreaturePartInstance">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e164" source="CreaturePartInstantiator" target="PartCategory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e165" source="CreaturePartInstantiator" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e166" source="CreaturePartInstantiator" target="PartPlacement">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e167" source="CreaturePartInstantiator" target="PartPose">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e168" source="CreaturePartPalette" target="CreatureEditorController">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e169" source="CreaturePartPalette" target="CreaturePaletteItem">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e170" source="CreaturePartPalette" target="CreaturePartCatalog">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e171" source="CreaturePartPalette" target="CreaturePartDefinition">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e172" source="CreaturePartPalette" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e173" source="CreaturePhaseGameManager" target="FoodItem">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e174" source="CreaturePhaseLifetimeScope" target="LeewayMessageBrokers">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e175" source="CreatureRagdoll" target="BuiltCreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e176" source="CreatureRigBuilder" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e177" source="CreatureRigBuilder" target="SpineAnchor">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e178" source="CreatureRigBuilder" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e179" source="CreatureShover" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e180" source="CreatureSuspension" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e181" source="CreatureSuspension" target="CreatureLocomotion">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e182" source="CreatureSuspension" target="GenomeStatRules">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e183" source="CreatureSuspension" target="Suspension">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e184" source="CreatureVisuals" target="CreatureEntity">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e185" source="EditorPad" target="CreatureBody">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e186" source="FoodBehavior" target="NpcBehavior">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e187" source="FoodBehavior" target="NpcPerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e188" source="FoodItem" target="CreatureEntity">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e189" source="GaitProfile" target="GaitStyle">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e190" source="GaitProfile" target="LegSpec">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e191" source="GenomeCodec" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e192" source="GenomeCodec" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e193" source="GenomeCodec" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e194" source="GenomeCodec" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e195" source="GenomeCodec" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e196" source="GenomeCommitResultMessage" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e197" source="GenomeEditOperations" target="AttachmentSite">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e198" source="GenomeEditOperations" target="CreatureBudget">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e199" source="GenomeEditOperations" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e200" source="GenomeEditOperations" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e201" source="GenomeEditOperations" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e202" source="GenomeEditOperations" target="GenomeValidationResult">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e203" source="GenomeEditOperations" target="GenomeValidator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e204" source="GenomeEditOperations" target="PartGene">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e205" source="GenomeEditOperations" target="PartPlacement">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e206" source="GenomeEditOperations" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e207" source="GenomeEditOperations" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e208" source="GenomeEditOperations" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e209" source="GenomePayload" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e210" source="GenomePayload" target="GenomeCodec">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e211" source="GenomePayload" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e212" source="GenomePayload" target="StableHash">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e213" source="GenomeStatRules" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e214" source="GenomeStatRules" target="CreatureStats">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e215" source="GenomeStatRules" target="CreatureStatTuning">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e216" source="GenomeStatRules" target="PartCategory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e217" source="GenomeStatRules" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e218" source="GenomeStatRules" target="PartPlacement">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e219" source="GenomeStatRules" target="PartPose">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e220" source="GenomeStatRules" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e221" source="GenomeStatRules" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e222" source="GenomeStatRules" target="PartStatContribution">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e223" source="GenomeStatRules" target="SpineAnchor">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e224" source="GenomeValidationResult" target="GenomeError">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e225" source="GenomeValidator" target="AttachmentSite">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e226" source="GenomeValidator" target="CreatureBudget">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e227" source="GenomeValidator" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e228" source="GenomeValidator" target="GenomeCodec">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e229" source="GenomeValidator" target="GenomeError">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e230" source="GenomeValidator" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e231" source="GenomeValidator" target="GenomeValidationResult">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e232" source="GenomeValidator" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e233" source="GenomeValidator" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e234" source="GenomeValidator" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e235" source="GenomeValidator" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e236" source="INpcBehavior" target="NpcPerception">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e237" source="INpcCreatureBehavior" target="CreaturePerception">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e238" source="LeewayMessageBrokers" target="CreatureBodyRebuiltMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e239" source="LeewayMessageBrokers" target="CreatureEditorPartSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e240" source="LeewayMessageBrokers" target="CreatureEditorSelectionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e241" source="LeewayMessageBrokers" target="CreatureEditorSessionChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e242" source="LeewayMessageBrokers" target="GenomeCommitResultMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e243" source="LeewayMessageBrokers" target="LocalCellChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e244" source="LeewayMessageBrokers" target="LocalCreatureBodyChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e245" source="LeewayMessageBrokers" target="LocalCreatureChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e246" source="LegSpec" target="GaitProfile">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e247" source="LegSpec" target="GaitStyle">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e248" source="LegSpec" target="LegLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e249" source="LocalCellChangedMessage" target="CellEntity">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e250" source="LocalCreatureBodyChangedMessage" target="CreatureBody">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e251" source="LocalCreatureChangedMessage" target="CreatureEntity">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e252" source="NpcBehaviorFactory" target="FoodBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e253" source="NpcBehaviorFactory" target="INpcBehavior">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e254" source="NpcBehaviorFactory" target="NpcType">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e255" source="NpcBehaviorFactory" target="PredatorBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e256" source="NpcBehavior" target="INpcBehavior">
+      <data key="kind">implements</data>
+    </edge>
+    <edge id="e257" source="NpcBehavior" target="NpcPerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e258" source="NpcCellController" target="CellEntity">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e259" source="NpcCellController" target="INpcBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e260" source="NpcCellController" target="NpcBehaviorFactory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e261" source="NpcCellController" target="NpcPerception">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e262" source="NpcCellController" target="NpcType">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e263" source="NpcCreatureBehavior" target="CreaturePerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e264" source="NpcCreatureBehaviorFactory" target="INpcCreatureBehavior">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e265" source="NpcCreatureBehaviorFactory" target="NpcCreatureType">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e266" source="NpcCreatureBehaviorFactory" target="PredatorCreatureBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e267" source="NpcCreatureBehaviorFactory" target="PreyBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e268" source="NpcCreatureBehavior" target="INpcCreatureBehavior">
+      <data key="kind">implements</data>
+    </edge>
+    <edge id="e269" source="NpcCreatureController" target="CreatureEntity">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e270" source="NpcCreatureController" target="CreaturePerception">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e271" source="NpcCreatureController" target="INpcCreatureBehavior">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e272" source="NpcCreatureController" target="NpcCreatureBehaviorFactory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e273" source="NpcCreatureController" target="NpcCreatureType">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e274" source="NpcCreatureController" target="NpcType">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e275" source="NpcCreatureController" target="PlayerCreatureController">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e276" source="PartDragGhost" target="CreaturePartCatalog">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e277" source="PartDragGhost" target="CreaturePartDefinition">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e278" source="PartHandleSet" target="CreatureBodyPreview">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e279" source="PartHandleSet" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e280" source="PartHandleSet" target="CreaturePartInstance">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e281" source="PartHandleSet" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e282" source="PartHandleSet" target="PartHandle">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e283" source="PartOrientation" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e284" source="PartOrientation" target="PartGene">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e285" source="PartOrientation" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e286" source="PartPlacement" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e287" source="PartPlacement" target="PartGene">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e288" source="PartPlacement" target="PartOrientation">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e289" source="PartPlacement" target="PartPose">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e290" source="PartPlacement" target="SpineAnchor">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e291" source="PartPlacement" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e292" source="PartRotationGizmo" target="GizmoAxis">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e293" source="PartRule" target="AttachmentSite">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e294" source="PartRule" target="LegSpec">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e295" source="PartRule" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e296" source="PartRule" target="PartStatContribution">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e297" source="PartRuleSet" target="AttachmentSite">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e298" source="PartRuleSet" target="PartCategory">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e299" source="PartRuleSet" target="PartRule">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e300" source="PlayerCellController" target="CellEntity">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e301" source="PlayerCellController" target="CellMoveData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e302" source="PlayerCellController" target="CellReconcileData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e303" source="PlayerCellController" target="LocalCellChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e304" source="PlayerCreatureController" target="CreatureEntity">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e305" source="PlayerCreatureController" target="CreatureMoveData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e306" source="PlayerCreatureController" target="CreatureReconcileData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e307" source="PlayerCreatureController" target="LocalCreatureChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e308" source="PlaygroundCreatureController" target="CreatureBody">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e309" source="PlaygroundCreatureController" target="CreatureOrbitCamera">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e310" source="PlaygroundCreatureController" target="CreatureShover">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e311" source="PlaygroundCreatureController" target="CreatureSuspension">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e312" source="PlaygroundCreatureController" target="LocalCreatureBodyChangedMessage">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e313" source="PlaygroundCreatureController" target="LocomotionSteering">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e314" source="PlaygroundCreatureController" target="PlaygroundMoveData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e315" source="PlaygroundCreatureController" target="PlaygroundReconcileData">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e316" source="PredatorBehavior" target="NpcBehavior">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e317" source="PredatorBehavior" target="NpcPerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e318" source="PredatorCreatureBehavior" target="CreaturePerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e319" source="PredatorCreatureBehavior" target="NpcCreatureBehavior">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e320" source="PreyBehavior" target="CreaturePerception">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e321" source="PreyBehavior" target="NpcCreatureBehavior">
+      <data key="kind">extends</data>
+    </edge>
+    <edge id="e322" source="ProceduralLeg" target="GaitProfile">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e323" source="ProceduralLeg" target="LegSpec">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e324" source="ProceduralLeg" target="LimbIk">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e325" source="SpineAnchor" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e326" source="SpineAnchor" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e327" source="SpineExtendGizmo" target="SpineEnd">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e328" source="SpineMeshGenerator" target="CreatureBodyBuildSettings">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e329" source="SpineMeshGenerator" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e330" source="StarterGenomeFactory" target="AttachmentSite">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e331" source="StarterGenomeFactory" target="CreatureGenome">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e332" source="StarterGenomeFactory" target="DeterministicRng">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e333" source="StarterGenomeFactory" target="GenomeEditOperations">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e334" source="StarterGenomeFactory" target="GenomeLimits">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e335" source="StarterGenomeFactory" target="GenomeValidator">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e336" source="StarterGenomeFactory" target="PartCategory">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e337" source="StarterGenomeFactory" target="PartGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e338" source="StarterGenomeFactory" target="PartRule">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e339" source="StarterGenomeFactory" target="PartRuleSet">
+      <data key="kind">field</data>
+    </edge>
+    <edge id="e340" source="StarterGenomeFactory" target="VertebraGene">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e341" source="VertebraHandleSet" target="CreatureBodyPreview">
+      <data key="kind">serialized</data>
+    </edge>
+    <edge id="e342" source="VertebraHandleSet" target="CreatureGenome">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e343" source="VertebraHandleSet" target="CreatureStats">
+      <data key="kind">uses</data>
+    </edge>
+    <edge id="e344" source="VertebraHandleSet" target="VertebraHandle">
+      <data key="kind">field</data>
+    </edge>
+  </graph>
+</graphml>

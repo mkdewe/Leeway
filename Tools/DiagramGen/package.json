@@ -1,0 +1,14 @@
+{
+  "name": "leeway-diagramgen",
+  "private": true,
+  "type": "module",
+  "description": "Generator diagramów architektury Leeway (Mermaid) — świadomy Unity/FishNet.",
+  "scripts": {
+    "gen": "node gen.mjs",
+    "check": "node validate.mjs"
+  },
+  "devDependencies": {
+    "jsdom": "^27",
+    "mermaid": "^11"
+  }
+}

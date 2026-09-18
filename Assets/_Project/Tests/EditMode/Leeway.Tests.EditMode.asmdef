@@ -4,7 +4,10 @@
     "references": [
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner",
-        "Leeway.Domain"
+        "Leeway.Domain",
+        "Leeway.CreatureEditor",
+        "FishNet.Runtime",
+        "Leeway.CreatureEditor.Editor"
     ],
     "includePlatforms": [
         "Editor"

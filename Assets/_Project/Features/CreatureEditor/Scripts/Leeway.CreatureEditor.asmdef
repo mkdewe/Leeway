@@ -1,0 +1,24 @@
+{
+    "name": "Leeway.CreatureEditor",
+    "rootNamespace": "Leeway.CreatureEditor",
+    "references": [
+        "Leeway.Domain",
+        "FishNet.Runtime",
+        "MessagePipe",
+        "UniTask",
+        "Unity.InputSystem",
+        "Unity.Cinemachine",
+        "LitMotion",
+        "UnityEngine.UI",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -28,7 +28,7 @@ namespace Leeway.Tests
         {
             var p = Perception(hasThreat: true, threat: new Vector2(1f, 0f), hasFood: false, food: Vector2.zero, wander: new Vector2(9f, 9f));
             Vector2 target = new FoodBehavior().DecideTarget(in p);
-            // self(0,0), threat(1,0) -> ucieczka w (-1,0) * fleeDistance 5 = (-5,0)
+            // self(0,0), threat(1,0) -> flees towards (-1,0) * fleeDistance 5 = (-5,0)
             Assert.AreEqual(new Vector2(-5f, 0f), target);
         }
 
@@ -37,7 +37,7 @@ namespace Leeway.Tests
         {
             var wander = new Vector2(3f, 2f);
             var p = Perception(hasThreat: false, threat: Vector2.zero, hasFood: true, food: new Vector2(8f, 8f), wander: wander);
-            // ofiara nigdy nie poluje
+            // prey never hunts
             Assert.AreEqual(wander, new FoodBehavior().DecideTarget(in p));
         }
 
@@ -54,7 +54,7 @@ namespace Leeway.Tests
         {
             var p = Perception(hasThreat: true, threat: new Vector2(0f, 2f), hasFood: true, food: new Vector2(3f, 0f), wander: Vector2.zero);
             Vector2 target = new PredatorBehavior().DecideTarget(in p);
-            // ucieczka ma priorytet: self(0,0), threat(0,2) -> (0,-1)*5 = (0,-5)
+            // fleeing takes priority: self(0,0), threat(0,2) -> (0,-1)*5 = (0,-5)
             Assert.AreEqual(new Vector2(0f, -5f), target);
         }
 

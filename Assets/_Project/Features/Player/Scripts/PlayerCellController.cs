@@ -96,9 +96,10 @@ namespace Leeway.Player
 
         private void OnTick()
         {
+            // The reconcile state is produced solely in CreateReconcile. Called from here it would go
+            // to Reconcile_Server and broadcast a zeroed state as the authoritative one.
             if (IsOwner)
             {
-                Reconciliation(default);
                 Move(new CellMoveData { Horizontal = _moveInput.x, Vertical = _moveInput.y });
             }
             else if (IsServerInitialized)
