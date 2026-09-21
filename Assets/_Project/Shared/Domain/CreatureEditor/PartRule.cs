@@ -23,9 +23,35 @@ namespace Leeway.Creature.Domain
         /// <summary>How far the part lifts above the skin. Needed to work out where the hip really sits.</summary>
         public readonly float SkinOffset;
 
+        /// <summary>
+        /// Whether the model is the <b>whole</b> limb rather than one link of it.
+        /// </summary>
+        /// <remarks>
+        /// A part normally supplies one link, which the leg chain repeats for each further one. A model
+        /// drawn as a complete leg cannot be repeated — it would give the leg twice over — so the chain
+        /// skins that single model across its links instead, and bends it at the knee the artist drew.
+        /// </remarks>
+        public readonly bool WholeLimb;
+
+        /// <summary>
+        /// Whether the part has a socket at its far end that something can be fitted into.
+        /// </summary>
+        /// <remarks>
+        /// True of legs and arms, which end in an ankle or a wrist. A foot is then a part in its own
+        /// right, so the same leg can walk on a hoof, a paw or a hand, and a new foot costs one model
+        /// rather than one model per leg it could go on.
+        /// </remarks>
+        public readonly bool AcceptsFitting;
+
+        /// <summary>What goes into the socket unless the player says otherwise. Zero for a part with no socket.</summary>
+        public readonly int DefaultFittingId;
+
         public PartRule(int partId, PartCategory category, AttachmentSite allowedSites, bool mirrorCapable,
-            PartStatContribution stats, int cost = 0, LegSpec leg = default, float skinOffset = 0f)
+            PartStatContribution stats, int cost = 0, LegSpec leg = default, float skinOffset = 0f,
+            bool wholeLimb = false, bool acceptsFitting = false, int defaultFittingId = 0)
         {
+            AcceptsFitting = acceptsFitting;
+            DefaultFittingId = defaultFittingId;
             SkinOffset = skinOffset;
             PartId = partId;
             Category = category;
@@ -34,6 +60,7 @@ namespace Leeway.Creature.Domain
             Stats = stats;
             Cost = cost;
             Leg = leg;
+            WholeLimb = wholeLimb;
         }
     }
 

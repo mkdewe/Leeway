@@ -47,6 +47,13 @@ namespace Leeway.CreatureEditor
         [Header("Knockdown")]
         [SerializeField] private CreatureRagdoll _ragdoll;
 
+        [Tooltip("The PuppetMaster body. When one is assigned it replaces the ragdoll above: the carcass " +
+                 "is then physical the whole time rather than only once it has been knocked over.")]
+        [SerializeField] private CreaturePuppet _puppet;
+
+        [Tooltip("The paintable skin. The creature wears in the game whatever was painted on it in the editor.")]
+        [SerializeField] private CreatureSkinCanvas _skinCanvas;
+
         [Tooltip("How long the creature lies down before the server stands it back up.")]
         [SerializeField] private float _knockdownSeconds = 2f;
 
@@ -437,6 +444,12 @@ namespace Leeway.CreatureEditor
 
         private void ApplyKnockdownVisuals(KnockdownState state)
         {
+            if (_puppet != null)
+            {
+                ApplyKnockdownToPuppet(state);
+                return;
+            }
+
             if (_ragdoll == null) return;
 
             if (state.IsSprawled && !_ragdoll.IsActive)
@@ -464,6 +477,39 @@ namespace Leeway.CreatureEditor
                 Locomotion?.ResetLean();
 
                 _ragdoll.BlendToBindPose();
+                Locomotion?.Resume();
+            }
+        }
+
+        /// <summary>
+        /// The same knockdown, told to a puppet instead of to the ragdoll.
+        /// </summary>
+        /// <remarks>
+        /// <para>The difference is what has to be switched on. The ragdoll had to be woken up, because
+        /// it spent its life kinematic; the puppet is already physical and only has to be let off its
+        /// animated pose — and pulled back onto it to get up.</para>
+        ///
+        /// <para>The server's verdict still rules. A puppet can go down by itself, from a collision the
+        /// physics decided was hard enough, but what the other players see is this: the state that
+        /// travelled over the network, applied here.</para>
+        /// </remarks>
+        private void ApplyKnockdownToPuppet(KnockdownState state)
+        {
+            if (state.IsSprawled && !_puppet.IsDown)
+            {
+                _puppet.KnockDown(state.Impulse, state.HitBoneIndex);
+
+                // The step cycle dies with the body. Without this, IK would keep planting the feet on the
+                // ground, so a fallen creature would stand on straight legs.
+                Locomotion?.Suspend();
+                return;
+            }
+
+            if (!state.IsSprawled && _puppet.IsDown)
+            {
+                Stand(state.IsRising ? state.Landing : transform.position);
+                Locomotion?.ResetLean();
+                _puppet.StandUp();
                 Locomotion?.Resume();
             }
         }
@@ -562,10 +608,21 @@ namespace Leeway.CreatureEditor
 
             if (TryGetComponent(out Rigidbody rootBody)) rootBody.mass = _stats.Mass;
 
-            // The ragdoll is recreated along with the rig: bones do not survive a rebuild, so the old
-            // chain of bodies would hang off destroyed objects.
-            if (_ragdoll != null)
+            // The physical body is recreated along with the rig: bones do not survive a rebuild, so the
+            // old chain of bodies would hang off destroyed objects.
+            //
+            // The puppet takes precedence where there is one. The two are alternatives, not layers:
+            // both put rigid bodies on the same bones, and running them together would have two
+            // physical skeletons fighting over one carcass.
+            if (_puppet != null)
+                _puppet.Rebuild(_built, genome, _stats.Mass);
+            else if (_ragdoll != null)
                 _ragdoll.Build(_built, rootBody, _locomotionCollider, _stats.Mass, LayerMask.NameToLayer(RagdollLayerName));
+
+            // The skin is a texture on the renderer that has just been replaced. It carries its own
+            // paint across the rebuild; what it cannot know about is paint that has not arrived over the
+            // network yet, which CreatureSkinNetwork lays on afterwards.
+            if (_skinCanvas != null) _skinCanvas.Rebuild(_built, genome, Rules);
 
             BodyRebuilt?.Invoke(genome, _stats);
         }

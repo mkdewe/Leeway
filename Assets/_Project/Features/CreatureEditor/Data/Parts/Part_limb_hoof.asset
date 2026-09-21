@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89edc8a3957d04488699da6f3478fa0, type: 3}
+  m_Name: Part_limb_hoof
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
+  <PartKey>k__BackingField: limb.hoof
+  <DisplayName>k__BackingField: Hoof
+  <Category>k__BackingField: 6
+  <AllowedSites>k__BackingField: 0
+  <MirrorCapable>k__BackingField: 0
+  <Prefab>k__BackingField: {fileID: 6292565427022325619, guid: 2efe8e15f061eaf419cd16b6abec6cac, type: 3}
+  <SkinOffset>k__BackingField: 0
+  <Stats>k__BackingField:
+    HpBonus: 0
+    SpeedBonus: 0.4
+    DamageBonus: 0
+    SenseRadiusBonus: 0
+    MassKg: 0.5
+  <BendPoints>k__BackingField: 2
+  <WholeLimb>k__BackingField: 0
+  <SegmentLength>k__BackingField: 0.22
+  <AcceptsFitting>k__BackingField: 0
+  <DefaultFitting>k__BackingField: {fileID: 0}
+  <Cost>k__BackingField: 12
+  _cachedPartId: -609348391

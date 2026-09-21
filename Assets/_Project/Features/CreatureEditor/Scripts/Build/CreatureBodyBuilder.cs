@@ -34,7 +34,8 @@ namespace Leeway.CreatureEditor
 
             SkinnedMeshRenderer renderer = CreateRenderer(root, genome, mesh, bones, settings);
 
-            CreaturePartInstance[] parts = CreaturePartInstantiator.Instantiate(genome, bones, catalog);
+            CreaturePartInstance[] parts = CreaturePartInstantiator.Instantiate(genome, bones, catalog,
+                settings != null ? settings.SkinPalette : null);
 
             return new BuiltCreatureBody(armature, bones, renderer, mesh, parts, stats);
         }
@@ -64,21 +65,24 @@ namespace Leeway.CreatureEditor
             if (settings != null && settings.BodyMaterial != null)
             {
                 renderer.sharedMaterial = settings.BodyMaterial;
-                ApplyGenomeColors(renderer, genome);
+                ApplyGenomeSkin(renderer, genome, settings.SkinPalette);
             }
 
             return renderer;
         }
 
-        /// <summary>The genome's colours go through a <see cref="MaterialPropertyBlock"/> so we do not multiply material instances.</summary>
-        private static void ApplyGenomeColors(Renderer renderer, CreatureGenome genome)
+        /// <summary>
+        /// The skin the genome asks for: its colour and its coat pattern.
+        /// </summary>
+        /// <remarks>
+        /// Through a <see cref="MaterialPropertyBlock"/> so the shared body material is not multiplied
+        /// into one instance per creature — with a dozen creatures on a map that is the difference
+        /// between one draw call's worth of material and a dozen.
+        /// </remarks>
+        private static void ApplyGenomeSkin(Renderer renderer, CreatureGenome genome, CreatureSkinPalette palette)
         {
-            var block = new MaterialPropertyBlock();
-            renderer.GetPropertyBlock(block);
-            block.SetColor(BaseColorId, genome.PrimaryColor);
-            renderer.SetPropertyBlock(block);
+            SkinPattern pattern = palette != null ? palette.Get(genome.BodyPattern) : null;
+            CreatureSkinPainter.Paint(renderer, genome.PrimaryColor, pattern);
         }
-
-        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
     }
 }

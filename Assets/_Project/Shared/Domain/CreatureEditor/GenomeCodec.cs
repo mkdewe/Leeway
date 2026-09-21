@@ -22,21 +22,40 @@ namespace Leeway.Creature.Domain
     /// Version 2 adds 3 B of reshaped leg (bend points + segment length) to the part record. A
     /// version 1 genome still loads — its parts then get the catalog's leg, which is exactly what they
     /// meant before the recording was introduced.
+    ///
+    /// Version 3 adds the paintwork: 1 B of body pattern to the header, and 3 B of colour plus 1 B of
+    /// pattern to the part record. Older genomes still load — their parts come out unpainted, which is
+    /// what they were: the creature's secondary colour and bare skin.
+    ///
+    /// Version 4 adds 4 B for the part fitted into this one's socket — the foot on a leg, the hand on
+    /// an arm. Older genomes still load with nothing fitted, which is what they had: limbs whose foot
+    /// was part of the limb's own model.
     /// </remarks>
     public static class GenomeCodec
     {
         public const byte Magic = 0x4C;
-        public const byte Version = 2;
+        public const byte Version = 4;
         public const byte MinSupportedVersion = 1;
 
-        public const int HeaderBytes = 10;
+        /// <summary>The size of the header in the current format version.</summary>
+        public const int HeaderBytes = 11;
+
+        /// <summary>The size of the header in versions 1 and 2 — without the body pattern.</summary>
+        public const int HeaderBytesV1 = 10;
+
         public const int VertebraBytes = 14;
 
         /// <summary>The size of a part record in the current format version.</summary>
-        public const int PartBytes = 23;
+        public const int PartBytes = 31;
 
         /// <summary>The size of a part record in version 1 — without the reshaped leg.</summary>
         public const int PartBytesV1 = 20;
+
+        /// <summary>The size of a part record in version 2 — with the leg, without the paintwork.</summary>
+        public const int PartBytesV2 = 23;
+
+        /// <summary>The size of a part record in version 3 — with the paintwork, without the fitted part.</summary>
+        public const int PartBytesV3 = 27;
 
         private const float PositionScale = 1000f;   // 1/1000 m
         private const float AngleScale = 100f;       // 1/100 degree
@@ -46,6 +65,9 @@ namespace Leeway.Creature.Domain
 
         private const byte FlagMirrored = 1 << 0;
         private const byte FlagLegOverride = 1 << 1;
+
+        /// <summary>Whether the part carries a colour of its own. Without it the three colour bytes mean nothing.</summary>
+        private const byte FlagTinted = 1 << 2;
 
         public static int ComputeSize(CreatureGenome genome)
         {
@@ -75,6 +97,8 @@ namespace Leeway.Creature.Domain
             buffer[offset++] = secondary.g;
             buffer[offset++] = secondary.b;
 
+            buffer[offset++] = genome.BodyPattern;
+
             for (int i = 0; i < genome.VertebraCount; i++)
             {
                 VertebraGene v = genome.GetVertebra(i);
@@ -95,6 +119,7 @@ namespace Leeway.Creature.Domain
                 byte flags = 0;
                 if (p.Mirrored) flags |= FlagMirrored;
                 if (p.HasLegOverride) flags |= FlagLegOverride;
+                if (p.HasTint) flags |= FlagTinted;
                 buffer[offset++] = flags;
 
                 // The leg is always written — the record has a fixed length, so the blob size can be
@@ -102,6 +127,18 @@ namespace Leeway.Creature.Domain
                 // solely by the flag.
                 buffer[offset++] = (byte)p.Leg.BendPoints;
                 WriteUInt16(buffer, ref offset, QuantizeUnsigned(p.Leg.SegmentLength, SegmentLengthScale));
+
+                // The paintwork, on the same terms: fixed length, meaning gated by the flag. The alpha
+                // is not sent — it is the flag, and a part is either painted or it is not.
+                Color32 tint = p.Tint;
+                buffer[offset++] = tint.r;
+                buffer[offset++] = tint.g;
+                buffer[offset++] = tint.b;
+                buffer[offset++] = p.PatternId;
+
+                // The fitted part, by the same hash every other part id travels as. Zero is "nothing
+                // fitted", so it needs no flag of its own.
+                WriteInt32(buffer, ref offset, p.FittingId);
             }
 
             return buffer;
@@ -111,7 +148,7 @@ namespace Leeway.Creature.Domain
         {
             genome = null;
 
-            if (blob == null || blob.Length < HeaderBytes)
+            if (blob == null || blob.Length < HeaderBytesV1)
             {
                 error = GenomeError.MalformedPayload;
                 return false;
@@ -140,13 +177,16 @@ namespace Leeway.Creature.Domain
             // length of the part record and whether it carries a reshaped leg.
             return version switch
             {
-                1 => TryDecodeParts(blob, PartBytesV1, withLeg: false, out genome, out error),
-                2 => TryDecodeParts(blob, PartBytes, withLeg: true, out genome, out error),
+                1 => TryDecodeParts(blob, HeaderBytesV1, PartBytesV1, withLeg: false, withSkin: false, withFitting: false, out genome, out error),
+                2 => TryDecodeParts(blob, HeaderBytesV1, PartBytesV2, withLeg: true, withSkin: false, withFitting: false, out genome, out error),
+                3 => TryDecodeParts(blob, HeaderBytes, PartBytesV3, withLeg: true, withSkin: true, withFitting: false, out genome, out error),
+                4 => TryDecodeParts(blob, HeaderBytes, PartBytes, withLeg: true, withSkin: true, withFitting: true, out genome, out error),
                 _ => Fail(GenomeError.UnsupportedVersion, out error),
             };
         }
 
-        private static bool TryDecodeParts(byte[] blob, int partBytes, bool withLeg, out CreatureGenome genome, out GenomeError error)
+        private static bool TryDecodeParts(byte[] blob, int headerBytes, int partBytes, bool withLeg, bool withSkin,
+            bool withFitting, out CreatureGenome genome, out GenomeError error)
         {
             genome = null;
 
@@ -156,14 +196,15 @@ namespace Leeway.Creature.Domain
             if (vertebraCount > GenomeLimits.MaxVertebrae) return Fail(GenomeError.TooManyVertebrae, out error);
             if (partCount > GenomeLimits.MaxParts) return Fail(GenomeError.TooManyParts, out error);
 
-            int expected = HeaderBytes + vertebraCount * VertebraBytes + partCount * partBytes;
+            int expected = headerBytes + vertebraCount * VertebraBytes + partCount * partBytes;
             if (blob.Length != expected) return Fail(GenomeError.MalformedPayload, out error);
 
             int offset = 4;
             var primary = new Color32(blob[offset++], blob[offset++], blob[offset++], 255);
             var secondary = new Color32(blob[offset++], blob[offset++], blob[offset++], 255);
+            byte bodyPattern = withSkin ? blob[offset++] : (byte)0;
 
-            var result = new CreatureGenome { PrimaryColor = primary, SecondaryColor = secondary };
+            var result = new CreatureGenome { PrimaryColor = primary, SecondaryColor = secondary, BodyPattern = bodyPattern };
 
             for (int i = 0; i < vertebraCount; i++)
             {
@@ -195,8 +236,26 @@ namespace Leeway.Creature.Domain
                 // The LegSpec constructor clamps both numbers to the allowed range, so a doctored blob
                 // cannot build a leg with two hundred links.
                 bool hasLeg = (flags & FlagLegOverride) != 0;
+                LegSpec leg = hasLeg ? new LegSpec(bendPoints, segmentLength) : default;
+
+                if (!withSkin)
+                {
+                    result.AddPart(new PartGene(partId, boneIndex, localPosition, localRotation, scale, mirrored, hasLeg, leg));
+                    continue;
+                }
+
+                // Alpha carries the flag, not the blob: a part that was never painted has to come out
+                // unpainted rather than opaque black.
+                byte r = blob[offset++], g = blob[offset++], b = blob[offset++];
+                byte patternId = blob[offset++];
+                Color32 tint = (flags & FlagTinted) != 0 ? new Color32(r, g, b, 255) : default;
+
+                // A genome written before limbs had sockets comes out with nothing fitted — which is
+                // the truth about it: its feet were part of the limb's own model.
+                int fittingId = withFitting ? ReadInt32(blob, ref offset) : 0;
+
                 result.AddPart(new PartGene(partId, boneIndex, localPosition, localRotation, scale, mirrored,
-                    hasLeg, hasLeg ? new LegSpec(bendPoints, segmentLength) : default));
+                    hasLeg, leg, tint, patternId, fittingId));
             }
 
             genome = result;

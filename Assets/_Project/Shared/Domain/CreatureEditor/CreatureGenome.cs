@@ -21,6 +21,17 @@ namespace Leeway.Creature.Domain
         public Color32 PrimaryColor { get; set; } = new Color32(120, 180, 110, 255);
         public Color32 SecondaryColor { get; set; } = new Color32(60, 90, 60, 255);
 
+        /// <summary>
+        /// The coat pattern on the skin, as an index into the skin palette. <c>0</c> is bare skin.
+        /// </summary>
+        /// <remarks>
+        /// The body carries one pattern, while every part carries its own (<see cref="PartGene.PatternId"/>):
+        /// the skin is a single mesh with a single renderer, so painting one vertebra differently from
+        /// its neighbour would take vertex colours and a shader of our own — a bigger change than the
+        /// markings are worth today.
+        /// </remarks>
+        public byte BodyPattern { get; set; }
+
         public IReadOnlyList<VertebraGene> Vertebrae => _vertebrae;
         public IReadOnlyList<PartGene> Parts => _parts;
 
@@ -67,6 +78,7 @@ namespace Leeway.Creature.Domain
             {
                 PrimaryColor = PrimaryColor,
                 SecondaryColor = SecondaryColor,
+                BodyPattern = BodyPattern,
             };
             return clone;
         }
@@ -82,6 +94,7 @@ namespace Leeway.Creature.Domain
             _parts.AddRange(other._parts);
             PrimaryColor = other.PrimaryColor;
             SecondaryColor = other.SecondaryColor;
+            BodyPattern = other.BodyPattern;
         }
     }
 }

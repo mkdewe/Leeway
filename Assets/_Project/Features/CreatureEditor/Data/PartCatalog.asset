@@ -13,23 +13,17 @@ MonoBehaviour:
   m_Name: PartCatalog
   m_EditorClassIdentifier: Assembly-CSharp::Leeway.CreatureEditor.CreaturePartCatalog
   _parts:
-  - {fileID: 11400000, guid: 61fa9937457e16e4bab0b9dd0879d922, type: 2}
   - {fileID: 11400000, guid: c4340ae84158b2c46b0c121b3c5a7362, type: 2}
   - {fileID: 11400000, guid: 3bbd3b95de46bc840b9ebd58e6736581, type: 2}
   - {fileID: 11400000, guid: 34b95dc84b2fca643aa649de05a6532b, type: 2}
-  - {fileID: 11400000, guid: f95936d8c31bc5f4daa97167fb253628, type: 2}
-  - {fileID: 11400000, guid: dc197327c716f8440ba16f283c08cbb3, type: 2}
-  - {fileID: 11400000, guid: b45df141a959f75438512f7163a1af74, type: 2}
   - {fileID: 11400000, guid: ab8bbd4146d6d5347954cb7f3f1a2e24, type: 2}
-  - {fileID: 11400000, guid: 099da6dd171e5db478c18574bcb7b3a9, type: 2}
-  - {fileID: 11400000, guid: 304bf9395fa6ee34b90da1586709feb9, type: 2}
   - {fileID: 11400000, guid: 108a42367a44766428a90143bc0c86c0, type: 2}
-  - {fileID: 11400000, guid: 1afbcb2024875c74f8d7a812b04c5d54, type: 2}
   - {fileID: 11400000, guid: 0a2c9830a62566f4587c45851025b335, type: 2}
-  - {fileID: 11400000, guid: e03d5154ac66b3449bd1f4b0e5c16660, type: 2}
   - {fileID: 11400000, guid: e16ab33e892c3894fb4b256123253d50, type: 2}
-  - {fileID: 11400000, guid: e6a5a3e6d24477b49b03a424e07357f9, type: 2}
-  - {fileID: 11400000, guid: 5f8e4e02bdd15b04382c62a85227585d, type: 2}
-  - {fileID: 11400000, guid: efe5e89179b5af54792f8c9c81cb56ee, type: 2}
+  - {fileID: 11400000, guid: faf2aedc84c4ad143b726b258b5b1744, type: 2}
+  - {fileID: 11400000, guid: 0cc6f24672f99224393025c65081b54d, type: 2}
+  - {fileID: 11400000, guid: 14929d0adc09a5b40b0d919696026130, type: 2}
+  - {fileID: 11400000, guid: 2e13e8d75f4b5694ead597c16e1f5885, type: 2}
+  - {fileID: 11400000, guid: 43422ba3c7be8894babad2e77640b043, type: 2}
   _vertebraCost: 10
   _budget: 1000000

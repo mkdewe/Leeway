@@ -47,9 +47,16 @@ namespace Leeway.Tests
 
             byte[] current = GenomeCodec.Encode(source);
 
-            int headerAndSpine = GenomeCodec.HeaderBytes + 2 * GenomeCodec.VertebraBytes;
-            var legacy = new byte[headerAndSpine + GenomeCodec.PartBytesV1];
-            System.Array.Copy(current, legacy, legacy.Length);
+            // The old header stops before the body pattern, and the old part record before the leg and
+            // the paintwork — so the legacy blob is the current one with that byte dropped and the
+            // records cut short.
+            int spineBytes = 2 * GenomeCodec.VertebraBytes;
+            var legacy = new byte[GenomeCodec.HeaderBytesV1 + spineBytes + GenomeCodec.PartBytesV1];
+
+            System.Array.Copy(current, 0, legacy, 0, GenomeCodec.HeaderBytesV1);
+            System.Array.Copy(current, GenomeCodec.HeaderBytes, legacy, GenomeCodec.HeaderBytesV1,
+                spineBytes + GenomeCodec.PartBytesV1);
+
             legacy[1] = 1;
 
             Assert.IsTrue(GenomeCodec.TryDecode(legacy, out CreatureGenome decoded, out GenomeError error), $"the legacy genome did not load: {error}");
@@ -58,6 +65,64 @@ namespace Leeway.Tests
             Assert.IsTrue(decoded.GetPart(0).Mirrored);
             Assert.IsFalse(decoded.GetPart(0).HasLegOverride,
                 "A genome from before the leg record should take the build from the catalog, not guess it.");
+        }
+
+        [Test]
+        public void RoundTrip_PreservesThePaintwork()
+        {
+            var source = new CreatureGenome { BodyPattern = 3 };
+            source.AddVertebra(new VertebraGene(Vector3.zero, Quaternion.identity, 0.3f));
+            source.AddVertebra(new VertebraGene(new Vector3(0f, 0f, -0.35f), Quaternion.identity, 0.3f));
+
+            source.AddPart(PartGene.Default(1234, 1, mirrored: true)
+                .WithTint(new Color32(200, 40, 90, 255))
+                .WithPattern(2));
+            source.AddPart(PartGene.Default(5678, 0, mirrored: false));
+
+            byte[] blob = GenomeCodec.Encode(source);
+            Assert.IsTrue(GenomeCodec.TryDecode(blob, out CreatureGenome decoded, out GenomeError error), $"decoding failed: {error}");
+
+            Assert.AreEqual(3, decoded.BodyPattern, "The skin's pattern has to survive the trip over the wire.");
+
+            PartGene painted = decoded.GetPart(0);
+            Assert.IsTrue(painted.HasTint);
+            Assert.AreEqual(200, painted.Tint.r);
+            Assert.AreEqual(40, painted.Tint.g);
+            Assert.AreEqual(90, painted.Tint.b);
+            Assert.AreEqual(2, painted.PatternId);
+
+            PartGene bare = decoded.GetPart(1);
+            Assert.IsFalse(bare.HasTint, "A part nobody painted must not arrive painted black.");
+            Assert.AreEqual(0, bare.PatternId);
+        }
+
+        [Test]
+        public void Decode_AcceptsVersionTwoBlobAndLeavesThePartsUnpainted()
+        {
+            // The format from before painting: same header minus the body pattern, same part record
+            // minus the colour and the coat.
+            var source = new CreatureGenome();
+            source.AddVertebra(new VertebraGene(Vector3.zero, Quaternion.identity, 0.3f));
+            source.AddVertebra(new VertebraGene(new Vector3(0f, 0f, -0.35f), Quaternion.identity, 0.3f));
+            source.AddPart(PartGene.Default(1234, 1, mirrored: true).WithLeg(new LegSpec(2, 0.24f)));
+
+            byte[] current = GenomeCodec.Encode(source);
+
+            int spineBytes = 2 * GenomeCodec.VertebraBytes;
+            var legacy = new byte[GenomeCodec.HeaderBytesV1 + spineBytes + GenomeCodec.PartBytesV2];
+
+            System.Array.Copy(current, 0, legacy, 0, GenomeCodec.HeaderBytesV1);
+            System.Array.Copy(current, GenomeCodec.HeaderBytes, legacy, GenomeCodec.HeaderBytesV1,
+                spineBytes + GenomeCodec.PartBytesV2);
+
+            legacy[1] = 2;
+
+            Assert.IsTrue(GenomeCodec.TryDecode(legacy, out CreatureGenome decoded, out GenomeError error), $"the version 2 genome did not load: {error}");
+
+            Assert.AreEqual(0, decoded.BodyPattern);
+            Assert.IsFalse(decoded.GetPart(0).HasTint, "A creature from before painting has to come out unpainted, not black.");
+            Assert.IsTrue(decoded.GetPart(0).HasLegOverride, "The reshaped leg has to survive the older format.");
+            Assert.AreEqual(2, decoded.GetPart(0).Leg.BendPoints);
         }
 
         [Test]

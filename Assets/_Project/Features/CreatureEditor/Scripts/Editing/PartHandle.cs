@@ -41,14 +41,29 @@ namespace Leeway.CreatureEditor
 
             _sharedBlock ??= new MaterialPropertyBlock();
             for (int i = 0; i < _renderers.Count; i++)
-            {
-                // We read the base colour from the material rather than assuming white — otherwise
-                // removing the highlight would brighten a part that had a tint of its own.
-                Material material = _renderers[i].sharedMaterial;
-                _normalColors.Add(material != null && material.HasProperty(BaseColorId)
-                    ? material.GetColor(BaseColorId)
-                    : Color.white);
-            }
+                _normalColors.Add(NormalColorOf(_renderers[i]));
+        }
+
+        /// <summary>
+        /// The colour to go back to when the highlight comes off.
+        /// </summary>
+        /// <remarks>
+        /// The property block comes first, and the material only as a fallback: parts are painted in
+        /// the creature's colour through a block (<c>CreaturePartInstantiator.Tint</c>), and reading
+        /// the material instead would repaint the part in the model's authored colour the first time
+        /// the cursor left it.
+        /// </remarks>
+        private static Color NormalColorOf(Renderer renderer)
+        {
+            if (renderer == null) return Color.white;
+
+            renderer.GetPropertyBlock(_sharedBlock);
+            if (_sharedBlock.HasColor(BaseColorId)) return _sharedBlock.GetColor(BaseColorId);
+
+            Material material = renderer.sharedMaterial;
+            return material != null && material.HasProperty(BaseColorId)
+                ? material.GetColor(BaseColorId)
+                : Color.white;
         }
 
         public void SetHighlighted(bool highlighted)

@@ -38,7 +38,8 @@ namespace Leeway.CreatureEditor
     /// </remarks>
     public static class CreaturePartInstantiator
     {
-        public static CreaturePartInstance[] Instantiate(CreatureGenome genome, Transform[] bones, CreaturePartCatalog catalog)
+        public static CreaturePartInstance[] Instantiate(CreatureGenome genome, Transform[] bones, CreaturePartCatalog catalog,
+            CreatureSkinPalette palette = null)
         {
             var instances = new List<CreaturePartInstance>(genome.PartCount * 2);
             if (catalog == null) return instances.ToArray();
@@ -65,12 +66,12 @@ namespace Leeway.CreatureEditor
                 Transform bone = bones[gene.BoneIndex];
 
                 instances.Add(new CreaturePartInstance(
-                    Spawn(genome, definition, gene, bone, mirrored: false), i, mirrored: false));
+                    Spawn(genome, definition, gene, bone, catalog, palette, mirrored: false), i, mirrored: false));
 
                 if (gene.Mirrored && definition.MirrorCapable)
                 {
                     instances.Add(new CreaturePartInstance(
-                        Spawn(genome, definition, gene, bone, mirrored: true), i, mirrored: true));
+                        Spawn(genome, definition, gene, bone, catalog, palette, mirrored: true), i, mirrored: true));
                 }
             }
 
@@ -84,20 +85,32 @@ namespace Leeway.CreatureEditor
         /// the right-hand side.
         /// </summary>
         private static GameObject Spawn(CreatureGenome genome, CreaturePartDefinition definition, in PartGene gene,
-            Transform bone, bool mirrored)
+            Transform bone, CreaturePartCatalog catalog, CreatureSkinPalette palette, bool mirrored)
         {
-            PartGene effective = mirrored ? gene.WithLocalPosition(MirrorAcrossYZ(gene.LocalPosition)) : gene;
+            // The attachment point and the player's own rotation are both reflected, and for different
+            // reasons. The point, so the part lands on its own side of the body. The rotation, because
+            // it is a correction the player made to <b>one</b> leg: splaying the right leg outwards has
+            // to splay the left one outwards too, not send both the same way round the world. Without
+            // this a mirrored pair turned in parallel, like a pair of legs on a turning wheel.
+            PartGene effective = mirrored
+                ? gene.WithLocalPosition(MirrorAcrossYZ(gene.LocalPosition)).WithLocalRotation(MirrorAcrossYZ(gene.LocalRotation))
+                : gene;
 
             // Legs aim their foot at the ground, every other part aims away from the body.
             bool groundAligned = definition.Category == PartCategory.Locomotion;
 
-            // The rotation already comes out right for this side of the body — a normal computed from
-            // the mirrored position points left on its own. Mirroring the quaternion again would undo it.
+            // The <b>pose</b>, on the other hand, needs no mirroring: it is resolved from scratch from
+            // the mirrored attachment point, so the normal it is built on already points left.
             PartPose pose = PartPlacement.Resolve(genome, effective, definition.SkinOffset, groundAligned);
             Quaternion rotation = PartPlacement.FinalRotation(pose, effective);
 
             GameObject instance = Object.Instantiate(definition.Prefab, bone);
             instance.name = mirrored ? $"{definition.PartKey}_L" : definition.PartKey;
+
+            // The foot goes in before anything else is done to the limb: it has to be mirrored with it,
+            // painted with it and — for a leg — skinned onto the same chain. Adding it afterwards would
+            // leave a right-hand hoof on a left leg and an unpainted foot under a painted limb.
+            FitInto(instance, genome, gene, catalog);
 
             // A part's geometry does not have to start at its root — when it does not, the part hovers
             // above the skin by exactly the empty space in front of it in the prefab. We seat it against
@@ -111,7 +124,80 @@ namespace Leeway.CreatureEditor
             // the lighting and gives colliders turned inside out.
             instance.transform.localScale = Vector3.one * gene.Scale;
 
+            // The left-hand piece is a real reflection, not a second copy of the right one. The models
+            // are right-hand — a right arm, a right hind leg — so without this a creature grows two
+            // right hands, which reads as wrong long before anyone works out why.
+            if (mirrored) MirroredMeshCache.Apply(instance);
+
+            Paint(instance, genome, gene, palette);
+
             return instance;
+        }
+
+        /// <summary>
+        /// Seats the part fitted into this limb's socket — the foot on a leg, the hand on an arm.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>The foot becomes part of the limb's own object</b>, not a separate attachment on the
+        /// bone. Everything downstream then treats the limb as one piece for free: the leg chain adopts
+        /// it along with the rest of the model and skins it onto the shank, so the foot swings with the
+        /// leg; mirroring reflects it; the paint reaches it.</para>
+        ///
+        /// <para>The socket is an empty object in the limb's prefab, so where the foot sits — and which
+        /// way it points — is decided by whoever built the limb, not by a rule in code.</para>
+        /// </remarks>
+        private static void FitInto(GameObject limb, CreatureGenome genome, in PartGene gene, CreaturePartCatalog catalog)
+        {
+            if (!gene.HasFitting || catalog == null) return;
+
+            Transform socket = FindSocket(limb.transform);
+            if (socket == null)
+            {
+                Debug.LogWarning($"Part \"{limb.name}\" has something fitted but no \"{CreaturePartDefinition.SocketName}\" — skipping the fitting.");
+                return;
+            }
+
+            if (!catalog.TryGetPart(gene.FittingId, out CreaturePartDefinition fitting) || fitting == null || fitting.Prefab == null)
+            {
+                // A catalog without that foot degrades to a limb ending in a stump, exactly as an
+                // unknown part degrades to no part at all.
+                Debug.LogWarning($"No fitting with id {gene.FittingId} in catalog \"{catalog.name}\" — the limb keeps its stump.");
+                return;
+            }
+
+            GameObject instance = Object.Instantiate(fitting.Prefab, socket);
+            instance.name = fitting.PartKey;
+            instance.transform.localPosition = Vector3.zero;
+            instance.transform.localRotation = Quaternion.identity;
+            instance.transform.localScale = Vector3.one;
+        }
+
+        /// <summary>The socket, wherever it sits in the prefab's hierarchy.</summary>
+        private static Transform FindSocket(Transform limb)
+        {
+            foreach (Transform node in limb.GetComponentsInChildren<Transform>(true))
+                if (node.name == CreaturePartDefinition.SocketName) return node;
+
+            return null;
+        }
+
+        /// <summary>
+        /// Paints the part: the colour the player gave it, or the creature's own, and its coat pattern.
+        /// </summary>
+        /// <remarks>
+        /// <para>Part models arrive in whatever colour they were authored in — a pink arm next to a
+        /// lime tentacle. That reads as a pile of spare parts rather than one animal, so the colour
+        /// comes from the genome: the part's own <see cref="PartGene.Tint"/> when the player painted
+        /// it, and <see cref="CreatureGenome.SecondaryColor"/> when they did not.</para>
+        ///
+        /// <para>Genome-driven, therefore identical on the server and on every client — the paintwork
+        /// is part of the same deterministic build as the geometry, and nothing about it is sent
+        /// separately.</para>
+        /// </remarks>
+        private static void Paint(GameObject instance, CreatureGenome genome, in PartGene gene, CreatureSkinPalette palette)
+        {
+            SkinPattern pattern = palette != null ? palette.Get(gene.PatternId) : null;
+            CreatureSkinPainter.Paint(instance, gene.ResolveTint(genome.SecondaryColor), pattern);
         }
 
         /// <summary>

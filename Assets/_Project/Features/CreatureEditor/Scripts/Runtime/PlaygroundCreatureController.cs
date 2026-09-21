@@ -95,11 +95,19 @@ namespace Leeway.CreatureEditor
         /// <summary>The horizontal velocity from the previous step — the real body acceleration is derived from it.</summary>
         private Vector3 _previousPlanarVelocity;
 
+        /// <summary>Movement done by the muscles, when the creature has it. Otherwise the capsule does it.</summary>
+        private CreatureMuscleLocomotion _muscles;
+
+        /// <summary>Where a creature with no player behind it wants to go, and how hard. See <see cref="ServerDrive"/>.</summary>
+        private float _aiYaw;
+        private float _aiThrottle;
+
         private void Awake()
         {
             _rb = GetComponent<Rigidbody>();
             TryGetComponent(out _shover);
             TryGetComponent(out _suspension);
+            TryGetComponent(out _muscles);
             _rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
         }
@@ -189,7 +197,42 @@ namespace Leeway.CreatureEditor
                 });
             }
             else if (IsServerInitialized)
-                Move(default);
+            {
+                // A creature with nobody at the controls is still driven through this same step, so an
+                // animal walks with the traction, the suspension and the toppling a player's creature
+                // walks with. With nothing driving it, the data is empty and the step is the old one.
+                Move(new PlaygroundMoveData
+                {
+                    Forward = _aiThrottle,
+                    Strafe = 0f,
+                    CameraYaw = _aiYaw,
+                });
+            }
+        }
+
+        /// <summary>
+        /// Points a creature that has no player behind it.
+        /// </summary>
+        /// <remarks>
+        /// <para>Deliberately the same door the player's input goes through: a heading and a throttle,
+        /// fed into the replicated step. The AI therefore cannot do anything a player could not — it
+        /// cannot turn faster than the genome allows, cannot outrun its own legs and topples in a
+        /// corner it takes too fast.</para>
+        ///
+        /// <para>A throttle of zero leaves the heading alone, because the steering treats empty input
+        /// as "no opinion" and holds the current one. An animal that wants to stand and keep facing
+        /// something therefore asks for a throttle small enough not to travel — see
+        /// <c>NpcCreatureAgent</c>.</para>
+        /// </remarks>
+        /// <param name="heading">Where it wants to face, in world space. The vertical part is ignored.</param>
+        /// <param name="throttle">0 to 1 — how much of its top speed to use.</param>
+        [Server]
+        public void ServerDrive(Vector3 heading, float throttle)
+        {
+            heading.y = 0f;
+
+            if (heading.sqrMagnitude > 1e-6f) _aiYaw = LocomotionSteering.YawOf(heading);
+            _aiThrottle = Mathf.Clamp01(throttle);
         }
 
         public override void CreateReconcile()
@@ -241,6 +284,18 @@ namespace Leeway.CreatureEditor
 
             Quaternion targetRotation = Quaternion.Euler(0f, _yaw, 0f);
             Vector3 direction = targetRotation * Vector3.forward * throttle;
+
+            // Muscle-driven movement is the server's business alone: a jointed body cannot be replayed,
+            // so the owner's copy of this step does nothing and waits for the correction. What the
+            // client loses is a round trip of responsiveness; what it gains is a creature that is moved
+            // by being pushed rather than by being told where to be.
+            if (_muscles != null && _muscles.IsActive)
+            {
+                if (IsServerInitialized)
+                    _muscles.Drive(direction, Stats.MoveSpeed, GenomeStatRules.StandHeight(Genome, Rules), delta);
+
+                return;
+            }
 
             // The suspension runs inside replication, so reconciliation replays it along with the rest of
             // the step. Outside that loop the client would drift away from the server.

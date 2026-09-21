@@ -45,6 +45,9 @@ namespace Leeway.CreatureEditor
             Apply();
         }
 
+        /// <summary>Whether the play camera still has something to follow. False means nobody is on screen.</summary>
+        public bool HasPlayTarget => _playCamera != null && _playCamera.Follow != null;
+
         /// <summary>Attaches the play-mode camera to the local player's creature; <c>null</c> detaches it.</summary>
         public void SetPlayTarget(Transform target)
         {

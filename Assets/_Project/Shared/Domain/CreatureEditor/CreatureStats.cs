@@ -284,9 +284,15 @@ namespace Leeway.Creature.Domain
 
             for (int i = 0; i < genome.PartCount; i++)
             {
-                if (!rules.TryGetRule(genome.GetPart(i).PartId, out PartRule rule)) continue;
+                PartGene gene = genome.GetPart(i);
+                if (!rules.TryGetRule(gene.PartId, out PartRule rule)) continue;
 
                 partTotals += rule.Stats;
+
+                // The foot counts too: a hoof is heavier than a paw and a clawed hand hits harder
+                // than either, and those differences are the whole reason to choose between them.
+                if (gene.HasFitting && rules.TryGetRule(gene.FittingId, out PartRule fitting))
+                    partTotals += fitting.Stats;
 
                 if (!TryResolveLeg(genome, rules, i, out LegSpec leg, out _)) continue;
 

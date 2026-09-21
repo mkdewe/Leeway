@@ -28,7 +28,7 @@ namespace Leeway.CreatureEditor
 
             if (genome == null || body?.PartInstances == null) return;
 
-            var hips = new List<(Transform hip, LegSpec spec, int geneIndex)>();
+            var hips = new List<(Transform hip, LegSpec spec, int geneIndex, bool wholeLimb)>();
 
             foreach (CreaturePartInstance instance in body.PartInstances)
             {
@@ -36,15 +36,22 @@ namespace Leeway.CreatureEditor
 
                 // The leg is resolved exactly the way the stats resolve it: the player's reshaping
                 // takes precedence over the catalog.
-                if (!GenomeStatRules.TryResolveLeg(genome, rules, instance.GeneIndex, out LegSpec leg, out _)) continue;
+                if (!GenomeStatRules.TryResolveLeg(genome, rules, instance.GeneIndex, out LegSpec leg, out PartGene gene)) continue;
+
+                // Whether the model is the whole limb comes from the catalog, never from the gene: it
+                // is a fact about the art, not a choice the player makes.
+                bool wholeLimb = rules.TryGetRule(gene.PartId, out PartRule rule) && rule.WholeLimb;
 
                 // The part instance becomes the hip: it sits on the bone, so the chain grows straight
                 // out of the attachment point and travels with the carcass.
-                hips.Add((instance.Object.transform, leg, instance.GeneIndex));
+                hips.Add((instance.Object.transform, leg, instance.GeneIndex, wholeLimb));
             }
 
             for (int i = 0; i < hips.Count; i++)
-                legs.Add(new ProceduralLeg(hips[i].spec, hips[i].hip, GaitProfile.PhaseOffset(i, hips.Count), hips[i].geneIndex));
+            {
+                legs.Add(new ProceduralLeg(hips[i].spec, hips[i].hip, GaitProfile.PhaseOffset(i, hips.Count),
+                    hips[i].geneIndex, hips[i].wholeLimb));
+            }
         }
 
         /// <summary>Tears down the legs and gives the parts their authored visuals back.</summary>

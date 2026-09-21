@@ -64,7 +64,19 @@ namespace Leeway.Creature.Domain
         public float RideHeight => Reach * StanceFactor;
 
         /// <summary>The fraction of the reach at which the leg holds the body at rest.</summary>
-        public const float StanceFactor = 0.82f;
+        /// <remarks>
+        /// A leg with no bend has no slack to give: its single link is one authored model, and standing
+        /// it at <see cref="BentStance"/> would not fold it — it would <b>squash the model</b> by the
+        /// same fraction, hoof and all. So a rigid leg stands almost straight, and what little is left
+        /// covers uneven ground.
+        /// </remarks>
+        public float StanceFactor => BendPoints == 0 ? RigidStance : BentStance;
+
+        /// <summary>The stance of a leg that can fold at a knee.</summary>
+        public const float BentStance = 0.82f;
+
+        /// <summary>The stance of a single-link leg — near full extension, see <see cref="StanceFactor"/>.</summary>
+        public const float RigidStance = 0.94f;
 
         /// <summary>
         /// The longest step this leg can take without lifting the foot off the ground.

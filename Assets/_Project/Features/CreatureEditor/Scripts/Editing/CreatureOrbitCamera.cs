@@ -37,6 +37,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("How fast the shot pulls towards the requested heading.")]
         [SerializeField] private float _damping = 14f;
 
+        [Tooltip("Extra room between the creature's silhouette and the lens, so a leg in mid-step does not brush it.")]
+        [SerializeField, Min(0f)] private float _clearanceMargin = 0.4f;
+
         private CinemachineFollow _follow;
         private float _yaw;
         private float _smoothedYaw;
@@ -61,7 +64,28 @@ namespace Leeway.CreatureEditor
             // the input frame of reference, to the creature's heading.
             _smoothedYaw = Mathf.LerpAngle(_smoothedYaw, _yaw, 1f - Mathf.Exp(-_damping * Time.deltaTime));
 
-            _follow.FollowOffset = Quaternion.Euler(0f, _smoothedYaw, 0f) * _baseOffset;
+            _follow.FollowOffset = Clear(Quaternion.Euler(0f, _smoothedYaw, 0f) * _baseOffset);
+        }
+
+        /// <summary>
+        /// Pushes the shot out along its own direction until the whole creature is in front of the lens.
+        /// </summary>
+        /// <remarks>
+        /// <para>The offset is authored for the starter creature; what the player builds grows past it,
+        /// and then a leg swinging through its step passes across the lens and the camera shows the
+        /// model from the inside.</para>
+        ///
+        /// <para>We stretch the offset instead of replacing it, so the shot keeps its authored angle —
+        /// the camera stays as high above the creature relative to its distance as it was set to be,
+        /// and only backs away.</para>
+        /// </remarks>
+        private Vector3 Clear(Vector3 offset)
+        {
+            float required = CameraClearance.RequiredDistance(_playCamera != null ? _playCamera.Follow : null,
+                _playCamera != null ? _playCamera.Lens.NearClipPlane : 0.1f, _clearanceMargin);
+
+            float distance = offset.magnitude;
+            return distance > 0.0001f && distance < required ? offset * (required / distance) : offset;
         }
     }
 }

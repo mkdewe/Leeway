@@ -17,6 +17,13 @@ GameObject:
   - component: {fileID: 9186633733382139025}
   - component: {fileID: 2887665305661443225}
   - component: {fileID: 8603599901331745805}
+  - component: {fileID: 1985670080920305521}
+  - component: {fileID: 2463574204320761222}
+  - component: {fileID: 4070092846944696080}
+  - component: {fileID: 2908889738253995927}
+  - component: {fileID: 2120812884369215191}
+  - component: {fileID: 5538058752377725298}
+  - component: {fileID: 6353701117271416799}
   m_Layer: 9
   m_Name: PlaygroundCreature
   m_TagString: Untagged
@@ -184,13 +191,19 @@ MonoBehaviour:
     LeanTolerance: 1.5
   _locomotionCollider: {fileID: 4647945179913574035}
   _ragdoll: {fileID: 7754120928889824075}
+  _puppet: {fileID: 1985670080920305521}
+  _skinCanvas: {fileID: 2463574204320761222}
   _knockdownSeconds: 2
   _knockdownImpulseThreshold: 4
   _requireEditorPad: 1
   _acceleration: 6
   _braking: 14
   _orbitCamera: {fileID: 0}
-  _rolloverGraceSeconds: 0.06
+  _tipSeconds: 0.5
+  _tipRecoverySeconds: 0.35
+  _maxBankDegrees: 12
+  _tipDegrees: 38
+  _tipCollapse: 0.6
 --- !u!114 &7754120928889824075
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -246,6 +259,7 @@ MonoBehaviour:
     m_Bits: 1
   _footResponsiveness: 18
   _idleSpeed: 0.05
+  _leanResponsiveness: 220
 --- !u!114 &8603599901331745805
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -264,3 +278,154 @@ MonoBehaviour:
   _groundMask:
     serializedVersion: 2
     m_Bits: 1
+--- !u!114 &1985670080920305521
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37cd68c3c382b774abeef9a909bc5a5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePuppet
+  _settings:
+    _drag: 0.4
+    _angularDrag: 3
+    _colliderScale: 0.85
+    _swingLimitDegrees: 35
+    _twistLimitDegrees: 20
+    _pinWeight: 1
+    _muscleWeight: 1
+    _mappingWeight: 1
+    _muscleSpring: 2500
+    _muscleDamper: 40
+    _angularPinning: 1
+    _legMuscleMass: 0.4
+    _legColliderThickness: 0.18
+    _legPinWeight: 0.7
+    _collisionThreshold: 2
+    _knockOutDistance: 0.2
+    _getUpDelay: 2.5
+  _ragdollLayer: CreatureRagdoll
+  _controllerLayer: Creature
+  _locomotion: {fileID: 0}
+--- !u!114 &2463574204320761222
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6677f9013e85f14478e3b7c178f1a43c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinCanvas
+  _texelsPerMetre: 500
+  _minResolution: 256
+  _maxResolution: 2048
+  _paintableParts: 1
+  _partResolution: 128
+  _palette: {fileID: 11400000, guid: 16efbb01e99a5a24197e96e530e1b4f7, type: 2}
+--- !u!114 &4070092846944696080
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c693213b9baa284ba6a19ca946ae5e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinNetwork
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 632465243243150744}
+  _networkObjectCache: {fileID: 0}
+  _canvas: {fileID: 2463574204320761222}
+--- !u!114 &2908889738253995927
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0962255f58a71b249b9aca28c2d8a33b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePuppetPush
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 632465243243150744}
+  _networkObjectCache: {fileID: 0}
+  _deadzone: 0.05
+  _strength: 6
+  _maxSpeed: 6
+--- !u!114 &2120812884369215191
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd6a1570070f5784b9ad93f31a6cff49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureMuscleLocomotion
+  _enabled: 0
+  _acceleration: 26
+  _supportSpring: 90
+  _supportDamper: 12
+  _uprightTorque: 40
+  _maxDriveSpeed: 8
+  _maxFollowSpeed: 12
+  _teleportDistance: 1.5
+  _followStiffness: 6
+--- !u!114 &5538058752377725298
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9cb8fa7314fd12d4ba7c506051ac66b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureCombatant
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 632465243243150744}
+  _networkObjectCache: {fileID: 0}
+  _tuning:
+    ReachPadding: 0.35
+    UnarmedReach: 0.6
+    ArcDegrees: 110
+    BaseCooldown: 1.1
+    MinCooldown: 0.45
+    MaxCooldown: 2.6
+    ReferenceMass: 12
+    MassCooldownExponent: 0.35
+    ImpulsePerDamage: 0.7
+    UpwardBias: 0.25
+    UnarmedFactor: 0.45
+  _team: 0
+  _hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _forgiveness: 0.2
+--- !u!114 &6353701117271416799
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d92f7f326bead354ba064dadce77d0c9, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureAttackInput
+  _attackKey: 1

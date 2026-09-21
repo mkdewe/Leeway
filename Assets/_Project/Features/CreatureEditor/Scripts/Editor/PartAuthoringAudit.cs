@@ -191,18 +191,78 @@ namespace Leeway.CreatureEditor.Authoring
             }
         }
 
+        /// <summary>
+        /// How far the limb reaches once the foot the catalog fits by default is in its socket.
+        /// </summary>
+        /// <remarks>
+        /// Measured by actually assembling the thing, because the socket carries the limb's own scale
+        /// and its own rotation — reproducing that arithmetic here would be a second implementation of
+        /// the instantiator, free to disagree with it.
+        /// </remarks>
+        private static float AssembledReach(CreaturePartDefinition part)
+        {
+            if (!part.AcceptsFitting || part.DefaultFitting == null || part.DefaultFitting.Prefab == null) return 0f;
+            if (part.Prefab == null) return 0f;
+
+            GameObject limb = UnityEngine.Object.Instantiate(part.Prefab);
+            try
+            {
+                Transform socket = null;
+                foreach (Transform node in limb.GetComponentsInChildren<Transform>(true))
+                    if (node.name == CreaturePartDefinition.SocketName) socket = node;
+
+                if (socket == null) return 0f;
+
+                GameObject foot = UnityEngine.Object.Instantiate(part.DefaultFitting.Prefab, socket);
+                foot.transform.localPosition = Vector3.zero;
+                foot.transform.localRotation = Quaternion.identity;
+                foot.transform.localScale = Vector3.one;
+
+                float reach = 0f;
+                foreach (MeshFilter filter in limb.GetComponentsInChildren<MeshFilter>(true))
+                {
+                    Mesh mesh = filter.sharedMesh;
+                    if (mesh == null) continue;
+
+                    Bounds b = mesh.bounds;
+                    for (int corner = 0; corner < 8; corner++)
+                    {
+                        var point = new Vector3(
+                            (corner & 1) == 0 ? b.min.x : b.max.x,
+                            (corner & 2) == 0 ? b.min.y : b.max.y,
+                            (corner & 4) == 0 ? b.min.z : b.max.z);
+
+                        reach = Mathf.Max(reach, limb.transform.InverseTransformPoint(filter.transform.TransformPoint(point)).z);
+                    }
+                }
+
+                return reach;
+            }
+            finally
+            {
+                UnityEngine.Object.DestroyImmediate(limb);
+            }
+        }
+
         private static void InspectLeg(CreaturePartDefinition part, PartGeometry geometry, List<PartIssue> issues)
         {
             if (part.Category != PartCategory.Locomotion) return;
 
-            float authored = geometry.ReachAlongZ;
+            // A limb is measured with its foot in: the leg model ends at the ankle, but what the
+            // creature stands on is the assembled limb, and that is what the chain's length describes.
+            float authored = Mathf.Max(geometry.ReachAlongZ, AssembledReach(part));
             if (authored <= LegLimits.MinSegmentLength) return;
 
+            // A whole-limb model spans the entire chain, not one link of it: the model's reach has to
+            // match the sum of the links, or the skinned leg walks at a length it was not drawn at.
+            int links = part.WholeLimb ? Mathf.Max(1, part.Leg.SegmentCount) : 1;
+            float authoredPerLink = authored / links;
+
             float declared = part.SegmentLength;
-            float drift = Mathf.Abs(declared - authored) / Mathf.Max(authored, 0.0001f);
+            float drift = Mathf.Abs(declared - authoredPerLink) / Mathf.Max(authoredPerLink, 0.0001f);
             if (drift <= SegmentLengthTolerance) return;
 
-            float clamped = Mathf.Clamp(authored, LegLimits.MinSegmentLength, LegLimits.MaxSegmentLength);
+            float clamped = Mathf.Clamp(authoredPerLink, LegLimits.MinSegmentLength, LegLimits.MaxSegmentLength);
             CreaturePartDefinition captured = part;
 
             // The fix goes towards the model, because it is the only one of the two that can be done
@@ -210,8 +270,9 @@ namespace Leeway.CreatureEditor.Authoring
             // leg's reach, and through it the stance height and the stride, i.e. the gameplay. The other
             // route is to shorten the model. That choice belongs to the author, not to the audit.
             issues.Add(new PartIssue(part, PartIssueKind.Warning,
-                $"{part.PartKey}: SegmentLength is {declared:F3} while the model reaches {authored:F3} along Z " +
-                $"({drift * 100f:F0}% apart). The chain squeezes or stretches the link by that factor, " +
+                $"{part.PartKey}: SegmentLength is {declared:F3} while the model reaches {authored:F3} along Z" +
+                (links > 1 ? $" over {links} links, i.e. {authoredPerLink:F3} each" : string.Empty) +
+                $" ({drift * 100f:F0}% apart). The chain squeezes or stretches the link by that factor, " +
                 $"so the leg looks different from the attached model. Either set {clamped:F3} — " +
                 "which changes the leg's reach, and so the stance height and the stride — or shorten the model to " +
                 $"{declared:F3} and leave the gameplay alone.",

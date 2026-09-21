@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89edc8a3957d04488699da6f3478fa0, type: 3}
+  m_Name: Part_limb_octopus
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
+  <PartKey>k__BackingField: limb.octopus
+  <DisplayName>k__BackingField: Octopus hand
+  <Category>k__BackingField: 6
+  <AllowedSites>k__BackingField: 0
+  <MirrorCapable>k__BackingField: 0
+  <Prefab>k__BackingField: {fileID: 1200165298871209844, guid: 30fbb686d15d13046b8f047ba7de4ba4, type: 3}
+  <SkinOffset>k__BackingField: 0
+  <Stats>k__BackingField:
+    HpBonus: 0
+    SpeedBonus: 0
+    DamageBonus: 1
+    SenseRadiusBonus: 0.5
+    MassKg: 0.5
+  <BendPoints>k__BackingField: 2
+  <WholeLimb>k__BackingField: 0
+  <SegmentLength>k__BackingField: 0.22
+  <AcceptsFitting>k__BackingField: 0
+  <DefaultFitting>k__BackingField: {fileID: 0}
+  <Cost>k__BackingField: 20
+  _cachedPartId: -1483545266

@@ -1,4 +1,5 @@
 using Leeway.Creature;
+using Leeway.Combat;
 using Leeway.CreatureEditor;
 using MessagePipe;
 
@@ -41,6 +42,10 @@ namespace Leeway.Core
             builder.AddMessageBroker<CreatureEditorPartSelectionChangedMessage>();
             builder.AddMessageBroker<GenomeCommitResultMessage>();
             builder.AddMessageBroker<CreatureBodyRebuiltMessage>();
+
+            // Combat
+            builder.AddMessageBroker<CreatureStruckMessage>();
+            builder.AddMessageBroker<CreatureDiedMessage>();
 
             GlobalMessagePipe.SetProvider(builder.BuildServiceProvider());
             return true;

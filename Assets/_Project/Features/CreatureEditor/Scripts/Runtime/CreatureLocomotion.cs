@@ -52,6 +52,9 @@ namespace Leeway.CreatureEditor
         /// The legs' attachment points in world space. The suspension probes the ground beneath exactly
         /// these, so a step under one leg lifts the creature before it is under its centre.
         /// </summary>
+        /// <summary>The creature's legs. The physical body reads them to put a muscle on every link.</summary>
+        public IReadOnlyList<ProceduralLeg> Legs => _legs;
+
         public IReadOnlyList<Vector3> HipPositions
         {
             get
