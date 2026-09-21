@@ -1,0 +1,19 @@
+{
+    "name": "RootMotion.PuppetMaster.VRDemo",
+    "rootNamespace": "RootMotion.Demos",
+    "references": [
+        "RootMotion",
+        "Unity.TextMeshPro"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "PUPPETMASTER_VR_DEMO"
+    ],
+    "versionDefines": [],
+    "noEngineReferences": false
+}
