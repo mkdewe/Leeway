@@ -33,6 +33,10 @@ namespace Leeway.Rendering
             CameraType cameraType = renderingData.cameraData.cameraType;
             if (cameraType == CameraType.Preview || cameraType == CameraType.Reflection) return;
 
+            // A camera with post-processing off asked for a plain image - e.g. the part palette's thumbnail
+            // renderer, which needs a clean transparent background, not a graded and outlined one.
+            if (!renderingData.cameraData.postProcessEnabled) return;
+
             var grade = VolumeManager.instance.stack.GetComponent<PaletteGrade>();
             if (grade == null || !grade.IsActive()) return;
 

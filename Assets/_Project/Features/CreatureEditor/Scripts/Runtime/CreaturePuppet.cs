@@ -45,6 +45,8 @@ namespace Leeway.CreatureEditor
         private BehaviourPuppet _behaviour;
         private CreaturePhysicsWorld _physicsWorld;
         private bool _legsPending;
+        private BuiltCreatureBody _built;
+        private CreatureGenome _genome;
 
         private void Awake()
         {
@@ -73,6 +75,8 @@ namespace Leeway.CreatureEditor
         public void Rebuild(BuiltCreatureBody body, CreatureGenome genome, float totalMass)
         {
             Clear();
+            _built = body;
+            _genome = genome;
 
             int ragdollLayer = ResolveLayer(_ragdollLayer);
             int controllerLayer = ResolveLayer(_controllerLayer);
@@ -193,6 +197,153 @@ namespace Leeway.CreatureEditor
             return rigidbody;
         }
 
+        /// <summary>
+        /// Gives every attached part (arms, horns, mouths, eyes, crests) a muscle of its own, so it
+        /// collides with the world and swings on its vertebra instead of being painted onto the carcass.
+        /// </summary>
+        /// <remarks>
+        /// <para>Legs and their feet are left alone - the leg chain already has muscles. A foot or hand
+        /// sitting in an arm's socket is a child of that arm and rides on the arm's muscle.</para>
+        ///
+        /// <para>The muscle targets a <b>pivot</b> slipped in between the vertebra and the part: an
+        /// unscaled transform at the part's pose. The part keeps its own scale and mirroring underneath
+        /// it - a reflected or squashed matrix is exactly what PuppetMaster cannot read a rotation out of
+        /// (the same reason the leg muscles hold anchors rather than links).</para>
+        ///
+        /// <para>Loosely pinned: the part lags behind a turn, bounces when the creature lands and
+        /// springs back. Its group never knocks the creature out (see the factory's muscle props).</para>
+        /// </remarks>
+        private void AttachPartMuscles()
+        {
+            if (_puppetMaster == null || !_puppetMaster.initiated || _built?.PartInstances == null || _genome == null) return;
+
+            PartRuleSet rules = TryGetComponent(out CreatureBody body) ? body.Rules : null;
+            if (rules == null) return;
+
+            int ragdollLayer = ResolveLayer(_ragdollLayer);
+
+            foreach (CreaturePartInstance part in _built.PartInstances)
+            {
+                if (part.Object == null || part.GeneIndex < 0 || part.GeneIndex >= _genome.PartCount) continue;
+                if (!rules.TryGetRule(_genome.GetPart(part.GeneIndex).PartId, out PartRule rule)) continue;
+                if (rule.Category == PartCategory.Locomotion || rule.Category == PartCategory.Extremity) continue;
+
+                Transform instance = part.Object.transform;
+                Rigidbody connectTo = MuscleBodyFor(instance);
+                if (connectTo == null || !TryMeasure(instance, out Bounds local)) continue;
+
+                Transform pivot = new GameObject(PartPivotName).transform;
+                pivot.SetParent(instance.parent, false);
+                pivot.SetPositionAndRotation(instance.position, instance.rotation);
+                instance.SetParent(pivot, true);
+
+                float mass = Mathf.Clamp(rule.Stats.MassKg, MinPartMass, MaxPartMass);
+                AddPartMuscle(pivot, instance.name, connectTo, local, mass, GroupFor(rule.Category), ragdollLayer);
+            }
+
+            IgnoreOwnCollisions();
+        }
+
+        private void AddPartMuscle(Transform pivot, string partName, Rigidbody connectTo, Bounds local, float mass,
+            Muscle.Group group, int layer)
+        {
+            var muscleObject = new GameObject("PartMuscle_" + partName);
+            muscleObject.layer = layer;
+            muscleObject.transform.SetParent(_puppetMaster.transform, false);
+            muscleObject.transform.SetPositionAndRotation(pivot.position, pivot.rotation);
+
+            var rigidbody = muscleObject.AddComponent<Rigidbody>();
+            rigidbody.mass = mass;
+            rigidbody.linearDamping = _settings.Drag;
+            rigidbody.angularDamping = _settings.AngularDrag;
+            rigidbody.interpolation = RigidbodyInterpolation.Interpolate;
+
+            // A box around the model: low-poly parts are blocky anyway, and a box needs no mesh of its own.
+            var box = muscleObject.AddComponent<BoxCollider>();
+            box.center = local.center;
+            box.size = Vector3.Max(local.size * PartColliderScale, Vector3.one * MinPartColliderSize);
+
+            // A part swings on its vertebra; it never slides along it.
+            ConfigurableJoint joint = muscleObject.AddComponent<ConfigurableJoint>();
+            joint.enablePreprocessing = false;
+            joint.xMotion = ConfigurableJointMotion.Locked;
+            joint.yMotion = ConfigurableJointMotion.Locked;
+            joint.zMotion = ConfigurableJointMotion.Locked;
+            joint.angularXMotion = ConfigurableJointMotion.Limited;
+            joint.angularYMotion = ConfigurableJointMotion.Limited;
+            joint.angularZMotion = ConfigurableJointMotion.Limited;
+            joint.lowAngularXLimit = new SoftJointLimit { limit = -PartSwingDegrees };
+            joint.highAngularXLimit = new SoftJointLimit { limit = PartSwingDegrees };
+            joint.angularYLimit = new SoftJointLimit { limit = PartSwingDegrees };
+            joint.angularZLimit = new SoftJointLimit { limit = PartSwingDegrees };
+
+            _puppetMaster.AddMuscle(joint, pivot, connectTo, pivot.parent,
+                new Muscle.Props(PartPin, PartMuscleWeight, 1f, 1f) { group = group }, forceTreeHierarchy: false, forceLayers: false);
+        }
+
+        /// <summary>
+        /// Stops the creature's own muscles from hitting each other. A part sits right on its vertebra,
+        /// so their colliders overlap by design; PuppetMaster only does this for the muscles it was built
+        /// with, and a self-collision on the ragdoll layer counts as being hit - it knocked the creature over.
+        /// </summary>
+        private void IgnoreOwnCollisions()
+        {
+            Collider[] colliders = _puppetMaster.GetComponentsInChildren<Collider>(true);
+            for (int i = 0; i < colliders.Length; i++)
+            for (int j = i + 1; j < colliders.Length; j++)
+                Physics.IgnoreCollision(colliders[i], colliders[j], true);
+        }
+
+        /// <summary>The part's renderers, measured in the space of an unscaled frame at the part's pose.</summary>
+        private static bool TryMeasure(Transform instance, out Bounds bounds)
+        {
+            bounds = default;
+            bool any = false;
+            Matrix4x4 toLocal = Matrix4x4.TRS(instance.position, instance.rotation, Vector3.one).inverse;
+
+            foreach (Renderer renderer in instance.GetComponentsInChildren<Renderer>())
+            {
+                Mesh mesh = renderer is SkinnedMeshRenderer skinned ? skinned.sharedMesh
+                    : renderer.TryGetComponent(out MeshFilter filter) ? filter.sharedMesh : null;
+                if (mesh == null) continue;
+
+                Bounds b = mesh.bounds;
+                Matrix4x4 toPivot = toLocal * renderer.transform.localToWorldMatrix;
+                for (int i = 0; i < 8; i++)
+                {
+                    var corner = new Vector3((i & 1) == 0 ? b.min.x : b.max.x, (i & 2) == 0 ? b.min.y : b.max.y, (i & 4) == 0 ? b.min.z : b.max.z);
+                    Vector3 p = toPivot.MultiplyPoint3x4(corner);
+                    if (!any) { bounds = new Bounds(p, Vector3.zero); any = true; }
+                    else bounds.Encapsulate(p);
+                }
+            }
+
+            return any;
+        }
+
+        /// <summary>Which BehaviourPuppet group a part's category belongs to - they all fall under the "parts" overrides.</summary>
+        private static Muscle.Group GroupFor(PartCategory category) => category switch
+        {
+            PartCategory.Mouth or PartCategory.Sense => Muscle.Group.Head,
+            PartCategory.Grasper => Muscle.Group.Arm,
+            // Not Prop: PuppetMaster treats that group as a held prop it can drop.
+            _ => Muscle.Group.Arm,
+        };
+
+        private const string PartPivotName = "PartPivot";
+
+        /// <summary>How hard a part is held on its pose. Low: it lags and wobbles, then springs back.</summary>
+        private const float PartPin = 0.12f;
+
+        /// <summary>How strong the part's own joint drive is, relative to the spine's.</summary>
+        private const float PartMuscleWeight = 0.5f;
+
+        private const float PartSwingDegrees = 30f;
+        private const float PartColliderScale = 0.85f;
+        private const float MinPartColliderSize = 0.04f;
+        private const float MinPartMass = 0.05f;
+        private const float MaxPartMass = 1.5f;
+
         /// <summary>The muscle body belonging to the bone a part hangs from, or <c>null</c> when the part is not on one.</summary>
         private Rigidbody MuscleBodyFor(Transform partInstance)
         {
@@ -211,6 +362,7 @@ namespace Leeway.CreatureEditor
 
             _legsPending = false;
             AttachLegMuscles();
+            AttachPartMuscles();
         }
 
         /// <summary>
@@ -242,6 +394,28 @@ namespace Leeway.CreatureEditor
             if (muscle?.rigidbody == null) return;
 
             muscle.rigidbody.AddForce(impulse, ForceMode.Impulse);
+        }
+
+        /// <summary>
+        /// Where the body actually is: the average of the spine muscles. While the creature lies down this
+        /// is the carcass on the ground, not the locomotion root - which is what getting up has to measure from.
+        /// </summary>
+        public bool TryGetBodyCentre(out Vector3 centre)
+        {
+            centre = Vector3.zero;
+            if (_puppetMaster == null || _built?.Bones == null) return false;
+
+            int count = 0;
+            foreach (Muscle muscle in _puppetMaster.muscles)
+            {
+                if (muscle?.rigidbody == null || System.Array.IndexOf(_built.Bones, muscle.target) < 0) continue;
+                centre += muscle.rigidbody.position;
+                count++;
+            }
+
+            if (count == 0) return false;
+            centre /= count;
+            return true;
         }
 
         /// <summary>Knocks the creature off its feet outright, without waiting for a collision to do it.</summary>

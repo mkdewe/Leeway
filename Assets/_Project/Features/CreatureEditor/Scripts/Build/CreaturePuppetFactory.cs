@@ -147,7 +147,9 @@ namespace Leeway.CreatureEditor
                     joint = joints[i],
                     target = targets[i],
                     name = joints[i].name,
-                    props = new Muscle.Props(1f, 1f, 1f, 1f) { group = GroupOf(i, joints.Count) },
+                    // The head is held hard and the hold eases off toward the tail, so the rear of the body
+                    // lags and swings through a turn instead of moving as one rigid rod.
+                    props = new Muscle.Props(SpinePin(i, joints.Count), 1f, 1f, 1f) { group = GroupOf(i, joints.Count) },
                 };
             }
 
@@ -166,6 +168,12 @@ namespace Leeway.CreatureEditor
         /// tail. The <b>hips</b> are the root muscle — PuppetMaster's own name for "the one everything
         /// else hangs from", which for this creature is the head vertebra rather than a pelvis.</para>
         /// </remarks>
+        /// <summary>Pin weight along the spine: 1 at the head, <see cref="TailPin"/> at the last vertebra.</summary>
+        private static float SpinePin(int index, int count)
+            => count <= 1 ? 1f : Mathf.Lerp(1f, TailPin, index / (float)(count - 1));
+
+        private const float TailPin = 0.45f;
+
         private static Muscle.Group GroupOf(int index, int count)
         {
             if (index == 0) return Muscle.Group.Hips;
@@ -234,15 +242,16 @@ namespace Leeway.CreatureEditor
 
             // A behaviour authored in the inspector gets its arrays from Unity's serialisation; one
             // added in code gets nulls, and BehaviourPuppet walks both of these as it initiates — which
-            // throws before a single muscle has been updated. Ours are empty on purpose: no layer has a
-            // collision resistance of its own, and no muscle group overrides the master settings.
+            // throws before a single muscle has been updated. No layer has a collision resistance of its
+            // own; the muscle groups are set up in ConfigureMuscleProps.
             puppetBehaviour.collisionResistanceMultipliers ??= new BehaviourPuppet.CollisionResistanceMultiplier[0];
-            puppetBehaviour.groupOverrides ??= new BehaviourPuppet.MusclePropsGroup[0];
+            ConfigureMuscleProps(puppetBehaviour);
 
             CreateEvents(puppetBehaviour);
 
             puppetBehaviour.collisionThreshold = settings.CollisionThreshold;
             puppetBehaviour.knockOutDistance = settings.KnockOutDistance;
+            puppetBehaviour.regainPinSpeed = 2f;
             puppetBehaviour.getUpDelay = settings.GetUpDelay;
 
             // The masks are the difference between a physical creature and a statue. Left at their
@@ -257,6 +266,59 @@ namespace Leeway.CreatureEditor
             puppetBehaviour.collisionLayers = 1 << ragdollLayer;
             puppetBehaviour.groundLayers = 1 << DefaultLayer;
         }
+
+        /// <summary>
+        /// What each muscle group does when something touches it.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>This is the balance the puppet was missing.</b> A <c>BehaviourPuppet</c> added in
+        /// code gets its <c>defaults</c> zeroed: a knock-out distance of 0 means any offset at all lays
+        /// the creature down, a collision resistance of 0 means any touch unpins it, and a regain speed
+        /// of 0 means it never pulls itself back. That is the "upright creature lying on the ground
+        /// while its root walks on" - not a missing controller, just missing numbers.</para>
+        ///
+        /// <para>The groups split the body into what holds the creature up and what merely hangs off
+        /// it. The spine is the core: hard to unpin, and the only part whose displacement can knock the
+        /// creature out. Legs, the tail and every attached part are allowed to swing, scrape the
+        /// terrain and get bumped - they never knock the creature out on their own and barely disturb
+        /// the spine they hang from.</para>
+        /// </remarks>
+        private static void ConfigureMuscleProps(BehaviourPuppet behaviour)
+        {
+            behaviour.defaults = Props(unpinParents: 0.6f, unpinChildren: 1f, collisionResistance: 3f, knockOut: 0.6f, regain: 1f);
+
+            behaviour.groupOverrides = new[]
+            {
+                Group("Core", Props(0.3f, 0.6f, 4f, 0.6f, 1f), Muscle.Group.Hips, Muscle.Group.Spine),
+                Group("Limbs", Props(0.1f, 1f, 4f, NeverKnockOut, 2f), Muscle.Group.Leg, Muscle.Group.Foot),
+                Group("Tail", Props(0.15f, 1f, 2f, NeverKnockOut, 1.5f), Muscle.Group.Tail),
+                Group("Parts", Props(0.05f, 1f, 1.5f, NeverKnockOut, 1.5f),
+                    Muscle.Group.Head, Muscle.Group.Arm, Muscle.Group.Hand, Muscle.Group.Prop),
+            };
+        }
+
+        /// <summary>A knock-out distance no swinging appendage ever reaches.</summary>
+        private const float NeverKnockOut = 100000f;
+
+        private static BehaviourPuppet.MuscleProps Props(float unpinParents, float unpinChildren, float collisionResistance,
+            float knockOut, float regain) => new()
+        {
+            unpinParents = unpinParents,
+            unpinChildren = unpinChildren,
+            unpinGroup = 0f,
+            // Always draw the physical pose: that is what keeps a body that hits the ground from being
+            // drawn sunk into it.
+            minMappingWeight = 1f,
+            maxMappingWeight = 1f,
+            minPinWeight = 0f,
+            disableColliders = false,
+            regainPinSpeed = regain,
+            collisionResistance = collisionResistance,
+            knockOutDistance = knockOut,
+        };
+
+        private static BehaviourPuppet.MusclePropsGroup Group(string name, BehaviourPuppet.MuscleProps props, params Muscle.Group[] groups)
+            => new() { name = name, groups = groups, props = props };
 
         /// <summary>
         /// Gives every one of the behaviour's events something to invoke.

@@ -395,10 +395,29 @@ namespace Leeway.CreatureEditor
         /// </summary>
         private Vector3 ResolveLanding()
         {
+            float standHeight = GenomeStatRules.StandHeight(_genomeCache, Rules);
+
+            // The puppet takes precedence, as it does everywhere: where it exists, the old ragdoll was never
+            // built and has no bones to measure, so asking it returned the root lying on the ground.
+            if (_puppet != null && _puppet.TryGetBodyCentre(out Vector3 centre)) return LandingBelow(centre, standHeight);
             if (_ragdoll == null) return transform.position;
 
-            float standHeight = GenomeStatRules.StandHeight(_genomeCache, Rules);
             return _ragdoll.ResolveRecoveryPosition(transform.position, standHeight);
+        }
+
+        /// <summary>The ground under <paramref name="centre"/>, raised by the suspension's stand height.</summary>
+        private Vector3 LandingBelow(Vector3 centre, float standHeight)
+        {
+            const float probeHeight = 3f;
+            float clearance = standHeight > 0.001f ? standHeight
+                : _locomotionCollider is CapsuleCollider capsule ? Mathf.Max(0.05f, capsule.radius - capsule.center.y) : 0.6f;
+
+            var origin = new Vector3(centre.x, centre.y + probeHeight, centre.z);
+            int groundMask = ~((1 << gameObject.layer) | (1 << LayerMask.NameToLayer(RagdollLayerName)));
+
+            return Physics.Raycast(origin, Vector3.down, out RaycastHit hit, probeHeight * 3f, groundMask, QueryTriggerInteraction.Ignore)
+                ? hit.point + Vector3.up * clearance
+                : new Vector3(centre.x, transform.position.y, centre.z);
         }
 
         /// <summary>

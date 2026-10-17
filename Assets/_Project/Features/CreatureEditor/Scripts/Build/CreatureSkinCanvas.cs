@@ -234,6 +234,12 @@ namespace Leeway.CreatureEditor
 
             if (mesh == null) return;
 
+            // Only a creature that stands still gets one. The brush paints the editor's preview, never the
+            // creature walking around the playground - and there a concave mesh collider would sit under the
+            // dynamic locomotion body, which Unity refuses with an error (and a nested body to dodge that
+            // made the physics jitter).
+            if (renderer.GetComponentInParent<Rigidbody>() is { isKinematic: false }) return;
+
             MeshCollider collider = renderer.GetComponent<MeshCollider>();
             if (collider == null) collider = renderer.gameObject.AddComponent<MeshCollider>();
 

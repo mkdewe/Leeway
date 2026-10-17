@@ -13,7 +13,8 @@ namespace Leeway.Tests
     /// The Phase 6 gate: being knocked down, lying there, and getting up where the server says.
     /// </summary>
     /// <remarks>
-    /// We do not check how the ragdoll looks — the bone poses are deliberately local and differ between
+    /// The physical body is the PuppetMaster puppet (<see cref="CreaturePuppet"/>); "the ragdoll is
+    /// active" means the puppet is off its feet. We do not check how the ragdoll looks — the bone poses are deliberately local and differ between
     /// clients. We check what has to be identical everywhere: the knockdown flag, prediction coming to
     /// a halt, and the position after getting up.
     /// </remarks>
@@ -23,7 +24,7 @@ namespace Leeway.Tests
 
         private NetworkManager _networkManager;
         private CreatureBody _localBody;
-        private CreatureRagdoll _ragdoll;
+        private CreaturePuppet _puppet;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -43,8 +44,8 @@ namespace Leeway.Tests
             yield return WaitUntil(() => _networkManager.IsServerStarted && _networkManager.IsClientStarted, "The host did not come up.");
             yield return WaitUntil(TryBindLocalBody, "The player's creature was not spawned.");
 
-            _ragdoll = _localBody.GetComponent<CreatureRagdoll>();
-            Assert.IsNotNull(_ragdoll, "The creature prefab has no CreatureRagdoll component.");
+            _puppet = _localBody.GetComponent<CreaturePuppet>();
+            Assert.IsNotNull(_puppet, "The creature prefab has no CreaturePuppet component.");
 
             for (int i = 0; i < 3; i++) yield return new WaitForFixedUpdate();
         }
@@ -65,16 +66,16 @@ namespace Leeway.Tests
 
             _networkManager = null;
             _localBody = null;
-            _ragdoll = null;
+            _puppet = null;
             yield return null;
         }
 
         [UnityTest]
         public IEnumerator Ragdoll_IsPrebuiltAndIdleUntilKnockdown()
         {
-            Assert.Greater(_ragdoll.BoneCount, 0,
+            Assert.Greater(SpineMuscleCount(), 0,
                 "The ragdoll was not created during the body build — building it on the fall costs a frame hitch.");
-            Assert.IsFalse(_ragdoll.IsActive, "The ragdoll is active even though the creature is standing.");
+            Assert.IsFalse(_puppet.IsDown, "The ragdoll is active even though the creature is standing.");
             Assert.IsFalse(_localBody.IsKnockedDown);
             yield break;
         }
@@ -82,7 +83,7 @@ namespace Leeway.Tests
         [UnityTest]
         public IEnumerator Ragdoll_BoneCountFollowsGenome()
         {
-            Assert.AreEqual(_localBody.Genome.VertebraCount, _ragdoll.BoneCount,
+            Assert.AreEqual(_localBody.Genome.VertebraCount, SpineMuscleCount(),
                 "The ragdoll has a different number of bodies than the genome has vertebrae.");
             yield break;
         }
@@ -102,13 +103,10 @@ namespace Leeway.Tests
             Assert.IsTrue(_localBody.Knockdown(new Vector3(0f, 3f, 12f), 1), "A strong impulse did not knock the creature over.");
 
             Assert.IsTrue(_localBody.IsKnockedDown, "The knockdown flag was not set.");
-            Assert.IsTrue(_ragdoll.IsActive, "The ragdoll did not start after the knockdown.");
+            Assert.IsTrue(_puppet.IsDown, "The ragdoll did not start after the knockdown.");
 
-            var capsule = _localBody.GetComponent<CapsuleCollider>();
-            Assert.IsFalse(capsule.enabled, "The locomotion capsule is still active — it will fight the ragdoll bodies.");
-
-            var rb = _localBody.GetComponent<Rigidbody>();
-            Assert.IsTrue(rb.isKinematic, "The locomotion body is not kinematic — prediction is still moving it.");
+            // The capsule stays on: the puppet lives in its own physics scene (CreaturePhysicsWorld), so
+            // there is nothing for the capsule to fight. Prediction halts on the knockdown flag itself.
             yield break;
         }
 
@@ -125,7 +123,7 @@ namespace Leeway.Tests
         public IEnumerator Recover_RestoresLocomotionAndClearsFlag()
         {
             _localBody.Knockdown(new Vector3(0f, 3f, 12f), 1);
-            yield return WaitUntil(() => _ragdoll.IsActive, "The ragdoll did not start.");
+            yield return WaitUntil(() => _puppet.IsDown, "The ragdoll did not start.");
 
             // A moment of real simulation, so the creature actually falls over.
             for (int i = 0; i < 20; i++) yield return new WaitForFixedUpdate();
@@ -133,7 +131,7 @@ namespace Leeway.Tests
             _localBody.Recover();
 
             Assert.IsFalse(_localBody.IsKnockedDown, "The knockdown flag did not clear.");
-            Assert.IsFalse(_ragdoll.IsActive, "The ragdoll is still active after getting up.");
+            Assert.IsFalse(_puppet.IsDown, "The ragdoll is still active after getting up.");
             Assert.IsTrue(_localBody.GetComponent<CapsuleCollider>().enabled, "The locomotion capsule did not come back.");
             Assert.IsFalse(_localBody.GetComponent<Rigidbody>().isKinematic, "The locomotion body was left kinematic — the creature will not move at all.");
         }
@@ -142,7 +140,7 @@ namespace Leeway.Tests
         public IEnumerator Recover_StandsCreatureUpright()
         {
             _localBody.Knockdown(new Vector3(6f, 4f, 6f), 2);
-            yield return WaitUntil(() => _ragdoll.IsActive, "The ragdoll did not start.");
+            yield return WaitUntil(() => _puppet.IsDown, "The ragdoll did not start.");
             for (int i = 0; i < 25; i++) yield return new WaitForFixedUpdate();
 
             _localBody.Recover();
@@ -170,7 +168,7 @@ namespace Leeway.Tests
             Assert.Greater(standHeight, 0.01f, "The test creature has no legs — this test has nothing to measure.");
 
             _localBody.Knockdown(new Vector3(7f, 4f, 7f), 2);
-            yield return WaitUntil(() => _ragdoll.IsActive, "The ragdoll did not start.");
+            yield return WaitUntil(() => _puppet.IsDown, "The ragdoll did not start.");
             for (int i = 0; i < 25; i++) yield return new WaitForFixedUpdate();
 
             _localBody.Recover();
@@ -204,7 +202,7 @@ namespace Leeway.Tests
             for (int i = 0; i < bones.Length; i++) rest[i] = bones[i].localPosition;
 
             _localBody.Knockdown(new Vector3(9f, 5f, 9f), 2);
-            yield return WaitUntil(() => _ragdoll.IsActive, "The ragdoll did not start.");
+            yield return WaitUntil(() => _puppet.IsDown, "The ragdoll did not start.");
             for (int i = 0; i < 30; i++) yield return new WaitForFixedUpdate();
 
             yield return WaitUntil(() => !_localBody.IsKnockedDown, "The creature did not get up on its own.");
@@ -234,9 +232,9 @@ namespace Leeway.Tests
         public IEnumerator Knockdown_RisesBeforeGivingBackControl()
         {
             _localBody.Knockdown(new Vector3(0f, 3f, 12f), 1);
-            yield return WaitUntil(() => _ragdoll.IsActive, "The ragdoll did not start.");
+            yield return WaitUntil(() => _puppet.IsDown, "The ragdoll did not start.");
 
-            yield return WaitUntil(() => !_ragdoll.IsActive, "The server did not end the lie-down.");
+            yield return WaitUntil(() => !_puppet.IsDown, "The server did not end the lie-down.");
 
             Assert.IsTrue(_localBody.IsKnockedDown,
                 "Control came back in the same frame the ragdoll went off — there is no time to show the rise.");
@@ -257,7 +255,7 @@ namespace Leeway.Tests
             Assert.IsTrue(_localBody.IsKnockedDown);
 
             yield return WaitUntil(() => !_localBody.IsKnockedDown, "The creature did not get up on its own once the knockdown time elapsed.");
-            Assert.IsFalse(_ragdoll.IsActive, "The ragdoll survived the automatic rise.");
+            Assert.IsFalse(_puppet.IsDown, "The ragdoll survived the automatic rise.");
         }
 
         /// <summary>
@@ -274,6 +272,18 @@ namespace Leeway.Tests
         }
 
         // ---------- helpers ----------
+
+        /// <summary>Muscles that hold a vertebra - leg links and attached parts have muscles of their own.</summary>
+        private int SpineMuscleCount()
+        {
+            if (_puppet.PuppetMaster == null) return 0;
+
+            int count = 0;
+            foreach (Transform bone in _localBody.Built.Bones)
+            foreach (RootMotion.Dynamics.Muscle muscle in _puppet.PuppetMaster.muscles)
+                if (muscle.target == bone) count++;
+            return count;
+        }
 
         private bool TryBindLocalBody()
         {

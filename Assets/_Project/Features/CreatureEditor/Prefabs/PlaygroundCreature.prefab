@@ -260,6 +260,7 @@ MonoBehaviour:
     m_Bits: 1
   _footResponsiveness: 18
   _idleSpeed: 0.05
+  _gaitBlendSpeed: 5
   _leanResponsiveness: 220
 --- !u!114 &8603599901331745805
 MonoBehaviour:
@@ -286,7 +287,7 @@ MonoBehaviour:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5575887560579506853}
-  m_Enabled: 0
+  m_Enabled: 1
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 37cd68c3c382b774abeef9a909bc5a5a, type: 3}
   m_Name: 
