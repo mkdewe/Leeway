@@ -184,10 +184,17 @@ namespace Leeway.World
 
             Mesh surface = IslandMeshBuilder.BuildWaterSurface(Field);
             if (surface != null) AddWaterRenderer("Water", surface, _biome.WaterMaterial);
-            AddWaterRenderer("OpenSea", IslandMeshBuilder.BuildSeaRing(_waterSize, Field.Settings.Size, Field.Settings.SeaLevel), _biome.WaterMaterial);
+            GameObject openSea = AddWaterRenderer("OpenSea", IslandMeshBuilder.BuildSeaRing(_waterSize, Field.Settings.Size, Field.Settings.SeaLevel),
+                _biome.WaterMaterial, meshCollider: false);
+
+            // The open sea's triangles are kilometres long - a mesh collider of them is unstable in PhysX.
+            // A thin box at sea level answers the same raycast; under the island it lies below the ground.
+            var seaBox = openSea.AddComponent<BoxCollider>();
+            seaBox.center = new Vector3(0f, Field.Settings.SeaLevel - 0.05f, 0f);
+            seaBox.size = new Vector3(_waterSize, 0.1f, _waterSize);
         }
 
-        private void AddWaterRenderer(string name, Mesh mesh, Material material)
+        private GameObject AddWaterRenderer(string name, Mesh mesh, Material material, bool meshCollider = true)
         {
             var go = new GameObject(name);
             go.transform.SetParent(_root, false);
@@ -195,7 +202,15 @@ namespace Leeway.World
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
             renderer.shadowCastingMode = ShadowCastingMode.Off;
+
+            // The surface can be found by a raycast: creatures float on it. The Water layer collides with
+            // nothing (see the layer matrix), so it is something to ask, not something to stand on.
+            go.layer = WaterLayer;
+            if (meshCollider) go.AddComponent<MeshCollider>().sharedMesh = mesh;
+            return go;
         }
+
+        private static int WaterLayer => Mathf.Max(0, LayerMask.NameToLayer("Water"));
 
         // ---------------------------------------------------------------- landmarks
 

@@ -81,7 +81,7 @@ CapsuleCollider:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 5575887560579506853}
-  m_Material: {fileID: 0}
+  m_Material: {fileID: 13400000, guid: 29f881807a650cb47b3edc86e825ac14, type: 2}
   m_IncludeLayers:
     serializedVersion: 2
     m_Bits: 0
@@ -200,6 +200,13 @@ MonoBehaviour:
   _acceleration: 6
   _braking: 14
   _orbitCamera: {fileID: 0}
+  _waterMask:
+    serializedVersion: 2
+    m_Bits: 16
+  _floatHeight: 0.1
+  _buoyancyStiffness: 55
+  _buoyancyDamping: 0.9
+  _swimSpeedFactor: 0.6
   _tipSeconds: 0.5
   _tipRecoverySeconds: 0.35
   _maxBankDegrees: 12
@@ -261,6 +268,7 @@ MonoBehaviour:
   _footResponsiveness: 18
   _idleSpeed: 0.05
   _gaitBlendSpeed: 5
+  _airborneMargin: 0.2
   _leanResponsiveness: 220
 --- !u!114 &8603599901331745805
 MonoBehaviour:
@@ -280,6 +288,7 @@ MonoBehaviour:
   _groundMask:
     serializedVersion: 2
     m_Bits: 1
+  _lookAhead: 0.2
 --- !u!114 &1985670080920305521
 MonoBehaviour:
   m_ObjectHideFlags: 0

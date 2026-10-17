@@ -106,14 +106,14 @@ namespace Leeway.UI.Editor
 
         private static void ApplyToCanvas(Canvas canvas, Theme theme)
         {
-            // Height decides the scale: the layout is two side columns, so it is height that runs out
-            // first, and a wide screen merely leaves more room between them.
+            // Expand: the whole 1920x1080 reference area always fits the window, whatever its aspect -
+            // a wide screen gets room between the side columns, a tall or narrow one gets room below.
+            // Matching only height still cut the columns off on narrow windows.
             if (canvas.TryGetComponent(out CanvasScaler scaler))
             {
                 scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
                 scaler.referenceResolution = new Vector2(1920f, 1080f);
-                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
-                scaler.matchWidthOrHeight = 1f;
+                scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.Expand;
                 EditorUtility.SetDirty(scaler);
             }
 

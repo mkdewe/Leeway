@@ -33,6 +33,16 @@ namespace Leeway.CreatureEditor
         private void LateUpdate()
         {
             IReadOnlyList<Vector3> feet = _locomotion.FootPositions;
+
+            // No dust in the air - and the step tracking starts over on landing, so the feet settling
+            // back under the body do not read as a step.
+            if (_locomotion.IsAirborne)
+            {
+                _previous.Clear();
+                _swinging.Clear();
+                return;
+            }
+
             if (feet.Count != _previous.Count)
             {
                 // The body was rebuilt with a different number of legs.

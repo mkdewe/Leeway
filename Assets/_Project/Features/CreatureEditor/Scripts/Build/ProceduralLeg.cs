@@ -87,6 +87,11 @@ namespace Leeway.CreatureEditor
         private Vector3 _footTarget;
         private bool _initialised;
 
+        // The pose held in the air, in the hip's own space - see Hold.
+        private bool _holding;
+        private Vector3[] _heldJoints;
+        private Vector3 _heldTarget;
+
         public LegSpec Spec => _spec;
         public GaitProfile Gait => _gait;
         public Vector3 FootPosition => _joints[^1];
@@ -374,10 +379,34 @@ namespace Leeway.CreatureEditor
         /// <param name="stride">The stride length matched to the current speed.</param>
         /// <param name="groundMask">The layers the foot may stand on.</param>
         /// <param name="responsiveness">How fast the foot pulls towards its target.</param>
+        /// <summary>
+        /// Keeps the leg in the pose it had at take-off, carried along with the body. Called instead of
+        /// <see cref="Tick"/> while the creature is in the air: no stepping and no reaching for ground
+        /// that is not there. The pose travels with the hip, so on landing the foot starts from under the
+        /// body rather than from the spot the creature jumped off.
+        /// </summary>
+        public void Hold()
+        {
+            if (_hip == null) return;
+
+            if (!_holding)
+            {
+                _heldJoints ??= new Vector3[_joints.Length];
+                for (int i = 0; i < _joints.Length; i++) _heldJoints[i] = _hip.InverseTransformPoint(_joints[i]);
+                _heldTarget = _hip.InverseTransformPoint(_footTarget);
+                _holding = true;
+            }
+
+            for (int i = 0; i < _joints.Length; i++) _joints[i] = _hip.TransformPoint(_heldJoints[i]);
+            _footTarget = _hip.TransformPoint(_heldTarget);
+            ApplyToSegments();
+        }
+
         public void Tick(float phase, Vector3 forward, float stride, LayerMask groundMask, float responsiveness, float deltaTime,
             float gaitWeight = 1f)
         {
             if (_hip == null) return;
+            _holding = false;
 
             Vector3 hip = _hip.position;
             // gaitWeight 0 = standing: the step offset (reach and lift) fades out and the foot comes down under the hip.

@@ -41,6 +41,13 @@ namespace Leeway.CreatureEditor
         [Tooltip("Extra room between the creature's silhouette and the lens, so a leg in mid-step does not brush it.")]
         [SerializeField, Min(0f)] private float _clearanceMargin = 0.4f;
 
+        [Header("Pitch")]
+        [Tooltip("How far the camera may tilt, in degrees above the horizon: low = level with the creature, high = from above.")]
+        [SerializeField] private Vector2 _pitchRange = new(5f, 60f);
+
+        [Tooltip("Degrees of tilt per pixel of vertical mouse movement while the right button is held.")]
+        [SerializeField] private float _pitchSensitivity = 0.15f;
+
         [Header("Zoom")]
         [Tooltip("How far the scroll wheel can pull the shot in and push it out, as a multiple of the base offset.")]
         [SerializeField] private Vector2 _zoomRange = new(0.45f, 3f);
@@ -54,6 +61,8 @@ namespace Leeway.CreatureEditor
         private CinemachineFollow _follow;
         private float _yaw;
         private float _smoothedYaw;
+        private float _pitch = -1f;
+        private float _smoothedPitch;
         private float _zoom = 1f;
         private float _smoothedZoom = 1f;
 
@@ -70,12 +79,20 @@ namespace Leeway.CreatureEditor
             if (_follow == null) return;
 
             var mouse = Mouse.current;
+            // The authored offset sets the starting tilt; from there the mouse moves it within the range.
+            if (_pitch < 0f) _smoothedPitch = _pitch = Mathf.Clamp(BasePitch, _pitchRange.x, _pitchRange.y);
+
             if (mouse != null && mouse.rightButton.isPressed)
+            {
                 _yaw += mouse.delta.x.ReadValue() * _sensitivity;
+                // Mouse up tilts the shot up toward the horizon, as in any third-person camera.
+                _pitch = Mathf.Clamp(_pitch - mouse.delta.y.ReadValue() * _pitchSensitivity, _pitchRange.x, _pitchRange.y);
+            }
 
             // Smoothing, so a jerk of the mouse does not carry straight through to the shot — nor, via
             // the input frame of reference, to the creature's heading.
             _smoothedYaw = Mathf.LerpAngle(_smoothedYaw, _yaw, 1f - Mathf.Exp(-_damping * Time.deltaTime));
+            _smoothedPitch = Mathf.Lerp(_smoothedPitch, _pitch, 1f - Mathf.Exp(-_damping * Time.deltaTime));
 
             // Over a panel the wheel belongs to the UI (scrolling a list), not to the camera.
             float scroll = mouse != null ? mouse.scroll.ReadValue().y : 0f;
@@ -86,8 +103,13 @@ namespace Leeway.CreatureEditor
 
             _smoothedZoom = Mathf.Lerp(_smoothedZoom, _zoom, 1f - Mathf.Exp(-_zoomDamping * Time.deltaTime));
 
-            _follow.FollowOffset = Clear(Quaternion.Euler(0f, _smoothedYaw, 0f) * _baseOffset * _smoothedZoom);
+            // The base offset's length is the distance; heading and tilt are applied as one rotation.
+            Vector3 back = Vector3.back * (_baseOffset.magnitude * _smoothedZoom);
+            _follow.FollowOffset = Clear(Quaternion.Euler(_smoothedPitch, _smoothedYaw, 0f) * back);
         }
+
+        /// <summary>The tilt the authored offset implies, in degrees above the horizon.</summary>
+        private float BasePitch => Mathf.Atan2(_baseOffset.y, new Vector2(_baseOffset.x, _baseOffset.z).magnitude) * Mathf.Rad2Deg;
 
         /// <summary>
         /// Pushes the shot out along its own direction until the whole creature is in front of the lens.

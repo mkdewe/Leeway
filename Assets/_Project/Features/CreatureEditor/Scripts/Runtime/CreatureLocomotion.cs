@@ -44,6 +44,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("How fast the step fades in when setting off and out when stopping (per second). On stopping, a raised foot comes down instead of freezing in mid-air.")]
         [SerializeField, Min(0.1f)] private float _gaitBlendSpeed = 5f;
 
+        [Tooltip("How far beyond the legs' reach the ground may drop before the creature counts as airborne (m). In the air the legs hold their pose instead of stepping.")]
+        [SerializeField, Min(0f)] private float _airborneMargin = 0.2f;
+
         [Header("Lean")]
         [Tooltip("How many degrees per second the lean keeps up with the load. Lower = sluggish, higher = jerky.")]
         [SerializeField, Min(1f)] private float _leanResponsiveness = 220f;
@@ -85,6 +88,13 @@ namespace Leeway.CreatureEditor
         private float _lastYaw;
         private float _phase;
         private float _gaitWeight;
+        private float _standHeight;
+
+        /// <summary>
+        /// Nothing under the creature within its legs' reach: mid-jump, falling, or floating over deep
+        /// water. The gait holds still then - effects such as footstep dust read this too.
+        /// </summary>
+        public bool IsAirborne { get; private set; }
 
         /// <summary>Whether the gait is frozen for the duration of a ragdoll.</summary>
         private bool _suspended;
@@ -117,6 +127,7 @@ namespace Leeway.CreatureEditor
         {
             ClearLegs();
             CreatureLegFactory.Build(genome, _body.Rules, _body.Built, _legs);
+            _standHeight = GenomeStatRules.StandHeight(genome, _body.Rules);
         }
 
         /// <summary>
@@ -213,6 +224,16 @@ namespace Leeway.CreatureEditor
             float yawDelta = Mathf.DeltaAngle(_lastYaw, yaw);
             _lastYaw = yaw;
 
+            // In the air the legs keep their pose relative to the body: no stepping, no reaching for a
+            // ground that is not there. The bookkeeping above still runs, so landing does not count the
+            // whole flight as one giant step.
+            IsAirborne = CheckAirborne(position);
+            if (IsAirborne)
+            {
+                foreach (ProceduralLeg leg in _legs) leg.Hold();
+                return;
+            }
+
             // Vertical motion does not drive the step — a jump or a slide down a slope must not pace the legs.
             travel.y = 0f;
 
@@ -238,6 +259,15 @@ namespace Leeway.CreatureEditor
 
             foreach (ProceduralLeg leg in _legs)
                 leg.Tick(_phase, forward, stride, _groundMask, responsiveness, Time.deltaTime, _gaitWeight);
+        }
+
+        private bool CheckAirborne(Vector3 position)
+        {
+            if (_standHeight <= 0.001f) return false;
+
+            float reach = _standHeight + _airborneMargin;
+            const float lift = 0.05f;
+            return !Physics.Raycast(position + Vector3.up * lift, Vector3.down, reach + lift, _groundMask, QueryTriggerInteraction.Ignore);
         }
 
         /// <summary>

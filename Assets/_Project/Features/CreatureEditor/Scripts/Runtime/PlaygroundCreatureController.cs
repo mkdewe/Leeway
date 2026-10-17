@@ -61,6 +61,22 @@ namespace Leeway.CreatureEditor
                  "Left empty: the creature is a prefab, so it finds the camera in the scene at startup.")]
         [SerializeField] private CreatureOrbitCamera _orbitCamera;
 
+        [Header("Water")]
+        [Tooltip("Layers that are a water surface (raycast only - nothing stands on them).")]
+        [SerializeField] private LayerMask _waterMask = 1 << 4;
+
+        [Tooltip("Where the body floats: the root this far above the water surface (m). Small = mostly submerged.")]
+        [SerializeField] private float _floatHeight = 0.1f;
+
+        [Tooltip("How hard the water pushes a sunk body back up (acceleration per metre).")]
+        [SerializeField, Min(0f)] private float _buoyancyStiffness = 55f;
+
+        [Tooltip("Damping relative to critical: 1 settles without bobbing, lower bobs on the surface.")]
+        [SerializeField, Range(0.1f, 2f)] private float _buoyancyDamping = 0.9f;
+
+        [Tooltip("Swimming speed as a fraction of the walking speed.")]
+        [SerializeField, Range(0.1f, 1f)] private float _swimSpeedFactor = 0.6f;
+
         [Header("Toppling")]
         [Tooltip("How long the fall takes at TWICE the stability limit. " +
                  "This is the reaction window: a gentler overload gives more time, a sharper one less.")]
@@ -316,7 +332,11 @@ namespace Leeway.CreatureEditor
 
             // With no ground contact there is nothing to push off — in the air only momentum remains.
             bool grounded = _suspension == null || _suspension.IsGrounded;
+            // Water holds the body up where the legs cannot reach the bottom - and lets it paddle along.
+            bool swimming = Float(grounded, delta);
+
             if (grounded) ApplyTraction(direction * Stats.MoveSpeed, throttle, delta);
+            else if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
 
             // Only from the ground, and not again while still rising from the last push-off.
             if (md.Jump && grounded && risingBefore < 0.5f) Jump();
@@ -440,6 +460,42 @@ namespace Leeway.CreatureEditor
                 _tipProgress = 0f;
                 _bankLoad = 0f;
             }
+        }
+
+        /// <summary>
+        /// Buoyancy: a damped spring pulling the root up to just above the water surface. Runs inside the
+        /// replicated step (the water is static), so prediction and the server float the same way.
+        /// </summary>
+        /// <returns>True while the body is in the water.</returns>
+        private bool Float(bool grounded, float delta)
+        {
+            if (!TryWaterSurface(out float surface)) return false;
+
+            float depth = surface + _floatHeight - _rb.position.y;
+            if (depth <= -0.05f) return false;
+
+            float damping = 2f * Mathf.Sqrt(_buoyancyStiffness) * _buoyancyDamping;
+
+            // Standing on the bottom the legs already hold the weight; only floating needs to cancel gravity.
+            float gravity = grounded || !_rb.useGravity ? 0f : -Physics.gravity.y;
+            float acceleration = depth * _buoyancyStiffness - _rb.linearVelocity.y * damping + gravity;
+
+            _rb.linearVelocity += Vector3.up * (acceleration * delta);
+            return true;
+        }
+
+        /// <summary>The water surface under (or over) the creature, if there is water here at all.</summary>
+        private bool TryWaterSurface(out float surface)
+        {
+            const float probe = 3f;
+            surface = 0f;
+
+            if (!Physics.Raycast(_rb.position + Vector3.up * probe, Vector3.down, out RaycastHit hit, probe * 2f, _waterMask,
+                    QueryTriggerInteraction.Collide))
+                return false;
+
+            surface = hit.point.y;
+            return true;
         }
 
         /// <summary>How high this creature jumps, from its legs and mass (see <see cref="CreatureJumpRules"/>).</summary>

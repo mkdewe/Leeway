@@ -31,6 +31,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("Layers treated as ground.")]
         [SerializeField] private LayerMask _groundMask = 1;
 
+        [Tooltip("How far beyond the end of the body the ground is also probed while moving (m), so a rock or a step lifts the creature before the body runs into it.")]
+        [SerializeField, Min(0f)] private float _lookAhead = 0.2f;
+
         private Rigidbody _rb;
         private CreatureBody _body;
         private CreatureLocomotion _locomotion;
@@ -119,7 +122,29 @@ namespace Leeway.CreatureEditor
                 closest = Mathf.Min(closest, Probe(origin, maxDistance));
             }
 
-            return closest;
+            return Mathf.Min(closest, ProbeAhead(maxDistance));
+        }
+
+        /// <summary>
+        /// The ground just past the front of the body, in the direction of travel.
+        /// </summary>
+        /// <remarks>
+        /// Probing only under the hips meant the body's nose reached a rock before any leg was over it, so
+        /// the capsule hit the rock's side and stopped - the creature could not climb onto a stone it
+        /// could easily step on. Looking ahead lifts it in time. Anything taller than the root still
+        /// blocks: the probe starts at root height, which is how high a step can be.
+        /// </remarks>
+        private float ProbeAhead(float maxDistance)
+        {
+            Vector3 velocity = _rb.linearVelocity;
+            velocity.y = 0f;
+            if (velocity.sqrMagnitude < 0.04f) return float.PositiveInfinity;
+
+            float reach = _lookAhead;
+            if (TryGetComponent(out CapsuleCollider capsule))
+                reach += capsule.direction == 1 ? capsule.radius : capsule.height * 0.5f;
+
+            return Probe(_rb.position + velocity.normalized * reach, maxDistance);
         }
 
         /// <summary>The distance straight down from the given point. Infinity when nothing was hit.</summary>
