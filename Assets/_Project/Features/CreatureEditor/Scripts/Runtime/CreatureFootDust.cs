@@ -16,72 +16,72 @@ namespace Leeway.CreatureEditor
         [Tooltip("World-space particle system the puffs are emitted from. One shared instance is created from this prefab.")]
         [SerializeField] private ParticleSystem _dustPrefab;
         [SerializeField, Min(1)] private int _particlesPerStep = 7;
-        [Tooltip("A foot counts as stepping when it moves this many times faster than the body...")]
-        [SerializeField, Min(1f)] private float _stepSpeedRatio = 1.8f;
-        [Tooltip("...and at least this fast (m/s), so idle fidgeting raises no dust.")]
-        [SerializeField] private float _minStepSpeed = 1.5f;
+        [Header("Amount")]
+        [Tooltip("Body speed (m/s) at which a step raises the full puff. Slower steps raise proportionally less.")]
+        [SerializeField, Min(0.5f)] private float _fullPuffSpeed = 4f;
+
+        [Tooltip("The most a single step may raise, as a multiple of the base puff - sprinting kicks up more.")]
+        [SerializeField, Min(1f)] private float _maxPuffScale = 2f;
+
+        [Tooltip("Below this body speed (m/s) a step is a shuffle in place and raises nothing.")]
+        [SerializeField, Min(0f)] private float _minBodySpeed = 0.35f;
 
         private static ParticleSystem _sharedDust;
 
         private CreatureLocomotion _locomotion;
-        private readonly List<Vector3> _previous = new();
-        private readonly List<bool> _swinging = new();
+        private readonly List<bool> _wasStepping = new();
         private Vector3 _previousBody;
 
         private void Awake() => _locomotion = GetComponent<CreatureLocomotion>();
 
         private void LateUpdate()
         {
-            IReadOnlyList<Vector3> feet = _locomotion.FootPositions;
+            IReadOnlyList<ProceduralLeg> legs = _locomotion.Legs;
 
-            // No dust in the air - and the step tracking starts over on landing, so the feet settling
-            // back under the body do not read as a step.
-            if (_locomotion.IsAirborne)
+            // No dust in the air - and the tracking starts over on landing, so the feet settling back under
+            // the body do not read as a step.
+            if (_locomotion.IsAirborne || legs.Count != _wasStepping.Count)
             {
-                _previous.Clear();
-                _swinging.Clear();
-                return;
-            }
-
-            if (feet.Count != _previous.Count)
-            {
-                // The body was rebuilt with a different number of legs.
-                _previous.Clear();
-                _swinging.Clear();
-                foreach (Vector3 foot in feet)
-                {
-                    _previous.Add(foot);
-                    _swinging.Add(false);
-                }
+                _wasStepping.Clear();
+                foreach (ProceduralLeg leg in legs) _wasStepping.Add(leg.IsStepping);
                 _previousBody = transform.position;
                 return;
             }
 
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
-            float bodySpeed = (transform.position - _previousBody).magnitude / dt;
+            Vector3 travel = transform.position - _previousBody;
+            travel.y = 0f;
+            float bodySpeed = travel.magnitude / dt;
             _previousBody = transform.position;
-            float stepSpeed = Mathf.Max(_minStepSpeed, bodySpeed * _stepSpeedRatio);
 
-            for (int i = 0; i < feet.Count; i++)
+            // How much of the body's weight is actually on the ground: a leg in the air or over nothing
+            // raises no dust, and neither does a creature balanced on one foot raise as much as one on four.
+            int grounded = 0;
+            for (int i = 0; i < legs.Count; i++)
+                if (legs[i].HasGroundContact && !legs[i].IsStepping) grounded++;
+
+            float contact = legs.Count > 0 ? grounded / (float)legs.Count : 0f;
+            float speedScale = Mathf.Clamp(bodySpeed / _fullPuffSpeed, 0.2f, _maxPuffScale);
+
+            for (int i = 0; i < legs.Count; i++)
             {
-                float speed = (feet[i] - _previous[i]).magnitude / dt;
-                if (speed > stepSpeed) _swinging[i] = true;
-                else if (_swinging[i])
-                {
-                    _swinging[i] = false;
-                    Emit(feet[i]);
-                }
-                _previous[i] = feet[i];
+                bool stepping = legs[i].IsStepping;
+
+                // A foot that was in the air and is now down has landed.
+                if (_wasStepping[i] && !stepping && legs[i].HasGroundContact && bodySpeed >= _minBodySpeed)
+                    Emit(legs[i].FootPosition, Mathf.RoundToInt(_particlesPerStep * speedScale * Mathf.Lerp(0.4f, 1f, contact)));
+
+                _wasStepping[i] = stepping;
             }
         }
 
-        private void Emit(Vector3 position)
+        private void Emit(Vector3 position, int count)
         {
-            if (_dustPrefab == null) return;
+            if (_dustPrefab == null || count <= 0) return;
             if (_sharedDust == null) _sharedDust = Instantiate(_dustPrefab);
 
             var emit = new ParticleSystem.EmitParams { position = position + Vector3.up * 0.05f, applyShapeToPosition = true };
-            _sharedDust.Emit(emit, _particlesPerStep);
+            _sharedDust.Emit(emit, count);
         }
     }
 }

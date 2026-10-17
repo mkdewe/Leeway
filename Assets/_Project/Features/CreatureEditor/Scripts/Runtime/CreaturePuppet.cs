@@ -473,11 +473,11 @@ namespace Leeway.CreatureEditor
             MeasureBody();
 
             bool down = IsDown;
-            bool still = down && OnGround && BodySpeed < 0.45f;
+            bool still = down && OnGround && BodySpeed < 1.0f;
             RestTime = still ? RestTime + Time.deltaTime : 0f;
 
             // Lying still but not the right way up: roll over, with a push that stays gentle.
-            if (down && RestTime > 0.35f && UprightDot < 0.6f) AssistUpright();
+            if (down && RestTime > 0.2f && UprightDot < 0.5f) AssistUpright();
         }
 
         private void MeasureBody()
@@ -503,7 +503,7 @@ namespace Leeway.CreatureEditor
             BodySpeed = speed / count;
             UprightDot = Vector3.Dot(up.normalized, Vector3.up);
 
-            float clearance = Mathf.Max(0.5f, GenomeStatRules.StandHeight(_genome, GetComponent<CreatureBody>().Rules) * 1.05f);
+            float clearance = Mathf.Max(0.5f, GenomeStatRules.StandHeight(_genome, GetComponent<CreatureBody>().Rules) * 1.6f + 0.2f);
             int mask = ~((1 << ResolveLayer(_ragdollLayer)) | (1 << ResolveLayer(_controllerLayer)));
             PhysicsScene scene = _puppetMaster.gameObject.scene.GetPhysicsScene();
             OnGround = scene.Raycast(centre + Vector3.up * 0.2f, Vector3.down, out _, clearance + 0.2f, mask, QueryTriggerInteraction.Ignore);
@@ -524,7 +524,7 @@ namespace Leeway.CreatureEditor
             foreach (Muscle muscle in _puppetMaster.muscles)
             {
                 if (muscle?.rigidbody == null || _built?.Bones == null || System.Array.IndexOf(_built.Bones, muscle.target) < 0) continue;
-                muscle.rigidbody.AddTorque(axis * (muscle.rigidbody.mass * 9f), ForceMode.Force);
+                muscle.rigidbody.AddTorque(axis * (muscle.rigidbody.mass * 28f), ForceMode.Force);
             }
         }
 

@@ -58,7 +58,7 @@ namespace Leeway.CreatureEditor
         [SerializeField] private float _knockdownSeconds = 2f;
 
         [Tooltip("The longest a creature stays down waiting to come to rest, however it lies.")]
-        [SerializeField] private float _maxKnockdownSeconds = 12f;
+        [SerializeField] private float _giveUpSeconds = 5f;
 
         [Tooltip("The minimum impulse that topples at all. Below it the creature merely gets a shove.")]
         [SerializeField] private float _knockdownImpulseThreshold = 4f;
@@ -477,9 +477,9 @@ namespace Leeway.CreatureEditor
             if (_puppet == null) return true;
 
             float waited = elapsedTicks * (float)TimeManager.TickDelta;
-            if (waited >= _maxKnockdownSeconds) return true;
+            if (waited >= _giveUpSeconds) return true;
 
-            return _puppet.RestTime >= 0.5f && _puppet.UprightDot >= 0.55f;
+            return _puppet.RestTime >= 0.3f && _puppet.UprightDot >= 0.25f;
         }
 
         private void ApplyKnockdownVisuals(KnockdownState state)
