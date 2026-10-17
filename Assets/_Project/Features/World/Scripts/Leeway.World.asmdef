@@ -1,0 +1,17 @@
+{
+    "name": "Leeway.World",
+    "rootNamespace": "Leeway.World",
+    "references": [
+        "Leeway.Domain",
+        "FishNet.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

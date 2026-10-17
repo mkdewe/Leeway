@@ -4,6 +4,7 @@ using FishNet.Object;
 using FishNet.Transporting;
 using Leeway.Creature.Domain;
 using Leeway.CreatureEditor;
+using Leeway.World;
 using UnityEngine;
 
 namespace Leeway.GamePhases
@@ -30,11 +31,17 @@ namespace Leeway.GamePhases
         [SerializeField] private float _spawnRadius = 6f;
         [SerializeField] private float _spawnHeight = 1.5f;
 
+        [Header("Island (optional - without it the scene keeps its own arena)")]
+        [Tooltip("Island whose safe hub surrounds the editor pad. Its generator should have Center On Hub enabled.")]
+        [SerializeField] private IslandSeed _island;
+
         private readonly Dictionary<int, NetworkObject> _playerBodies = new();
 
         public override void OnStartServer()
         {
             base.OnStartServer();
+            // The ground has to exist before the first creature lands on it; start order between objects is not guaranteed.
+            if (_island != null) _island.ServerEnsureGenerated();
             ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
 
             // The host does not always go through OnRemoteConnectionState for its own connection, so we

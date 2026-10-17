@@ -1,0 +1,231 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &-9053865367981471250
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 899c54efeace73346a0a16faa3afe726, type: 3}
+  m_Name: Vignette
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.Vignette
+  active: 1
+  color:
+    m_OverrideState: 1
+    m_Value: {r: 0.0627451, g: 0.09411765, b: 0.12156863, a: 1}
+  center:
+    m_OverrideState: 1
+    m_Value: {x: 0.5, y: 0.5}
+  intensity:
+    m_OverrideState: 1
+    m_Value: 0.28
+  smoothness:
+    m_OverrideState: 1
+    m_Value: 0.45
+  rounded:
+    m_OverrideState: 1
+    m_Value: 0
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d7fd9488000d3734a9e00ee676215985, type: 3}
+  m_Name: Leeway_Stylized
+  m_EditorClassIdentifier: Unity.RenderPipelines.Core.Runtime::UnityEngine.Rendering.VolumeProfile
+  components:
+  - {fileID: 5171887424875934529}
+  - {fileID: 1879738703491413739}
+  - {fileID: 8326169192314629543}
+  - {fileID: -9053865367981471250}
+--- !u!114 &1879738703491413739
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0b2db86121404754db890f4c8dfe81b2, type: 3}
+  m_Name: Bloom
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.Bloom
+  active: 1
+  skipIterations:
+    m_OverrideState: 1
+    m_Value: 1
+  threshold:
+    m_OverrideState: 1
+    m_Value: 1
+  intensity:
+    m_OverrideState: 1
+    m_Value: 0.6
+  scatter:
+    m_OverrideState: 1
+    m_Value: 0.6
+  clamp:
+    m_OverrideState: 1
+    m_Value: 65472
+  tint:
+    m_OverrideState: 1
+    m_Value: {r: 1, g: 1, b: 1, a: 1}
+  highQualityFiltering:
+    m_OverrideState: 1
+    m_Value: 0
+  filter:
+    m_OverrideState: 1
+    m_Value: 0
+  downscale:
+    m_OverrideState: 1
+    m_Value: 0
+  maxIterations:
+    m_OverrideState: 1
+    m_Value: 6
+  dirtTexture:
+    m_OverrideState: 1
+    m_Value: {fileID: 0}
+    dimension: 1
+  dirtIntensity:
+    m_OverrideState: 1
+    m_Value: 0
+--- !u!114 &5171887424875934529
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: d474e89c61584b543969c3d48abd1c06, type: 3}
+  m_Name: PaletteGrade
+  m_EditorClassIdentifier: Leeway.Rendering::Leeway.Rendering.PaletteGrade
+  active: 1
+  intensity:
+    m_OverrideState: 1
+    m_Value: 1
+  shadowDeep:
+    m_OverrideState: 1
+    m_Value: {r: 0.09411765, g: 0.13333334, b: 0.16862746, a: 1}
+  shadow:
+    m_OverrideState: 1
+    m_Value: {r: 0.21176471, g: 0.28627452, b: 0.34509805, a: 1}
+  shadowMid:
+    m_OverrideState: 1
+    m_Value: {r: 0.23137255, g: 0.3764706, b: 0.39215687, a: 1}
+  mid:
+    m_OverrideState: 1
+    m_Value: {r: 0.33333334, g: 0.50980395, b: 0.54509807, a: 1}
+  light:
+    m_OverrideState: 1
+    m_Value: {r: 0.5294118, g: 0.73333335, b: 0.63529414, a: 1}
+  highlight:
+    m_OverrideState: 1
+    m_Value: {r: 0.7882353, g: 0.89411765, b: 0.7921569, a: 1}
+  blackPoint:
+    m_OverrideState: 1
+    m_Value: 0.05
+  whitePoint:
+    m_OverrideState: 1
+    m_Value: 0.85
+  toneGamma:
+    m_OverrideState: 0
+    m_Value: 1.5
+  bands:
+    m_OverrideState: 1
+    m_Value: 5
+  bandSoftness:
+    m_OverrideState: 1
+    m_Value: 0.2
+  chromaKeep:
+    m_OverrideState: 1
+    m_Value: 0.2
+  accentThreshold:
+    m_OverrideState: 1
+    m_Value: 0.6
+  accentKeep:
+    m_OverrideState: 1
+    m_Value: 1
+  fogStart:
+    m_OverrideState: 1
+    m_Value: 8
+  fogEnd:
+    m_OverrideState: 1
+    m_Value: 90
+  fogDensity:
+    m_OverrideState: 1
+    m_Value: 0.8
+  fogLuminance:
+    m_OverrideState: 1
+    m_Value: 0.85
+  fogHeight:
+    m_OverrideState: 1
+    m_Value: 0
+  fogHeightFalloff:
+    m_OverrideState: 1
+    m_Value: 0.08
+  outlineStrength:
+    m_OverrideState: 0
+    m_Value: 0.8
+  outlineThickness:
+    m_OverrideState: 1
+    m_Value: 1
+  outlineDepthThreshold:
+    m_OverrideState: 1
+    m_Value: 0.08
+  outlineNormalThreshold:
+    m_OverrideState: 1
+    m_Value: 0.5
+  outlineColor:
+    m_OverrideState: 1
+    m_Value: {r: 0.0627451, g: 0.09411765, b: 0.12156863, a: 1}
+  outlineFadeDistance:
+    m_OverrideState: 1
+    m_Value: 60
+--- !u!114 &8326169192314629543
+MonoBehaviour:
+  m_ObjectHideFlags: 3
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 97c23e3b12dc18c42a140437e53d3951, type: 3}
+  m_Name: Tonemapping
+  m_EditorClassIdentifier: Unity.RenderPipelines.Universal.Runtime::UnityEngine.Rendering.Universal.Tonemapping
+  active: 1
+  mode:
+    m_OverrideState: 1
+    m_Value: 0
+  neutralHDRRangeReductionMode:
+    m_OverrideState: 1
+    m_Value: 2
+  acesPreset:
+    m_OverrideState: 1
+    m_Value: 3
+  hueShiftAmount:
+    m_OverrideState: 1
+    m_Value: 0
+  detectPaperWhite:
+    m_OverrideState: 1
+    m_Value: 0
+  paperWhite:
+    m_OverrideState: 1
+    m_Value: 300
+  detectBrightnessLimits:
+    m_OverrideState: 1
+    m_Value: 1
+  minNits:
+    m_OverrideState: 1
+    m_Value: 0.005
+  maxNits:
+    m_OverrideState: 1
+    m_Value: 1000

@@ -47,6 +47,7 @@ namespace Leeway.CreatureEditor
 
         private readonly List<ProceduralLeg> _legs = new();
         private readonly List<Vector3> _hipPositions = new();
+        private readonly List<Vector3> _footPositions = new();
 
         /// <summary>
         /// The legs' attachment points in world space. The suspension probes the ground beneath exactly
@@ -59,6 +60,17 @@ namespace Leeway.CreatureEditor
                 _hipPositions.Clear();
                 foreach (ProceduralLeg leg in _legs) _hipPositions.Add(leg.HipPosition);
                 return _hipPositions;
+            }
+        }
+
+        /// <summary>Where each foot is now, in world space - for effects such as footstep dust.</summary>
+        public IReadOnlyList<Vector3> FootPositions
+        {
+            get
+            {
+                _footPositions.Clear();
+                foreach (ProceduralLeg leg in _legs) _footPositions.Add(leg.FootPosition);
+                return _footPositions;
             }
         }
 

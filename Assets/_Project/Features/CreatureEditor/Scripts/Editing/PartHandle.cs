@@ -23,6 +23,7 @@ namespace Leeway.CreatureEditor
         private readonly List<Color> _normalColors = new();
 
         private Color _highlightColor;
+        private bool _highlighted;
 
         /// <summary>The part's index in the genome — not the index of the instance.</summary>
         public int GeneIndex { get; private set; }
@@ -61,9 +62,14 @@ namespace Leeway.CreatureEditor
                 if (renderer == null) continue;
 
                 renderer.GetPropertyBlock(_sharedBlock);
+                // A tint applied after Bind (e.g. CreatureStyle) must survive the highlight, so remember what was there.
+                if (highlighted && !_highlighted && _sharedBlock.HasColor(BaseColorId))
+                    _normalColors[i] = _sharedBlock.GetColor(BaseColorId);
                 _sharedBlock.SetColor(BaseColorId, highlighted ? _highlightColor : _normalColors[i]);
                 renderer.SetPropertyBlock(_sharedBlock);
             }
+
+            _highlighted = highlighted;
         }
     }
 }

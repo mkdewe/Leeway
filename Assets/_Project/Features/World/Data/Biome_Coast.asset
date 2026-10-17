@@ -1,0 +1,314 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fa159bb42dce4a3429be0f6773f629bb, type: 3}
+  m_Name: Biome_Coast
+  m_EditorClassIdentifier: Leeway.World::Leeway.World.IslandBiome
+  _shape:
+    <Size>k__BackingField: 520
+    <Resolution>k__BackingField: 208
+    <CoastRadius>k__BackingField: 0.62
+    <CoastIrregularity>k__BackingField: 0.25
+    <CoastFrequency>k__BackingField: 2.2
+    <ShoreWidth>k__BackingField: 0.08
+    <SeaFloorDepth>k__BackingField: -5
+    <BeachHeight>k__BackingField: 0.6
+    <HillHeight>k__BackingField: 14
+    <CentralRise>k__BackingField: 10
+    <HillFrequency>k__BackingField: 2.4
+    <HillOctaves>k__BackingField: 4
+    <TerraceStrength>k__BackingField: 0.75
+    <TerraceStep>k__BackingField: 4
+    <TerraceSharpness>k__BackingField: 0.12
+    <HubRadius>k__BackingField: 16
+    <HubBlend>k__BackingField: 7
+    <HubDistance>k__BackingField: 0.35
+    <HubMinHeight>k__BackingField: 1.5
+    <LakeCount>k__BackingField: 3
+    <LakeRadiusMin>k__BackingField: 11
+    <LakeRadiusMax>k__BackingField: 24
+    <LakeDepth>k__BackingField: 2.5
+    <SpringCount>k__BackingField: 2
+    <RiverWidth>k__BackingField: 5
+    <RiverDepth>k__BackingField: 1.4
+    <BankWidth>k__BackingField: 5
+    <RiverMeander>k__BackingField: 0.6
+    <CaveCount>k__BackingField: 3
+    <CaveRadius>k__BackingField: 7
+    <CaveMinCliff>k__BackingField: 2.8
+  _groundMaterial: {fileID: 2100000, guid: 032c9c1ec84ebd34a805ec3abfa9b7b6, type: 2}
+  _waterMaterial: {fileID: 2100000, guid: b5ad7ba77081c2949a75a93f6f14654f, type: 2}
+  _sand: {r: 0.5568628, g: 0.6039216, b: 0.5137255, a: 1}
+  _grass: {r: 0.25490198, g: 0.41960785, b: 0.34117648, a: 1}
+  _grassDark: {r: 0.18039216, g: 0.32156864, b: 0.27058825, a: 1}
+  _rock: {r: 0.27058825, g: 0.3137255, b: 0.3529412, a: 1}
+  _seaBed: {r: 0.23137255, g: 0.3764706, b: 0.39215687, a: 1}
+  _grassMaxSlope: 32
+  _layers:
+  - _name: Pines
+    _prefabs:
+    - {fileID: 3561757759359005908, guid: fa4b80dee1042864c818889d5d460cba, type: 3}
+    - {fileID: 1936119782809875692, guid: 71341b64f053d524ebb9b5cc09e1b4e7, type: 3}
+    - {fileID: 6224341664461141339, guid: 79172a06113f6a34ea91164ad51df987, type: 3}
+    _rule:
+      <Density>k__BackingField: 1.3
+      <MinHeight>k__BackingField: 1.2
+      <MaxHeight>k__BackingField: 60
+      <MaxSlope>k__BackingField: 30
+      <HubClearance>k__BackingField: 6
+      <Clustering>k__BackingField: 0.5
+      <ClusterScale>k__BackingField: 34
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.4
+    _alignToNormal: 0
+    _sink: 0.2
+    _combineMeshes: 1
+  - _name: Spruces
+    _prefabs:
+    - {fileID: 2861203862802961992, guid: 35eb2442e37a011419e57fbaf52e1c2c, type: 3}
+    - {fileID: 6427479230149062506, guid: 66b3339a965c4714e9556a079240cfad, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.6
+      <MinHeight>k__BackingField: 8
+      <MaxHeight>k__BackingField: 60
+      <MaxSlope>k__BackingField: 32
+      <HubClearance>k__BackingField: 6
+      <Clustering>k__BackingField: 0.45
+      <ClusterScale>k__BackingField: 30
+      <MinScale>k__BackingField: 0.9
+      <MaxScale>k__BackingField: 1.3
+    _alignToNormal: 0
+    _sink: 0.2
+    _combineMeshes: 1
+  - _name: Broadleaf
+    _prefabs:
+    - {fileID: 8718111573234879416, guid: 87d048544b4994546a0fd41f9f303084, type: 3}
+    - {fileID: 7159738993019388550, guid: fb054d88b35c28044803e70370e3cee3, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.45
+      <MinHeight>k__BackingField: 0.9
+      <MaxHeight>k__BackingField: 10
+      <MaxSlope>k__BackingField: 25
+      <HubClearance>k__BackingField: 4
+      <Clustering>k__BackingField: 0.45
+      <ClusterScale>k__BackingField: 26
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.3
+    _alignToNormal: 0
+    _sink: 0.15
+    _combineMeshes: 1
+  - _name: DeadTrees
+    _prefabs:
+    - {fileID: 1049856930643074643, guid: 4d194d18597035d4c8399f077a7f2afb, type: 3}
+    - {fileID: 12337302087458721, guid: d125bda3522ba2a4ba9d909c08166c43, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.05
+      <MinHeight>k__BackingField: 2
+      <MaxHeight>k__BackingField: 60
+      <MaxSlope>k__BackingField: 35
+      <HubClearance>k__BackingField: 8
+      <Clustering>k__BackingField: 0
+      <ClusterScale>k__BackingField: 1
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.2
+    _alignToNormal: 0
+    _sink: 0.1
+    _combineMeshes: 1
+  - _name: Stumps
+    _prefabs:
+    - {fileID: 7744704032553487189, guid: 6a8418d6b5f366c4e86eeccd1b8d7807, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.08
+      <MinHeight>k__BackingField: 1
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 30
+      <HubClearance>k__BackingField: 3
+      <Clustering>k__BackingField: 0.45
+      <ClusterScale>k__BackingField: 34
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.3
+    _alignToNormal: 0.3
+    _sink: 0.05
+    _combineMeshes: 1
+  - _name: Boulders
+    _prefabs:
+    - {fileID: 6744499033954319382, guid: e0a7cad58e335144db7292fbf431a6fa, type: 3}
+    - {fileID: 4092851301927265617, guid: 5697e19514e89ac4abcdee25f89c29a3, type: 3}
+    - {fileID: 3583740527846412736, guid: c5d57bdad1517cc499c2e3b7615f2be4, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.35
+      <MinHeight>k__BackingField: -1
+      <MaxHeight>k__BackingField: 60
+      <MaxSlope>k__BackingField: 70
+      <HubClearance>k__BackingField: 2
+      <Clustering>k__BackingField: 0.3
+      <ClusterScale>k__BackingField: 30
+      <MinScale>k__BackingField: 0.6
+      <MaxScale>k__BackingField: 2.2
+    _alignToNormal: 0.6
+    _sink: 0.25
+    _combineMeshes: 1
+  - _name: MossyBoulders
+    _prefabs:
+    - {fileID: 1862610941332566028, guid: ae929093f2109d34eaff5fbace1b7547, type: 3}
+    - {fileID: 5525019637034236721, guid: 12ad70837cb1bd5418af337366414524, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.3
+      <MinHeight>k__BackingField: 1
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 40
+      <HubClearance>k__BackingField: 2
+      <Clustering>k__BackingField: 0.5
+      <ClusterScale>k__BackingField: 34
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 2
+    _alignToNormal: 0.5
+    _sink: 0.25
+    _combineMeshes: 1
+  - _name: Spires
+    _prefabs:
+    - {fileID: 3398824238762938168, guid: 2f87f600a31b6ee47b0abebbb560eb36, type: 3}
+    - {fileID: 2399482165599100109, guid: 8b1131d4ee424c848b23fa3b2316bab0, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.06
+      <MinHeight>k__BackingField: 6
+      <MaxHeight>k__BackingField: 60
+      <MaxSlope>k__BackingField: 60
+      <HubClearance>k__BackingField: 10
+      <Clustering>k__BackingField: 0.55
+      <ClusterScale>k__BackingField: 40
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.6
+    _alignToNormal: 0.2
+    _sink: 0.5
+    _combineMeshes: 1
+  - _name: ShoreSlabs
+    _prefabs:
+    - {fileID: 4110056889517049229, guid: a2fdd14069e10bb4bad9193ca37b13b0, type: 3}
+    - {fileID: 8515862700575589017, guid: aeefc16fa4b47b249833a55476bc905a, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.2
+      <MinHeight>k__BackingField: -0.8
+      <MaxHeight>k__BackingField: 2
+      <MaxSlope>k__BackingField: 30
+      <HubClearance>k__BackingField: 2
+      <Clustering>k__BackingField: 0.3
+      <ClusterScale>k__BackingField: 20
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.6
+    _alignToNormal: 0.9
+    _sink: 0.15
+    _combineMeshes: 1
+  - _name: Pebbles
+    _prefabs:
+    - {fileID: 4836708428667890853, guid: 922d2342b5182a5449cd06ff39b181a9, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.8
+      <MinHeight>k__BackingField: -0.5
+      <MaxHeight>k__BackingField: 1.5
+      <MaxSlope>k__BackingField: 30
+      <HubClearance>k__BackingField: 0
+      <Clustering>k__BackingField: 0.4
+      <ClusterScale>k__BackingField: 12
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.4
+    _alignToNormal: 1
+    _sink: 0.02
+    _combineMeshes: 1
+  - _name: Bushes
+    _prefabs:
+    - {fileID: 2982889815155058843, guid: 8dd9320e627cdcd45b13026d890a9003, type: 3}
+    - {fileID: 1087442166222902398, guid: dcd5cb5617750e94e9c96bf289c0ee27, type: 3}
+    _rule:
+      <Density>k__BackingField: 1
+      <MinHeight>k__BackingField: 0.9
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 35
+      <HubClearance>k__BackingField: 1
+      <Clustering>k__BackingField: 0.42
+      <ClusterScale>k__BackingField: 18
+      <MinScale>k__BackingField: 0.7
+      <MaxScale>k__BackingField: 1.4
+    _alignToNormal: 0.3
+    _sink: 0.15
+    _combineMeshes: 1
+  - _name: Ferns
+    _prefabs:
+    - {fileID: 3119627259439569983, guid: 7058d36e654afae4f95d2182928f4604, type: 3}
+    - {fileID: 3416167493992158912, guid: b5053e240114c8943b268ab9d71dd1f4, type: 3}
+    _rule:
+      <Density>k__BackingField: 1.6
+      <MinHeight>k__BackingField: 1
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 35
+      <HubClearance>k__BackingField: 1
+      <Clustering>k__BackingField: 0.5
+      <ClusterScale>k__BackingField: 34
+      <MinScale>k__BackingField: 0.7
+      <MaxScale>k__BackingField: 1.3
+    _alignToNormal: 0.6
+    _sink: 0.02
+    _combineMeshes: 1
+  - _name: Grass
+    _prefabs:
+    - {fileID: 4542332184247912750, guid: 040e25c7115e49648a4451e3e0bf5f16, type: 3}
+    - {fileID: 4835257795364184673, guid: c7b6d007f278f16498ca8be41d973785, type: 3}
+    _rule:
+      <Density>k__BackingField: 5
+      <MinHeight>k__BackingField: 0.8
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 35
+      <HubClearance>k__BackingField: -12
+      <Clustering>k__BackingField: 0.4
+      <ClusterScale>k__BackingField: 10
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.4
+    _alignToNormal: 0.8
+    _sink: 0.02
+    _combineMeshes: 1
+  - _name: GlowShrooms
+    _prefabs:
+    - {fileID: 5554214648994276992, guid: e460a1c5c1f46834a8f17ffaa670a187, type: 3}
+    - {fileID: 3539968038426564481, guid: 2a061d965186e9547a95f15c666bbc79, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.12
+      <MinHeight>k__BackingField: 1
+      <MaxHeight>k__BackingField: 40
+      <MaxSlope>k__BackingField: 25
+      <HubClearance>k__BackingField: 6
+      <Clustering>k__BackingField: 0.62
+      <ClusterScale>k__BackingField: 34
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.5
+    _alignToNormal: 0.7
+    _sink: 0.02
+    _combineMeshes: 1
+  - _name: Logs
+    _prefabs:
+    - {fileID: 5912417647160196866, guid: dbe81e1e58b812140a4567df3abf72fa, type: 3}
+    _rule:
+      <Density>k__BackingField: 0.06
+      <MinHeight>k__BackingField: 0.7
+      <MaxHeight>k__BackingField: 30
+      <MaxSlope>k__BackingField: 20
+      <HubClearance>k__BackingField: 3
+      <Clustering>k__BackingField: 0
+      <ClusterScale>k__BackingField: 1
+      <MinScale>k__BackingField: 0.8
+      <MaxScale>k__BackingField: 1.3
+    _alignToNormal: 0.9
+    _sink: 0.1
+    _combineMeshes: 1
+  _cavePrefab: {fileID: 1022504733738541942, guid: 087e22c3fccd5c14bb59736d6d7d3104, type: 3}
+  _hubStones:
+  - {fileID: 182761545514120559, guid: bb28166186c961a419ccbd1583205592, type: 3}
+  - {fileID: 1757262584403769343, guid: cf9854479f09ed447975318a0fe295fe, type: 3}
+  _hubStoneCount: 11
