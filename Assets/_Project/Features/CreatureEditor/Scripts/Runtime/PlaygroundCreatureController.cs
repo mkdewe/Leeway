@@ -369,8 +369,11 @@ namespace Leeway.CreatureEditor
                 ApplyTraction(direction * (speed * (1f - 0.7f * steepness)), throttle, delta, 1f - steepness);
                 Slide(steepness, downhill, slope, delta);
             }
-            else _slideTime = Mathf.Max(0f, _slideTime - delta);
-            else if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
+            else
+            {
+                _slideTime = Mathf.Max(0f, _slideTime - delta);
+                if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
+            }
 
             // Only from the ground, and not again while still rising from the last push-off.
             if (md.Jump && grounded && risingBefore < 0.5f) Jump();
