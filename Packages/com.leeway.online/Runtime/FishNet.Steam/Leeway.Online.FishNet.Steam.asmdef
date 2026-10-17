@@ -1,0 +1,41 @@
+{
+    "name": "Leeway.Online.FishNet.Steam",
+    "rootNamespace": "Leeway.Online.FishNet.Steam",
+    "references": [
+        "Leeway.Online",
+        "Leeway.Online.FishNet",
+        "FishNet.Runtime",
+        "FishySteamworks",
+        "com.rlabrecque.steamworks.net"
+    ],
+    "includePlatforms": [
+        "Editor",
+        "LinuxStandalone64",
+        "macOSStandalone",
+        "WindowsStandalone32",
+        "WindowsStandalone64"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LEEWAY_ONLINE_FISHNET",
+        "LEEWAY_ONLINE_FISHYSTEAMWORKS",
+        "!DISABLESTEAMWORKS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.firstgeargames.fishnet",
+            "expression": "",
+            "define": "LEEWAY_ONLINE_FISHNET"
+        },
+        {
+            "name": "com.firstgeargames.fishysteamworks",
+            "expression": "",
+            "define": "LEEWAY_ONLINE_FISHYSTEAMWORKS"
+        }
+    ],
+    "noEngineReferences": false
+}

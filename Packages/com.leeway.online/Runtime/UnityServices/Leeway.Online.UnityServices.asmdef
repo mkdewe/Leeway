@@ -1,0 +1,29 @@
+{
+    "name": "Leeway.Online.UnityServices",
+    "rootNamespace": "Leeway.Online.UnityServices",
+    "references": [
+        "Leeway.Online",
+        "UniTask",
+        "Unity.Services.Core",
+        "Unity.Services.Core.Environments",
+        "Unity.Services.Authentication",
+        "Unity.Services.Multiplayer"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LEEWAY_ONLINE_UGS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.services.multiplayer",
+            "expression": "",
+            "define": "LEEWAY_ONLINE_UGS"
+        }
+    ],
+    "noEngineReferences": false
+}

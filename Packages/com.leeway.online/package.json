@@ -1,0 +1,12 @@
+{
+  "name": "com.leeway.online",
+  "version": "0.1.0",
+  "displayName": "Leeway Online",
+  "description": "Platform-agnostic online services layer (identity, lobbies, invites, netcode endpoints) with pluggable backends. Ships with Steam (Steamworks.NET), an in-process Local backend, an Offline null backend and a Fish-Networking transport bridge. EOS, Unity Gaming Services or console backends plug in by implementing the same interfaces.",
+  "unity": "6000.0",
+  "author": { "name": "Leeway" },
+  "dependencies": {
+    
+  },
+  "keywords": [ "online", "lobby", "steam", "eos", "matchmaking", "fishnet" ]
+}

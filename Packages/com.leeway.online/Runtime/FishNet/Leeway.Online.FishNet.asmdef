@@ -1,0 +1,25 @@
+{
+    "name": "Leeway.Online.FishNet",
+    "rootNamespace": "Leeway.Online.FishNet",
+    "references": [
+        "Leeway.Online",
+        "FishNet.Runtime"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LEEWAY_ONLINE_FISHNET"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.firstgeargames.fishnet",
+            "expression": "",
+            "define": "LEEWAY_ONLINE_FISHNET"
+        }
+    ],
+    "noEngineReferences": false
+}

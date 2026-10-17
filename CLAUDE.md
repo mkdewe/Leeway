@@ -34,6 +34,15 @@
 - Używaj `ServerRpc` / `ObserversRpc` / `TargetRpc` zgodnie z odpowiedzialnością
 - Serwer jest jedynym źródłem prawdy o stanie gry (zasoby, HP, ewolucja, interakcje)
 
+## Połączenia online / lobby
+
+- Plugin `Packages/com.leeway.online` — abstrakcja platform (Steam, Unity Gaming Services, Local, Offline; EOS/PSN jako przyszłe backendy).
+- Test dwóch graczy na jednym PC: backend UGS (`NetworkSessionSettings._developmentPreferredPlatform = ugs`) + Multiplayer Play Mode. Steam wymaga dwóch kont, czyli dwóch maszyn. Szczegóły i wzorce: jego `README.md`. Nie zależy od kodu gry.
+- Warstwa gry: `Features/Network` (`IGameSession` — fasada lobby → mecz), menu: `Features/MainMenu` (MVP + VContainer).
+- `ProjectLifetimeScope` (root VContainera przez `VContainerSettings`) trzyma platformę i sesję przez cały run.
+- Scenę `MainMenu` i jej prefaby generuje **Leeway → Online → Build Main Menu Scene** (nadpisuje je); assety sieciowe — **Setup Network Assets** (nie nadpisuje).
+- Uwaga: VContainer nadpisuje szablonem każdy **nowo tworzony** plik `*LifetimeScope.cs` (przy powstaniu `.meta`). Po utworzeniu takiego pliku spoza edytora sprawdź jego treść.
+
 ## Struktura folderów (feature-based)
 
 ```

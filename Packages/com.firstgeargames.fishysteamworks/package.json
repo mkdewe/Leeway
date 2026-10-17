@@ -1,0 +1,12 @@
+{
+  "name": "com.firstgeargames.fishysteamworks",
+  "version": "4.1.1",
+  "displayName": "FishySteamworks",
+  "description": "A Steamworks implementation for Fish-Networking (vendored from github.com/FirstGearGames/FishySteamworks 4.1.1 with an assembly definition added).",
+  "unity": "2021.3",
+  "license": "BSD-2-Clause",
+  "author": { "name": "FirstGearGames", "url": "https://github.com/FirstGearGames/FishySteamworks" },
+  "dependencies": {
+    "com.rlabrecque.steamworks.net": "2025.164.1"
+  }
+}

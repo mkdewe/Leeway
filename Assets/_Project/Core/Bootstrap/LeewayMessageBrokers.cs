@@ -1,5 +1,6 @@
 using Leeway.Creature;
 using Leeway.CreatureEditor;
+using Leeway.Network.Messages;
 using MessagePipe;
 
 namespace Leeway.Core
@@ -41,6 +42,13 @@ namespace Leeway.Core
             builder.AddMessageBroker<CreatureEditorPartSelectionChangedMessage>();
             builder.AddMessageBroker<GenomeCommitResultMessage>();
             builder.AddMessageBroker<CreatureBodyRebuiltMessage>();
+
+            // Online session (main menu, lobbies, connection)
+            builder.AddMessageBroker<OnlinePlatformReadyMessage>();
+            builder.AddMessageBroker<SessionStateChangedMessage>();
+            builder.AddMessageBroker<LobbySnapshotChangedMessage>();
+            builder.AddMessageBroker<LobbyChatReceivedMessage>();
+            builder.AddMessageBroker<SessionErrorMessage>();
 
             GlobalMessagePipe.SetProvider(builder.BuildServiceProvider());
             return true;

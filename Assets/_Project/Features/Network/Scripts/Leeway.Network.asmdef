@@ -1,0 +1,21 @@
+{
+    "name": "Leeway.Network",
+    "rootNamespace": "Leeway.Network",
+    "references": [
+        "Leeway.Online",
+        "Leeway.Online.FishNet",
+        "FishNet.Runtime",
+        "UniTask",
+        "MessagePipe",
+        "VContainer"
+    ],
+    "includePlatforms": [],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [],
+    "versionDefines": [],
+    "noEngineReferences": false
+}

@@ -1,0 +1,33 @@
+{
+    "name": "Leeway.Online.Steam",
+    "rootNamespace": "Leeway.Online.Steam",
+    "references": [
+        "Leeway.Online",
+        "UniTask",
+        "com.rlabrecque.steamworks.net"
+    ],
+    "includePlatforms": [
+        "Editor",
+        "LinuxStandalone64",
+        "macOSStandalone",
+        "WindowsStandalone32",
+        "WindowsStandalone64"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": false,
+    "precompiledReferences": [],
+    "autoReferenced": true,
+    "defineConstraints": [
+        "LEEWAY_ONLINE_STEAMWORKS",
+        "!DISABLESTEAMWORKS"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.rlabrecque.steamworks.net",
+            "expression": "",
+            "define": "LEEWAY_ONLINE_STEAMWORKS"
+        }
+    ],
+    "noEngineReferences": false
+}

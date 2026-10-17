@@ -30,6 +30,11 @@ namespace Leeway.GamePhases
             base.OnStartServer();
             ServerManager.OnRemoteConnectionState += OnRemoteConnectionState;
             SpawnNpcCells();
+
+            // When the match is started from the main menu, everyone connected before this scene
+            // loaded — their OnRemoteConnectionState has already fired, so spawn them here.
+            foreach (NetworkConnection connection in ServerManager.Clients.Values)
+                SpawnPlayerCell(connection);
         }
 
         public override void OnStopServer()
@@ -49,6 +54,8 @@ namespace Leeway.GamePhases
         [Server]
         private void SpawnPlayerCell(NetworkConnection conn)
         {
+            if (conn == null || _playerCells.ContainsKey(conn.ClientId)) return;
+
             Vector2 spawnPos = Random.insideUnitCircle * (_worldRadius * 0.4f);
             var go = Instantiate(_playerCellPrefab, (Vector3)spawnPos, Quaternion.identity);
             var nob = go.GetComponent<NetworkObject>();

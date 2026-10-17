@@ -117,3 +117,6 @@ InitTestScene*.unity*
 # Narzędzia deweloperskie (generator diagramów)
 /Tools/**/node_modules/
 /Tools/**/package-lock.json
+
+# Steamworks.NET writes this in the editor (dev App ID); the game sets SteamAppId itself
+/steam_appid.txt

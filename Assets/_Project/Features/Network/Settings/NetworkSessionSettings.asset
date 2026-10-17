@@ -1,0 +1,33 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 932600f0031e9944b9a6ae5fc9040b2c, type: 3}
+  m_Name: NetworkSessionSettings
+  m_EditorClassIdentifier: Leeway.Network::Leeway.Network.Session.NetworkSessionSettings
+  _platformProviders:
+  - {fileID: 11400000, guid: 14781b2761b37a44fae4589397a579d0, type: 2}
+  - {fileID: 11400000, guid: 7777013c964d965459f819968aab1d6c, type: 2}
+  - {fileID: 11400000, guid: 16755e9918988e044b2a7a8e75f25b1b, type: 2}
+  _developmentPreferredPlatform: ugs
+  _transportAdapters:
+  - {fileID: 11400000, guid: 07b8de869b277d0409067d48a65cd4cb, type: 2}
+  - {fileID: 11400000, guid: b22ecb8cad65d3b418807330b0c2b882, type: 2}
+  _defaultNetworkManager: {fileID: 4171010184265863997, guid: fa94db0049b7f5e4f993ad5a536e958f, type: 3}
+  _platformNetworkManagers:
+  - PlatformId: steam
+    Prefab: {fileID: 713136532709582698, guid: 0d4222cf2ac123040893b4237084ada5, type: 3}
+  _defaultPort: 7770
+  _connectTimeoutSeconds: 15
+  _protocolVersion: 
+  _maxPlayersLimit: 8
+  _defaultMaxPlayers: 4
+  _gameplayScene: CellStage
+  _mainMenuScene: MainMenu
