@@ -29,5 +29,5 @@ MonoBehaviour:
   _protocolVersion: 
   _maxPlayersLimit: 8
   _defaultMaxPlayers: 4
-  _gameplayScene: CellStage
+  _gameplayScene: CreatureEditor
   _mainMenuScene: MainMenu

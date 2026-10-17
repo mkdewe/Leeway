@@ -60,7 +60,7 @@ namespace Leeway.Network.Session
 
         [Header("Scenes")]
         [Tooltip("Scene loaded for everyone when the host starts a match. Must be in the build profile.")]
-        [SerializeField] private string _gameplayScene = "CellStage";
+        [SerializeField] private string _gameplayScene = "CreatureEditor";
 
         [Tooltip("Scene to return to after leaving a match.")]
         [SerializeField] private string _mainMenuScene = "MainMenu";
