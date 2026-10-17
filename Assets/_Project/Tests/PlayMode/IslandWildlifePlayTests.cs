@@ -66,6 +66,7 @@ namespace Leeway.Tests
                 var rb=actor.GetComponent<Rigidbody>();rb.interpolation=RigidbodyInterpolation.None;rb.constraints=RigidbodyConstraints.FreezeAll;
                 rb.position=start;actor.transform.position=start;rb.rotation=Quaternion.identity;actor.transform.rotation=Quaternion.identity;
                 rb.linearVelocity=Vector3.zero;start.z+=2;
+                actor.GetComponent<CreaturePuppet>()?.Teleport(); // the physical body does not follow a teleport by itself
             }
             Physics.SyncTransforms();yield return new WaitForFixedUpdate();yield return null;
             Assert.That(_attacker.IsInEditorPad,Is.False);Assert.That(_victim.IsInEditorPad,Is.False);
@@ -78,7 +79,7 @@ namespace Leeway.Tests
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
             Assert.That(_combat.IsWindingUp,Is.True);Assert.That(_victim.Hp,Is.EqualTo(before));
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Horn),Is.False,"Changing attacks must not bypass cooldown.");
-            yield return Wait(()=>!_combat.IsWindingUp,"Attack impact");
+            yield return Wait(()=>!_combat.IsWindingUp,"Attack impact");yield return new WaitForSeconds(0.6f);
             Assert.That(_victim.Hp,Is.EqualTo(before-damage).Within(0.01f),"The telegraphed strike must hit a target in front.");
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.False);
         }
@@ -110,20 +111,20 @@ namespace Leeway.Tests
             var other=_victim.GetComponent<CreatureCombatant>();byte team=other.Team;
             other.ConfigureTeam(_combat.Team);float before=_victim.Hp;
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
-            yield return Wait(()=>!_combat.IsWindingUp,"Friendly strike");
+            yield return Wait(()=>!_combat.IsWindingUp,"Friendly strike");yield return new WaitForSeconds(0.6f);
             Assert.That(_victim.Hp,Is.EqualTo(before));
             other.ConfigureTeam(team);yield return Wait(()=>_combat.CooldownRemaining<=0,"Cooldown");
             var rb=_victim.GetComponent<Rigidbody>();var behind=_attacker.transform.position-Vector3.forward*2;
             rb.position=behind;_victim.transform.position=behind;Physics.SyncTransforms();yield return new WaitForFixedUpdate();
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
-            yield return Wait(()=>!_combat.IsWindingUp,"Rear strike");Assert.That(_victim.Hp,Is.EqualTo(before));
+            yield return Wait(()=>!_combat.IsWindingUp,"Rear strike");yield return new WaitForSeconds(0.6f);Assert.That(_victim.Hp,Is.EqualTo(before));
             yield return Wait(()=>_combat.CooldownRemaining<=0,"Cooldown");
             var front=_attacker.transform.position+Vector3.forward*2;rb.position=front;_victim.transform.position=front;
             var wall=GameObject.CreatePrimitive(PrimitiveType.Cube);wall.name="Combat LOS test wall";
             wall.transform.position=_attacker.transform.position+Vector3.forward;wall.transform.localScale=new Vector3(3,3,0.25f);
             Physics.SyncTransforms();yield return new WaitForFixedUpdate();
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
-            yield return Wait(()=>!_combat.IsWindingUp,"Blocked strike");UnityEngine.Object.Destroy(wall);
+            yield return Wait(()=>!_combat.IsWindingUp,"Blocked strike");yield return new WaitForSeconds(0.6f);UnityEngine.Object.Destroy(wall);
             Assert.That(_victim.Hp,Is.EqualTo(before));
         }
         [UnityTest] public IEnumerator ArmsAssistAllyAndPlayerRespawnsWithSameGenome()

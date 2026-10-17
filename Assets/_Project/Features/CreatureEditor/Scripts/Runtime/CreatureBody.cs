@@ -57,6 +57,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("How long the creature lies down before the server stands it back up.")]
         [SerializeField] private float _knockdownSeconds = 2f;
 
+        [Tooltip("The longest a creature stays down waiting to come to rest, however it lies.")]
+        [SerializeField] private float _maxKnockdownSeconds = 12f;
+
         [Tooltip("The minimum impulse that topples at all. Below it the creature merely gets a shove.")]
         [SerializeField] private float _knockdownImpulseThreshold = 4f;
 
@@ -388,6 +391,7 @@ namespace Leeway.CreatureEditor
 
             state.IsRising = true;
             state.Landing = ResolveLanding();
+            state.RiseTicks = RiseTicksFor();
 
             _knockdown.Value = state;
             ApplyKnockdownVisuals(state);
@@ -443,11 +447,11 @@ namespace Leeway.CreatureEditor
 
             if (!_knockdown.Value.IsRising)
             {
-                if (elapsed >= KnockdownTicks) BeginRise();
+                if (ReadyToRise(elapsed)) BeginRise();
                 return;
             }
 
-            if (elapsed >= KnockdownTicks + RiseTicks)
+            if (elapsed >= KnockdownTicks + _knockdown.Value.RiseTicks)
             {
                 _knockdown.Value = KnockdownState.Standing;
                 ApplyKnockdownVisuals(KnockdownState.Standing);
@@ -457,13 +461,25 @@ namespace Leeway.CreatureEditor
         private uint KnockdownTicks => (uint)Mathf.Max(1f, _knockdownSeconds / (float)TimeManager.TickDelta);
 
         /// <summary>How many ticks getting up takes — exactly as long as the bone pose blend.</summary>
-        private uint RiseTicks
+        private ushort RiseTicksFor()
         {
-            get
-            {
-                float seconds = _ragdoll != null ? _ragdoll.RecoverySeconds : 0f;
-                return (uint)Mathf.Max(1f, seconds / (float)TimeManager.TickDelta);
-            }
+            float seconds = _puppet != null ? _puppet.RiseSeconds : _ragdoll != null ? _ragdoll.RecoverySeconds : 0f;
+            return (ushort)Mathf.Clamp(seconds / (float)TimeManager.TickDelta, 1f, ushort.MaxValue);
+        }
+
+        /// <summary>
+        /// Whether the creature may start getting up. Not on a timer alone: while it is still rolling or
+        /// flying through the air it stays down, and it does not stand until it lies right way up.
+        /// </summary>
+        private bool ReadyToRise(uint elapsedTicks)
+        {
+            if (elapsedTicks < KnockdownTicks) return false;
+            if (_puppet == null) return true;
+
+            float waited = elapsedTicks * (float)TimeManager.TickDelta;
+            if (waited >= _maxKnockdownSeconds) return true;
+
+            return _puppet.RestTime >= 0.5f && _puppet.UprightDot >= 0.55f;
         }
 
         private void ApplyKnockdownVisuals(KnockdownState state)
@@ -533,7 +549,7 @@ namespace Leeway.CreatureEditor
             {
                 Stand(state.IsRising ? state.Landing : transform.position);
                 Locomotion?.ResetLean();
-                _puppet.StandUp();
+                _puppet.StandUp(state.RiseTicks * (float)TimeManager.TickDelta);
                 Locomotion?.Resume();
             }
         }

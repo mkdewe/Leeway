@@ -25,6 +25,7 @@ GameObject:
   - component: {fileID: 3079268080025749817}
   - component: {fileID: 6948382055312876540}
   - component: {fileID: 8234730104389478615}
+  - component: {fileID: 1343756021983587808}
   m_Layer: 9
   m_Name: EnemyCreature
   m_TagString: Untagged
@@ -195,10 +196,12 @@ MonoBehaviour:
   _puppet: {fileID: 5418282619768888697}
   _skinCanvas: {fileID: 4075836457445021666}
   _knockdownSeconds: 2
+  _maxKnockdownSeconds: 12
   _knockdownImpulseThreshold: 4
   _requireEditorPad: 1
   _acceleration: 6
   _braking: 14
+  _sprintMultiplier: 1.45
   _orbitCamera: {fileID: 0}
   _waterMask:
     serializedVersion: 2
@@ -463,3 +466,24 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureCombatPresentation
   _telegraphMaterial: {fileID: 2100000, guid: 47f564faacc893a42b2102d5e9d4dd8f, type: 2}
+--- !u!114 &1343756021983587808
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: df43c2290138aa44eabfd4758909fe53, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureLife
+  _breathRate: 0.32
+  _breathDepth: 0.014
+  _noticeDistance: 14
+  _glanceInterval: {x: 1.8, y: 4.5}
+  _headYawLimit: 55
+  _blinkInterval: {x: 2.2, y: 6}
+  _pupilSize: 0.46
+  _pupilColor: {r: 0.05, g: 0.04, b: 0.06, a: 1}
+  _maxJawDegrees: 42

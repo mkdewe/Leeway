@@ -36,6 +36,9 @@ namespace Leeway.CreatureEditor
         /// </summary>
         public Vector3 Landing;
 
+        /// <summary>How many network ticks getting up takes. Decided by the server when the rise begins.</summary>
+        public ushort RiseTicks;
+
         public static KnockdownState Standing => default;
 
         /// <summary>Lying down with the ragdoll in charge. Then and only then are the bone bodies enabled.</summary>
@@ -47,7 +50,8 @@ namespace Leeway.CreatureEditor
             && StartTick == other.StartTick
             && HitBoneIndex == other.HitBoneIndex
             && Impulse == other.Impulse
-            && Landing == other.Landing;
+            && Landing == other.Landing
+            && RiseTicks == other.RiseTicks;
 
         public override bool Equals(object obj) => obj is KnockdownState other && Equals(other);
 

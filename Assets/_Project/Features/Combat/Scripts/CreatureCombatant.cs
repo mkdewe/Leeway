@@ -22,6 +22,13 @@ namespace Leeway.Combat
         private AttackSpec _spec,_pendingSpec;
         private Vector3 _attackHeading;
         private bool _harvested;
+        private CreatureLife _life;
+        private readonly System.Collections.Generic.List<CreatureLife.Tip> _tips=new();
+        private readonly System.Collections.Generic.List<Vector3> _prevTips=new();
+        private bool _striking;
+        private float _strikeEnd,_strikeRadius;
+        private CreatureAbility _strikeAbility;
+        private const float StrikeSeconds=0.2f;
         private float _scanUntil,_noticeUntil;
         private string _notice;
         public AttackSpec Spec=>_spec;
@@ -70,10 +77,92 @@ namespace Leeway.Combat
         }
         private void Update()
         {
-            if(!IsServerInitialized||!_winding.Value)return;
-            if(!_body.IsAlive||_body.IsKnockedDown||_body.IsInEditorPad){_winding.Value=false;return;}
-            if(Now<_impactAt.Value)return;
-            _winding.Value=false;ResolveAttack();
+            PoseBody();
+            if(!IsServerInitialized)return;
+            if(_winding.Value)
+            {
+                if(!_body.IsAlive||_body.IsKnockedDown||_body.IsInEditorPad){_winding.Value=false;return;}
+                if(Now<_impactAt.Value)return;
+                _winding.Value=false;BeginStrike();
+            }
+            if(_striking)TickStrike();
+        }
+        /// <summary>Every machine plays the same pose from the same synced timing, so the blow can be seen coming.</summary>
+        private void PoseBody()
+        {
+            if(!_life&&!TryGetComponent(out _life))return;
+            float since=Now-_impactAt.Value;
+            if(_winding.Value)_life.PoseAttack(_action.Value,WindupProgress,since);
+            else if(_impactAt.Value>0&&since<0.8f)_life.PoseAttack(_action.Value,1,since);
+        }
+        /// <summary>
+        /// The moment of impact. From here the blow is the body part itself moving: the server sweeps the
+        /// tip of the jaw, hand or horn through the world for a fraction of a second and hits what it
+        /// touches - not what happened to be standing within reach when the clock ran out.
+        /// </summary>
+        private void BeginStrike()
+        {
+            _strikeAbility=_action.Value;
+            _strikeRadius=0;
+            if(!_life&&!TryGetComponent(out _life)){ResolveAttack();return;}
+            _life.GetTips(_strikeAbility,_tips);
+            if(_tips.Count==0){ResolveAttack();return;}
+            _prevTips.Clear();foreach(var t in _tips)_prevTips.Add(t.Position);
+            _strikeEnd=Now+StrikeSeconds;_striking=true;
+        }
+        private void TickStrike()
+        {
+            if(!_body.IsAlive||_body.IsKnockedDown){_striking=false;RpcStruck(null,0,transform.position,false);return;}
+            _life.GetTips(_strikeAbility,_tips);
+            // The creature throws its weight behind the blow: the tip is carried forward until the blow's
+            // full reach, so how far it can hurt stays what the build says, while where it hurts is the tip.
+            float progress=1-Mathf.Clamp01((_strikeEnd-Now)/StrikeSeconds);
+            float lunge=Mathf.Clamp01(progress/0.6f);
+            Vector3 heading=transform.forward;heading.y=0;heading.Normalize();
+            for(int i=0;i<_tips.Count&&i<_prevTips.Count;i++)
+            {
+                Vector3 tip=_tips[i].Position;
+                // A physical body that has not caught up with its capsule (just teleported, just respawned) says
+                // nothing about where the blow is: fall back on the front of the capsule.
+                if((tip-transform.position).sqrMagnitude>Mathf.Pow(_pendingSpec.Reach+2.5f,2))tip=transform.position+heading*0.6f+Vector3.up*0.5f;
+                Vector3 flat=tip-transform.position;flat.y=0;
+                float extra=Mathf.Max(0,_pendingSpec.Reach+_forgiveness-Vector3.Dot(flat,heading));
+                Vector3 to=tip+heading*extra*lunge;
+                Vector3 from=_prevTips[i];
+                Vector3 velocity=(to-from)/Mathf.Max(Time.deltaTime,1e-3f);
+                if(TryHitAlong(from,to,Mathf.Max(0.25f,_tips[i].Radius),velocity)){_striking=false;return;}
+                _prevTips[i]=to;
+            }
+            // The swing is over without the tip touching anything. Whatever is still inside the blow's reach and
+            // arc is caught by it all the same - a glancing contact the sampling stepped over.
+            if(Now>=_strikeEnd){_striking=false;ResolveAttack();}
+        }
+        private bool TryHitAlong(Vector3 from,Vector3 to,float radius,Vector3 velocity)
+        {
+            int count=Physics.OverlapCapsuleNonAlloc(from,to,radius,_overlap,_hitMask,QueryTriggerInteraction.Ignore);
+            CreatureBody best=null;Vector3 point=to;float distance=float.MaxValue;
+            for(int i=0;i<count;i++)
+            {
+                var c=_overlap[i];if(!c)continue;var candidate=c.GetComponentInParent<CreatureBody>();
+                if(!candidate||candidate==_body||candidate.IsInEditorPad||!candidate.IsAlive||SameTeam(candidate)||!ClearTo(candidate))continue;
+                Vector3 p=c.ClosestPoint(to);float d=(p-to).sqrMagnitude;
+                if(d>=distance)continue;best=candidate;point=p;distance=d;
+            }
+            if(!best)return false;
+            // The blow carries the speed the tip had: a snap or a swing, not a push from the creature's centre.
+            Vector3 direction=velocity.sqrMagnitude>0.01f?velocity.normalized:transform.forward;
+            direction=(direction+Vector3.up*0.25f).normalized;
+            ApplyHit(best,point,direction);
+            return true;
+        }
+        private void ApplyHit(CreatureBody target,Vector3 point,Vector3 direction)
+        {
+            Vector3 impulse=direction*CombatRules.Knockback(transform.position,target.transform.position,in _pendingSpec,in _tuning).magnitude;
+            bool toppled=target.Knockdown(impulse,NearestBone(target,point));
+            target.TakeDamage(_pendingSpec.Damage);
+            if(target.TryGetComponent(out NpcCreatureAgent npc))npc.RecordHit(_body);
+            RpcStruck(target,_pendingSpec.Damage,point,toppled);
+            if(!target.IsAlive)RpcDied(target);
         }
         private void ResolveAttack()
         {
@@ -81,11 +170,7 @@ namespace Leeway.Combat
             var target=FindTarget(origin,_attackHeading,in _pendingSpec,out var point);
             if(!target){RpcStruck(null,0,origin,false);return;}
             Vector3 impulse=CombatRules.Knockback(origin,target.transform.position,in _pendingSpec,in _tuning);
-            bool toppled=target.Knockdown(impulse,NearestBone(target,point));
-            target.TakeDamage(_pendingSpec.Damage);
-            if(target.TryGetComponent(out NpcCreatureAgent npc))npc.RecordHit(_body);
-            RpcStruck(target,_pendingSpec.Damage,point,toppled);
-            if(!target.IsAlive)RpcDied(target);
+            ApplyHit(target,point,impulse.normalized);
         }
         private CreatureBody FindTarget(Vector3 origin,Vector3 forward,in AttackSpec attack,out Vector3 point)
         {

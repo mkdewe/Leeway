@@ -436,11 +436,96 @@ namespace Leeway.CreatureEditor
         /// the creature stands up (<see cref="CreatureBody"/> moves the root first); this only decides
         /// that it does.
         /// </remarks>
-        public void StandUp()
+        public void StandUp(float riseSeconds = 1.5f)
         {
             if (_behaviour == null) return;
 
+            // The pins climb back over roughly this long, so the creature gets up instead of snapping up.
+            _behaviour.regainPinSpeed = 1.2f / Mathf.Max(0.5f, riseSeconds);
+
             _behaviour.SetState(BehaviourPuppet.State.Puppet);
+        }
+
+        // --- Settling and getting up ---------------------------------------------------------------
+        // A creature may only start to rise once it has really stopped: on the ground, not rolling, not
+        // flying. And if it came to rest on its back or its side it first rolls itself over - a rise
+        // from there would pull the limbs through the body.
+
+        /// <summary>How long the body has been lying still on the ground, in seconds. Zero while it moves or is in the air.</summary>
+        public float RestTime { get; private set; }
+
+        /// <summary>1 when the spine's up points to the sky, 0 on its side, -1 on its back.</summary>
+        public float UprightDot { get; private set; } = 1f;
+
+        /// <summary>The mean speed of the body's muscles, in m/s.</summary>
+        public float BodySpeed { get; private set; }
+
+        /// <summary>Whether the body is close to the ground below it.</summary>
+        public bool OnGround { get; private set; }
+
+        /// <summary>How long getting up takes. Longer for a creature that has to turn over first.</summary>
+        public float RiseSeconds => Mathf.Lerp(1.5f, 2.4f, Mathf.InverseLerp(1f, -0.2f, UprightDot));
+
+        private void Update()
+        {
+            if (_puppetMaster == null || !_puppetMaster.initiated || _behaviour == null) return;
+
+            MeasureBody();
+
+            bool down = IsDown;
+            bool still = down && OnGround && BodySpeed < 0.45f;
+            RestTime = still ? RestTime + Time.deltaTime : 0f;
+
+            // Lying still but not the right way up: roll over, with a push that stays gentle.
+            if (down && RestTime > 0.35f && UprightDot < 0.6f) AssistUpright();
+        }
+
+        private void MeasureBody()
+        {
+            Vector3 centre = Vector3.zero;
+            Vector3 up = Vector3.zero;
+            float speed = 0f;
+            int count = 0;
+
+            foreach (Muscle muscle in _puppetMaster.muscles)
+            {
+                if (muscle?.rigidbody == null || _built?.Bones == null || System.Array.IndexOf(_built.Bones, muscle.target) < 0) continue;
+
+                centre += muscle.rigidbody.position;
+                up += muscle.rigidbody.rotation * Vector3.up;
+                speed += muscle.rigidbody.linearVelocity.magnitude;
+                count++;
+            }
+
+            if (count == 0) return;
+
+            centre /= count;
+            BodySpeed = speed / count;
+            UprightDot = Vector3.Dot(up.normalized, Vector3.up);
+
+            float clearance = Mathf.Max(0.5f, GenomeStatRules.StandHeight(_genome, GetComponent<CreatureBody>().Rules) * 1.05f);
+            int mask = ~((1 << ResolveLayer(_ragdollLayer)) | (1 << ResolveLayer(_controllerLayer)));
+            PhysicsScene scene = _puppetMaster.gameObject.scene.GetPhysicsScene();
+            OnGround = scene.Raycast(centre + Vector3.up * 0.2f, Vector3.down, out _, clearance + 0.2f, mask, QueryTriggerInteraction.Ignore);
+        }
+
+        /// <summary>Pushes the body round its length until the back is up again.</summary>
+        private void AssistUpright()
+        {
+            Vector3 up = Vector3.zero;
+            foreach (Muscle muscle in _puppetMaster.muscles)
+                if (muscle?.rigidbody != null) up += muscle.rigidbody.rotation * Vector3.up;
+
+            Vector3 axis = Vector3.Cross(up.normalized, Vector3.up);
+            if (axis.sqrMagnitude < 0.01f) axis = transform.forward; // exactly on its back: either way will do
+            axis.Normalize();
+
+            // Torque on the heaviest links only - spreading it over every muscle would twist the limbs off.
+            foreach (Muscle muscle in _puppetMaster.muscles)
+            {
+                if (muscle?.rigidbody == null || _built?.Bones == null || System.Array.IndexOf(_built.Bones, muscle.target) < 0) continue;
+                muscle.rigidbody.AddTorque(axis * (muscle.rigidbody.mass * 9f), ForceMode.Force);
+            }
         }
 
         public void ReleaseBody() { Clear(); _built = null; _genome = null; }

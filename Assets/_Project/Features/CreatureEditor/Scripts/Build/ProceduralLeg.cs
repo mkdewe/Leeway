@@ -390,6 +390,8 @@ namespace Leeway.CreatureEditor
         public void Hold()
         {
             if (_hip == null) return;
+            _planted = false;
+            _stepping = false;
 
             if (!_holding)
             {
@@ -479,6 +481,8 @@ namespace Leeway.CreatureEditor
         public void Rest(Vector3 forward)
         {
             if (_hip == null) return;
+            _planted = false;
+            _stepping = false;
 
             Vector3 hip = _hip.position;
 
@@ -498,6 +502,144 @@ namespace Leeway.CreatureEditor
 
             return offset.sqrMagnitude > max * max ? hip + offset.normalized * max : foot;
         }
+
+        // --- Step planner -------------------------------------------------------------------------
+        // The older Tick drives the foot from a phase that advances with distance walked. That breaks the
+        // moment the body moves without walking: sliding down a slope, being shoved, turning on the spot.
+        // The planner works the other way round - a foot stays where it was planted, and takes a step when
+        // the body has carried it too far from where it ought to be. Any motion of the body therefore makes
+        // the legs react, whatever caused it.
+
+        private Vector3 _plant;
+        private Vector3 _stepFrom;
+        private bool _planted;
+        private bool _stepping;
+        private float _stepProgress;
+        private float _stepDuration;
+        private float _stepHeight;
+
+        /// <summary>The foot is in the air between two plants.</summary>
+        public bool IsStepping => _stepping;
+
+        /// <summary>How far the planted foot is from where the body wants it, in metres. The gait gives the largest the next step.</summary>
+        public float StepNeed { get; private set; }
+
+        /// <summary>The distance at which the leg asks to step.</summary>
+        public float StepThreshold { get; private set; }
+
+        /// <summary>Whether the current ideal foot position lies on ground the leg can reach.</summary>
+        public bool PlannerHasGround { get; private set; }
+
+        /// <summary>The share of the step already taken, 0 to 1. Zero while the foot is planted.</summary>
+        public float StepProgress => _stepping ? _stepProgress : 0f;
+
+        /// <summary>
+        /// Updates the leg for one frame.
+        /// </summary>
+        /// <param name="velocity">The body's velocity in world space, including the vertical part - a slide counts.</param>
+        /// <param name="yawRate">How fast the body turns, in radians per second.</param>
+        /// <param name="center">The point the body turns about.</param>
+        /// <param name="forward">The body's heading, for the knee.</param>
+        /// <param name="mayStep">Whether the gait lets this leg lift now. A leg that is overstretched steps regardless.</param>
+        public void Plan(Vector3 velocity, float yawRate, Vector3 center, Vector3 forward, LayerMask groundMask,
+            bool mayStep, float deltaTime)
+        {
+            if (_hip == null) return;
+            _holding = false;
+
+            Vector3 hip = _hip.position;
+            Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
+            float speed = flat.magnitude;
+
+            // Aim a little ahead of where the hip is: by the time the foot lands the body will be there.
+            float lead = Mathf.Clamp(0.10f + speed * 0.04f, 0.1f, 0.3f);
+            Vector3 offset = hip - center; offset.y = 0f;
+            Vector3 turned = Quaternion.AngleAxis(yawRate * Mathf.Rad2Deg * lead, Vector3.up) * offset;
+            Vector3 aim = hip + flat * lead + (turned - offset);
+
+            Vector3 ideal = aim + Vector3.down * _spec.RideHeight;
+            PlannerHasGround = TryGround(aim, groundMask, 0.35f, out RaycastHit support);
+            if (PlannerHasGround)
+            {
+                GroundNormal = support.normal;
+                ideal = support.point + Vector3.up * 0.015f;
+            }
+            HasGroundContact = PlannerHasGround;
+
+            if (!_planted || !_initialised)
+            {
+                _plant = ideal;
+                _planted = true;
+                _stepping = false;
+                _initialised = true;
+            }
+
+            float stride = Mathf.Max(0.05f, _gait.StepLength);
+            StepThreshold = Mathf.Max(0.05f, stride * (speed > 0.3f ? 0.5f : 0.7f));
+
+            if (!_stepping)
+            {
+                Vector3 drift = ideal - _plant;
+                float horizontal = new Vector2(drift.x, drift.z).magnitude;
+                StepNeed = horizontal + Mathf.Abs(drift.y) * 0.5f;
+
+                float stretch = (_plant - hip).magnitude / Mathf.Max(0.01f, _spec.Reach * MaxReachFactor);
+                bool overstretched = stretch > 0.97f;
+
+                if (overstretched || (mayStep && StepNeed > StepThreshold))
+                {
+                    _stepping = true;
+                    _stepFrom = _plant;
+                    _stepProgress = 0f;
+                    float travel = Mathf.Max(StepNeed, 0.05f);
+                    _stepDuration = Mathf.Clamp(travel / Mathf.Max(1.5f, speed * 1.8f + 0.5f), 0.1f, 0.38f);
+                    _stepHeight = Mathf.Clamp(_gait.StepHeight * Mathf.Clamp01(0.5f + travel / stride), 0.02f, _gait.StepHeight * 1.4f);
+                }
+            }
+
+            Vector3 target = _plant;
+            if (_stepping)
+            {
+                _stepProgress += deltaTime / _stepDuration;
+                float t = Mathf.Clamp01(_stepProgress);
+                float eased = t * t * (3f - 2f * t);
+                target = Vector3.Lerp(_stepFrom, ideal, eased) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * _stepHeight);
+
+                if (_stepProgress >= 1f)
+                {
+                    _stepping = false;
+                    _plant = ideal;
+                    target = _plant;
+                }
+            }
+
+            // Feet are never allowed below the ground they stand over.
+            if (TryGround(target, groundMask, 0.35f, out RaycastHit beneath))
+                target.y = Mathf.Max(target.y, beneath.point.y + 0.01f);
+
+            if (_strikeWeight > 0.001f) target = Vector3.Lerp(target, _strikeTarget, _strikeWeight);
+
+            _footTarget = ClampToReach(hip, target);
+            _joints[0] = hip;
+            LimbIk.Solve(_joints, _lengths, _footTarget, BendHint(forward));
+            ApplyToSegments();
+        }
+
+        private Vector3 _strikeTarget;
+        private float _strikeWeight;
+
+        /// <summary>
+        /// Takes the foot over for a blow: it goes to <paramref name="worldTarget"/> instead of where the gait
+        /// would put it. A weight of zero hands it back.
+        /// </summary>
+        public void SetStrike(Vector3 worldTarget, float weight)
+        {
+            _strikeTarget = worldTarget;
+            _strikeWeight = Mathf.Clamp01(weight);
+        }
+
+        /// <summary>Forgets the planted foot, so the next <see cref="Plan"/> puts it straight under the body.</summary>
+        public void Unplant() { _planted = false; _stepping = false; }
 
         public bool HasGroundWithinReach(LayerMask mask, float margin)
         {

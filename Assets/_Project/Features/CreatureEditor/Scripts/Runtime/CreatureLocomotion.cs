@@ -90,6 +90,7 @@ namespace Leeway.CreatureEditor
         private float _gaitWeight;
         private float _standHeight;
         private float _unsupportedSeconds;
+        private readonly List<ProceduralLeg> _order = new();
         public float GaitPhase => _phase;
 
         /// <summary>
@@ -242,31 +243,37 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
-            // Vertical motion does not drive the step — a jump or a slide down a slope must not pace the legs.
-            travel.y = 0f;
+            // The step planner: each foot stays where it was planted and steps when the body has carried
+            // it too far. Whatever moves the body - walking, a slide down a slope, a shove, a turn on the
+            // spot - therefore makes the legs react. Nothing here is driven by a walking phase.
+            Vector3 velocity = travel / Mathf.Max(Time.deltaTime, 1e-4f);
+            float yawRate = yawDelta * Mathf.Deg2Rad / Mathf.Max(Time.deltaTime, 1e-4f);
+            float flatSpeed = new Vector2(velocity.x, velocity.z).magnitude;
 
-            float distance = travel.magnitude;
-            Vector3 forward = distance > 1e-4f ? travel / distance : transform.forward;
-
-            // The distance the hips actually travelled: the body's displacement plus the arc from the
-            // turn. A hip close to the axis of rotation sweeps a shorter arc and rightly takes a smaller step.
-            float stepDistance = distance + Mathf.Abs(yawDelta) * Mathf.Deg2Rad * MeanHipRadius(position);
-
-            float speed = stepDistance / Mathf.Max(Time.deltaTime, 1e-4f);
-            float stride = Stride(speed);
-
-            // One shared phase for the whole creature; the legs are spread out by their own offsets.
-            bool moving = speed > _idleSpeed;
-            if (moving) _phase += stepDistance / stride;
-
-            // The phase only advances while travelling, so stopping mid-step used to freeze a foot in the
-            // air. The weight fades the step out instead: every foot settles on the ground under its hip.
-            _gaitWeight = Mathf.MoveTowards(_gaitWeight, moving ? 1f : 0f, _gaitBlendSpeed * Time.deltaTime);
-
-            float responsiveness = Responsiveness(speed, stride);
-
+            // The legs that need a step most go first, and only a share of them may be in the air at once -
+            // that is what makes the feet alternate instead of all lifting together.
+            _order.Clear();
+            int airborneLegs = 0;
             foreach (ProceduralLeg leg in _legs)
-                leg.Tick(_phase, forward, stride, _groundMask, responsiveness, Time.deltaTime, _gaitWeight);
+            {
+                _order.Add(leg);
+                if (leg.IsStepping) airborneLegs++;
+            }
+            _order.Sort((a, b) => b.StepNeed.CompareTo(a.StepNeed));
+
+            int allowed = Mathf.Max(1, Mathf.CeilToInt(_legs.Count * (flatSpeed > 4f ? 0.6f : 0.5f)));
+            if (_legs.Count == 2 && flatSpeed > 6f) allowed = 2;
+
+            foreach (ProceduralLeg leg in _order)
+            {
+                bool mayStep = leg.IsStepping || airborneLegs < allowed;
+                bool wasStepping = leg.IsStepping;
+                leg.Plan(velocity, yawRate, position, transform.forward, _groundMask, mayStep, Time.deltaTime);
+                if (!wasStepping && leg.IsStepping) airborneLegs++;
+                else if (wasStepping && !leg.IsStepping) airborneLegs--;
+            }
+
+            _phase += flatSpeed * Time.deltaTime;
         }
 
         private bool CheckAirborne(Vector3 position)
