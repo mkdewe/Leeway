@@ -24,6 +24,7 @@ GameObject:
   - component: {fileID: 2120812884369215191}
   - component: {fileID: 5538058752377725298}
   - component: {fileID: 6353701117271416799}
+  - component: {fileID: 4145643731240362566}
   m_Layer: 9
   m_Name: PlaygroundCreature
   m_TagString: Untagged
@@ -429,3 +430,19 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureAttackInput
   _attackKey: 1
+--- !u!114 &4145643731240362566
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 8a964aba2ea22484fae8e745f96ab9ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureFootDust
+  _dustPrefab: {fileID: 6598539553947301934, guid: dd683c9b1c535904d8e113f195ffb77a, type: 3}
+  _particlesPerStep: 7
+  _stepSpeedRatio: 1.8
+  _minStepSpeed: 1.5

@@ -77,7 +77,7 @@ namespace Leeway.CreatureEditor
                 if (renderer == null) continue;
 
                 renderer.GetPropertyBlock(_sharedBlock);
-                // A tint applied after Bind (e.g. CreatureStyle) must survive the highlight, so remember what was there.
+                // A tint applied after Bind (CreatureSkinPainter paints parts through the block) must survive the highlight, so remember what was there.
                 if (highlighted && !_highlighted && _sharedBlock.HasColor(BaseColorId))
                     _normalColors[i] = _sharedBlock.GetColor(BaseColorId);
                 _sharedBlock.SetColor(BaseColorId, highlighted ? _highlightColor : _normalColors[i]);

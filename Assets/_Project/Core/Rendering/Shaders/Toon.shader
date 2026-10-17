@@ -10,6 +10,8 @@ Shader "Leeway/Toon"
     {
         _BaseMap ("Base Map", 2D) = "white" {}
         _BaseColor ("Base Color", Color) = (1, 1, 1, 1)
+        [Normal] _BumpMap ("Normal Map", 2D) = "bump" {}
+        _BumpScale ("Normal Strength", Float) = 1
         [HDR] _EmissionColor ("Emission", Color) = (0, 0, 0, 1)
         [Toggle(_VERTEX_COLOR)] _UseVertexColor ("Multiply By Vertex Color", Float) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
@@ -36,10 +38,13 @@ Shader "Leeway/Toon"
 
         TEXTURE2D(_BaseMap);
         SAMPLER(sampler_BaseMap);
+        TEXTURE2D(_BumpMap);
+        SAMPLER(sampler_BumpMap);
 
         CBUFFER_START(UnityPerMaterial)
             float4 _BaseMap_ST;
             half4 _BaseColor;
+            half _BumpScale;
             half4 _EmissionColor;
             half _Bands;
             half _BandSoftness;
@@ -79,6 +84,8 @@ Shader "Leeway/Toon"
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma shader_feature_local _VERTEX_COLOR
+            // Wzory skory z palety stwora (CreatureSkinPainter) niosa normal mape - relief zostaje w pasach swiatla.
+            #pragma shader_feature_local _NORMALMAP
 
             #pragma multi_compile _ _MAIN_LIGHT_SHADOWS _MAIN_LIGHT_SHADOWS_CASCADE _MAIN_LIGHT_SHADOWS_SCREEN
             #pragma multi_compile _ _ADDITIONAL_LIGHTS_VERTEX _ADDITIONAL_LIGHTS
@@ -97,6 +104,7 @@ Shader "Leeway/Toon"
                 float4 positionOS : POSITION;
                 float4 grow : TEXCOORD2;
                 float3 normalOS : NORMAL;
+                float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
                 half4 color : COLOR;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
@@ -110,6 +118,7 @@ Shader "Leeway/Toon"
                 float3 normalWS : TEXCOORD2;
                 half fogFactor : TEXCOORD3;
                 half4 color : TEXCOORD4;
+                float4 tangentWS : TEXCOORD5;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
@@ -123,6 +132,7 @@ Shader "Leeway/Toon"
                 output.positionCS = pos.positionCS;
                 output.positionWS = pos.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
+                output.tangentWS = float4(TransformObjectToWorldDir(input.tangentOS.xyz), input.tangentOS.w * GetOddNegativeScale());
                 output.uv = TRANSFORM_TEX(input.uv, _BaseMap);
                 output.fogFactor = ComputeFogFactor(pos.positionCS.z);
                 output.color = input.color;
@@ -157,6 +167,11 @@ Shader "Leeway/Toon"
                 #endif
                 // Cull Off (trawa, liscie): tyl trojkata oswietlany jak przod.
                 half3 normalWS = normalize(input.normalWS) * IS_FRONT_VFACE(face, 1.0, -1.0);
+                #if defined(_NORMALMAP)
+                    half3 normalTS = UnpackNormalScale(SAMPLE_TEXTURE2D(_BumpMap, sampler_BumpMap, input.uv), _BumpScale);
+                    float3 bitangentWS = cross(input.normalWS, input.tangentWS.xyz) * input.tangentWS.w;
+                    normalWS = normalize(TransformTangentToWorld(normalTS, half3x3(input.tangentWS.xyz, bitangentWS, input.normalWS))) * IS_FRONT_VFACE(face, 1.0, -1.0);
+                #endif
                 half3 viewWS = GetWorldSpaceNormalizeViewDir(input.positionWS);
 
                 float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);

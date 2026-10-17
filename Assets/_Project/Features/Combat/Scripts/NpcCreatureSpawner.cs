@@ -40,6 +40,8 @@ namespace Leeway.Combat
         [Tooltip("Seconds between checks that the population is still full.")]
         [SerializeField, Min(1f)] private float _restockSeconds = 12f;
 
+        private const float GroundProbeHeight = 60f;
+
         private readonly List<NetworkObject> _spawned = new();
         private float _nextRestock;
 
@@ -110,7 +112,14 @@ namespace Leeway.Combat
             float angle = index * 2.399963f; // the golden angle — an even spread without a table of positions
             float radius = Mathf.Max(_keepClear, _spawnRadius * (0.6f + 0.4f * Mathf.Repeat(index * 0.37f, 1f)));
 
-            return transform.position + new Vector3(Mathf.Cos(angle) * radius, _spawnHeight, Mathf.Sin(angle) * radius);
+            Vector3 position = transform.position + new Vector3(Mathf.Cos(angle) * radius, 0f, Mathf.Sin(angle) * radius);
+
+            // The ground is not always flat (generated islands): land on whatever is actually below.
+            if (Physics.Raycast(position + Vector3.up * GroundProbeHeight, Vector3.down, out RaycastHit hit,
+                    GroundProbeHeight * 2f, Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                position.y = hit.point.y;
+
+            return position + Vector3.up * _spawnHeight;
         }
     }
 }

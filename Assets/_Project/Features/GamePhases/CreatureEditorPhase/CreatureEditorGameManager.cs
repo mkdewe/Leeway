@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Cysharp.Threading.Tasks;
 using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Transporting;
@@ -34,8 +35,40 @@ namespace Leeway.GamePhases
         [Header("Island (optional - without it the scene keeps its own arena)")]
         [Tooltip("Island whose safe hub surrounds the editor pad. Its generator should have Center On Hub enabled.")]
         [SerializeField] private IslandSeed _island;
+        [Tooltip("The puppets' separate physics scene copies the world once at startup; the island is built later, so it has to copy again.")]
+        [SerializeField] private CreaturePhysicsWorld _creaturePhysics;
 
         private readonly Dictionary<int, NetworkObject> _playerBodies = new();
+
+        private void Awake()
+        {
+            if (_island == null) return;
+            _island.Generator.Generated += OnIslandGenerated;
+            // FishNet may start the island before this object wakes up - then the event has already fired.
+            if (_island.Generator.IsGenerated) OnIslandGenerated(_island.Generator.Field);
+        }
+
+        private void OnDestroy()
+        {
+            if (_island != null) _island.Generator.Generated -= OnIslandGenerated;
+        }
+
+        // Runs on every peer: each one builds the island locally and steps its own puppets.
+        private void OnIslandGenerated(Leeway.World.Domain.IslandHeightField field) => MirrorWhenActiveAsync().Forget();
+
+        /// <summary>
+        /// FishNet builds the island while its scene object is still being spawned, i.e. inactive, and
+        /// <see cref="CreaturePhysicsWorld.MirrorEnvironment"/> only sees active colliders. So wait until
+        /// the island is live before copying it into the puppets' physics scene.
+        /// </summary>
+        private async UniTaskVoid MirrorWhenActiveAsync()
+        {
+            if (_creaturePhysics == null || _island == null) return;
+
+            await UniTask.WaitUntil(() => _island == null || _island.gameObject.activeInHierarchy,
+                cancellationToken: this.GetCancellationTokenOnDestroy());
+            if (_creaturePhysics != null) _creaturePhysics.MirrorEnvironment();
+        }
 
         public override void OnStartServer()
         {
