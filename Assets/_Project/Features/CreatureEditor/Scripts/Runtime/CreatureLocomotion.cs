@@ -93,6 +93,9 @@ namespace Leeway.CreatureEditor
         private readonly List<ProceduralLeg> _order = new();
         public float GaitPhase => _phase;
 
+        /// <summary>Whether the body was travelling horizontally on the last frame.</summary>
+        public bool IsMoving { get; private set; }
+
         /// <summary>
         /// Nothing under the creature within its legs' reach: mid-jump, falling, or floating over deep
         /// water. The gait holds still then - effects such as footstep dust read this too.
@@ -249,6 +252,7 @@ namespace Leeway.CreatureEditor
             Vector3 velocity = travel / Mathf.Max(Time.deltaTime, 1e-4f);
             float yawRate = yawDelta * Mathf.Deg2Rad / Mathf.Max(Time.deltaTime, 1e-4f);
             float flatSpeed = new Vector2(velocity.x, velocity.z).magnitude;
+            IsMoving = flatSpeed > 0.4f;
 
             // The legs that need a step most go first, and only a share of them may be in the air at once -
             // that is what makes the feet alternate instead of all lifting together.
@@ -266,7 +270,7 @@ namespace Leeway.CreatureEditor
 
             foreach (ProceduralLeg leg in _order)
             {
-                bool mayStep = leg.IsStepping || airborneLegs < allowed;
+                bool mayStep = leg.IsStepping || (airborneLegs < allowed && !OppositeStepping(leg));
                 bool wasStepping = leg.IsStepping;
                 leg.Plan(velocity, yawRate, position, transform.forward, _groundMask, mayStep, Time.deltaTime);
                 if (!wasStepping && leg.IsStepping) airborneLegs++;
@@ -274,6 +278,19 @@ namespace Leeway.CreatureEditor
             }
 
             _phase += flatSpeed * Time.deltaTime;
+        }
+
+        /// <summary>Whether a leg half a cycle away from this one is in the air - lifting both would leave the body unsupported on that side.</summary>
+        private bool OppositeStepping(ProceduralLeg leg)
+        {
+            foreach (ProceduralLeg other in _legs)
+            {
+                if (other == leg || !other.IsStepping) continue;
+                float apart = Mathf.Abs(Mathf.Repeat(leg.PhaseOffset - other.PhaseOffset + 0.5f, 1f) - 0.5f);
+                if (apart > 0.3f) return true;
+            }
+
+            return false;
         }
 
         private bool CheckAirborne(Vector3 position)

@@ -521,6 +521,9 @@ namespace Leeway.CreatureEditor
         /// <summary>The foot is in the air between two plants.</summary>
         public bool IsStepping => _stepping;
 
+        /// <summary>Where in the cycle this leg sits (0 to 1). Legs about half a cycle apart do not lift together.</summary>
+        public float PhaseOffset => _phaseOffset;
+
         /// <summary>How far the planted foot is from where the body wants it, in metres. The gait gives the largest the next step.</summary>
         public float StepNeed { get; private set; }
 
@@ -555,7 +558,17 @@ namespace Leeway.CreatureEditor
             float lead = Mathf.Clamp(0.10f + speed * 0.04f, 0.1f, 0.3f);
             Vector3 offset = hip - center; offset.y = 0f;
             Vector3 turned = Quaternion.AngleAxis(yawRate * Mathf.Rad2Deg * lead, Vector3.up) * offset;
-            Vector3 aim = hip + flat * lead + (turned - offset);
+            // Land ahead of the hip by about a quarter of a stride, so the foot passes under the body and trails
+            // it again by the time it lifts - a step that lands under the hip would be taken again at once.
+            float stride = Mathf.Max(0.05f, _gait.StepLength);
+            bool moving = speed > 0.15f;
+            // One cycle of the gait: the leg plants, trails behind the hip, lifts and lands ahead again. Its length
+            // follows the speed at a calm cadence, so a faster creature takes longer steps rather than quicker ones.
+            float cadence = Mathf.Max(0.3f, _gait.TargetCadence * 0.6f);
+            float cycle = moving ? Mathf.Clamp(speed / cadence, stride * 0.6f, Mathf.Max(stride * 1.3f, stride * 0.6f)) : 0f;
+            float ahead = cycle * 0.3f;
+            Vector3 direction = moving ? flat / speed : Vector3.zero;
+            Vector3 aim = hip + direction * ahead + (turned - offset);
 
             Vector3 ideal = aim + Vector3.down * _spec.RideHeight;
             PlannerHasGround = TryGround(aim, groundMask, 0.35f, out RaycastHit support);
@@ -574,8 +587,7 @@ namespace Leeway.CreatureEditor
                 _initialised = true;
             }
 
-            float stride = Mathf.Max(0.05f, _gait.StepLength);
-            StepThreshold = Mathf.Max(0.05f, stride * (speed > 0.3f ? 0.5f : 0.7f));
+            StepThreshold = moving ? Mathf.Max(0.08f, cycle * 0.6f) : Mathf.Max(0.05f, stride * 0.7f);
 
             if (!_stepping)
             {
@@ -592,8 +604,8 @@ namespace Leeway.CreatureEditor
                     _stepFrom = _plant;
                     _stepProgress = 0f;
                     float travel = Mathf.Max(StepNeed, 0.05f);
-                    _stepDuration = Mathf.Clamp(travel / Mathf.Max(1.5f, speed * 1.8f + 0.5f), 0.1f, 0.38f);
-                    _stepHeight = Mathf.Clamp(_gait.StepHeight * Mathf.Clamp01(0.5f + travel / stride), 0.02f, _gait.StepHeight * 1.4f);
+                    _stepDuration = Mathf.Clamp(0.55f / Mathf.Max(0.3f, _gait.TargetCadence), 0.16f, 0.45f);
+                    _stepHeight = Mathf.Clamp(_gait.StepHeight * Mathf.Clamp(0.6f + travel / stride, 0.8f, 1.5f), 0.04f, _gait.StepHeight * 1.6f + 0.04f);
                 }
             }
 

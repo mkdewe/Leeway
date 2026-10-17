@@ -195,7 +195,7 @@ namespace Leeway.CreatureEditor
 
             // Spine from the body towards the head; the head bone is the first vertebra.
             var spine = new List<Transform>();
-            for (int i = Mathf.Min(2, bones.Length - 1); i >= 1; i--) if (bones[i] != null) spine.Add(bones[i]);
+            // Head only: pulling the spine round with it twisted the whole body while it walked.
 
             _lookIk = built.Armature.gameObject.AddComponent<LookAtIK>();
             bool ok = _lookIk.solver.SetChain(spine.ToArray(), bones[0], null, transform);
@@ -206,6 +206,8 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
+            // The puppet's own mapping writes these bones; the solver must not reset them to a stored pose first.
+            _lookIk.fixTransforms = true;
             _lookIk.solver.target = _lookTarget;
             _lookIk.solver.IKPositionWeight = 0f;
         }
@@ -450,8 +452,10 @@ namespace Leeway.CreatureEditor
             // A dip of the head for the attack poses rides on top of the look.
             _lookTarget.position += Vector3.down * (_headDip * 0.05f);
 
-            _lookWeight = Mathf.MoveTowards(_lookWeight, enabled ? strength : 0f, dt * 2.5f);
-            _lookIk.solver.SetLookAtWeight(_lookWeight, 0.25f, 0.9f, 0f, 0.35f, 0.4f, 0.3f);
+            // Less of it on the move: a head swinging round while the creature walks looks like a twist of the body.
+            float moving = _locomotion != null && _locomotion.IsMoving ? 0.35f : 1f;
+            _lookWeight = Mathf.MoveTowards(_lookWeight, enabled ? strength * moving : 0f, dt * 2.5f);
+            _lookIk.solver.SetLookAtWeight(_lookWeight * 0.6f, 0f, 1f, 0f, 0.6f, 0.6f, 0.3f);
         }
 
         private Vector3 ChooseLookPoint(float dt, out float strength)
