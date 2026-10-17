@@ -35,11 +35,26 @@ namespace Leeway.CreatureEditor
         private Transform _pivot;
         private bool _dirty;
 
+        /// <summary>Whether the body is currently on the ground, driven by physics rather than by its legs.</summary>
+        private bool _sprawled;
+
         private CreatureBody _body;
         private CreatureBodyPreview _preview;
 
         /// <summary>The point the camera should aim at. It always exists.</summary>
         public Transform Pivot => _pivot != null ? _pivot : CreatePivot();
+
+        /// <summary>
+        /// How far the silhouette reaches from <see cref="Pivot"/> — the sphere the camera has to stay
+        /// outside of.
+        /// </summary>
+        /// <remarks>
+        /// The distance to the <b>corner</b> of the measured box, not its half-width: the box turns
+        /// with the creature, and a camera cleared only for the flat side would end up inside a leg
+        /// the moment the creature showed it its corner. Measured once per rebuild, like the axis
+        /// itself, so the value does not breathe with the step cycle.
+        /// </remarks>
+        public float SilhouetteRadius { get; private set; }
 
         private void OnEnable()
         {
@@ -77,10 +92,57 @@ namespace Leeway.CreatureEditor
 
         private void LateUpdate()
         {
-            if (!_dirty) return;
+            if (_dirty)
+            {
+                _dirty = false;
+                Refocus();
+            }
 
-            _dirty = false;
-            Refocus();
+            TrackSprawl();
+        }
+
+        /// <summary>
+        /// Follows the body while it is being thrown about by physics instead of standing on its legs.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>The fixed offset is right for a creature that walks</b> — see the class remarks:
+        /// chasing the silhouette every frame would tie the framing to the step cycle. It is wrong for
+        /// a creature that has been knocked over. Then the ragdoll drives the bones, the carcass slides
+        /// and rolls away from the root, and an offset measured relative to the root leaves the camera
+        /// watching the patch of ground the creature fell from while the creature lies somewhere else.
+        /// To the player that reads as the camera having come off their creature, which is exactly what
+        /// it has done.</para>
+        ///
+        /// <para>While it is down there is no gait to breathe with, so following costs nothing that the
+        /// fixed offset was protecting. The <b>bones</b> are enough to say where the body is, and they
+        /// are a handful of transform reads rather than a walk over every vertex.</para>
+        ///
+        /// <para>Standing up restores the resting offset, so the framing the player is used to comes
+        /// back the moment the creature is back on its feet.</para>
+        /// </remarks>
+        private void TrackSprawl()
+        {
+            bool down = _body != null && _body.IsKnockedDown;
+
+            if (!down)
+            {
+                if (!_sprawled) return;
+
+                _sprawled = false;
+                Refocus();
+                return;
+            }
+
+            _sprawled = true;
+
+            Transform[] bones = _body.Built?.Bones;
+            if (bones == null || bones.Length == 0) return;
+
+            var bounds = new Bounds(bones[0].position, Vector3.zero);
+            for (int i = 1; i < bones.Length; i++)
+                if (bones[i] != null) bounds.Encapsulate(bones[i].position);
+
+            Pivot.position = bounds.center;
         }
 
         /// <summary>Moves the axis to the centre of the visible silhouette.</summary>
@@ -91,10 +153,12 @@ namespace Leeway.CreatureEditor
             if (!TryMeasure(out Bounds bounds))
             {
                 pivot.localPosition = Vector3.zero;
+                SilhouetteRadius = 0f;
                 return;
             }
 
             pivot.position = bounds.center;
+            SilhouetteRadius = bounds.extents.magnitude;
         }
 
         /// <summary>

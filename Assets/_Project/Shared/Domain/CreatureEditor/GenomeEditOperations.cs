@@ -333,6 +333,51 @@ namespace Leeway.Creature.Domain
         /// <see cref="PartPlacement.Resolve"/> returns itself, so the stored value does not drift
         /// across successive edits.</para>
         /// </remarks>
+        /// <summary>
+        /// Fits a part into a limb's socket — a foot into a leg, a hand into an arm. A fitting id of
+        /// zero takes out whatever was there.
+        /// </summary>
+        /// <remarks>
+        /// <para>The budget is checked the way attaching checks it, because a foot is bought like any
+        /// other part; swapping one foot for another is priced as the difference, so a player who
+        /// changes their mind is not charged twice.</para>
+        ///
+        /// <para>Everything else — that the host has a socket at all, that the fitting is an extremity
+        /// — is left to the validator on the draft, so there is one statement of the rules rather than
+        /// two that can drift apart.</para>
+        /// </remarks>
+        public static bool TrySetPartFitting(CreatureGenome genome, int partIndex, int fittingId, PartRuleSet rules,
+            out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+            if (partIndex < 0 || partIndex >= genome.PartCount) return Fail(GenomeError.PartIndexOutOfRange, out error);
+            if (rules == null) rules = PartRuleSet.Empty;
+
+            PartGene gene = genome.GetPart(partIndex);
+            if (gene.FittingId == fittingId) return Succeed(out error);
+
+            int wasWorth = gene.HasFitting && rules.TryGetRule(gene.FittingId, out PartRule previous) ? previous.Cost : 0;
+            int costs = fittingId != 0 && rules.TryGetRule(fittingId, out PartRule fitting) ? fitting.Cost : 0;
+
+            if (!CreatureBudget.CanAfford(genome, rules, costs - wasWorth))
+                return Fail(GenomeError.InsufficientFunds, out error);
+
+            CreatureGenome draft = genome.Clone();
+            draft.SetPart(partIndex, gene.WithFitting(fittingId));
+
+            GenomeValidationResult validation = GenomeValidator.Validate(draft, rules);
+            if (!validation.IsValid) return Fail(validation.Error, out error);
+
+            genome.SetPart(partIndex, gene.WithFitting(fittingId));
+            return Succeed(out error);
+        }
+
+        private static bool Succeed(out GenomeError error)
+        {
+            error = GenomeError.None;
+            return true;
+        }
+
         public static bool TrySetPartLocalPosition(CreatureGenome genome, int partIndex, Vector3 localPosition, out GenomeError error)
         {
             if (genome == null) return Fail(GenomeError.NullGenome, out error);
@@ -384,11 +429,27 @@ namespace Leeway.Creature.Domain
         /// automatic orientation from <see cref="PartOrientation"/>.
         /// </summary>
         public static bool TrySetPartRotation(CreatureGenome genome, int partIndex, Quaternion rotation, out GenomeError error)
+            => TrySetPartRotation(genome, partIndex, rotation, null, out error);
+
+        /// <summary>
+        /// The same, with the catalog to hand — which lets a limb's rotation be held to what a limb can
+        /// actually do. See <see cref="PartRotationLimits"/>.
+        /// </summary>
+        public static bool TrySetPartRotation(CreatureGenome genome, int partIndex, Quaternion rotation,
+            PartRuleSet rules, out GenomeError error)
         {
             if (genome == null) return Fail(GenomeError.NullGenome, out error);
             if (partIndex < 0 || partIndex >= genome.PartCount) return Fail(GenomeError.PartIndexOutOfRange, out error);
 
-            genome.SetPart(partIndex, genome.GetPart(partIndex).WithLocalRotation(rotation.normalized));
+            PartGene gene = genome.GetPart(partIndex);
+
+            // Clamped rather than refused: a player dragging the gizmo gets the part turning with them
+            // up to the limit and then stopping, which reads as a limit. Refusing the edit outright
+            // would read as the gizmo being broken.
+            if (rules != null && rules.TryGetRule(gene.PartId, out PartRule rule))
+                rotation = PartRotationLimits.ClampSwing(rotation, PartRotationLimits.SwingLimitFor(rule.Category));
+
+            genome.SetPart(partIndex, gene.WithLocalRotation(rotation.normalized));
 
             error = GenomeError.None;
             return true;
@@ -420,6 +481,87 @@ namespace Leeway.Creature.Domain
             if (rule.Category != PartCategory.Locomotion) return Fail(GenomeError.InvalidAttachmentSite, out error);
 
             genome.SetPart(partIndex, gene.WithLeg(leg));
+
+            error = GenomeError.None;
+            return true;
+        }
+
+        /// <summary>
+        /// Paints one part.
+        /// </summary>
+        /// <remarks>
+        /// <para>Both pieces of a mirrored pair are painted at once, and necessarily so: they are one
+        /// gene, and the player sees one part with two sides rather than two parts.</para>
+        ///
+        /// <para>An alpha of 0 unpaints the part — it goes back to wearing the creature's secondary
+        /// colour and follows it from then on. That is the only way back, so the palette can offer
+        /// "no colour of its own" as a swatch like any other.</para>
+        /// </remarks>
+        public static bool TrySetPartTint(CreatureGenome genome, int partIndex, Color32 tint, out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+            if (partIndex < 0 || partIndex >= genome.PartCount) return Fail(GenomeError.PartIndexOutOfRange, out error);
+
+            genome.SetPart(partIndex, genome.GetPart(partIndex).WithTint(tint));
+
+            error = GenomeError.None;
+            return true;
+        }
+
+        /// <summary>
+        /// Puts a coat pattern on one part.
+        /// </summary>
+        /// <remarks>
+        /// The identifier is not checked against a palette here: the palette is an asset, the domain
+        /// layer has none, and a pattern nobody recognises shows as bare skin rather than failing the
+        /// creature. That is deliberate — markings must never be the reason a creature will not load
+        /// on someone else's machine.
+        /// </remarks>
+        public static bool TrySetPartPattern(CreatureGenome genome, int partIndex, byte patternId, out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+            if (partIndex < 0 || partIndex >= genome.PartCount) return Fail(GenomeError.PartIndexOutOfRange, out error);
+
+            genome.SetPart(partIndex, genome.GetPart(partIndex).WithPattern(patternId));
+
+            error = GenomeError.None;
+            return true;
+        }
+
+        /// <summary>Paints the creature's skin — the whole carcass, which is one mesh.</summary>
+        public static bool TrySetBodyTint(CreatureGenome genome, Color32 tint, out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+
+            genome.PrimaryColor = new Color32(tint.r, tint.g, tint.b, 255);
+
+            error = GenomeError.None;
+            return true;
+        }
+
+        /// <summary>Puts a coat pattern on the skin.</summary>
+        public static bool TrySetBodyPattern(CreatureGenome genome, byte patternId, out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+
+            genome.BodyPattern = patternId;
+
+            error = GenomeError.None;
+            return true;
+        }
+
+        /// <summary>
+        /// Sets the colour parts fall back to when they were never painted themselves.
+        /// </summary>
+        /// <remarks>
+        /// Painting the body while no part is selected changes the skin; this is the other half — the
+        /// creature's second colour, which every unpainted part follows.
+        /// </remarks>
+        public static bool TrySetSecondaryTint(CreatureGenome genome, Color32 tint, out GenomeError error)
+        {
+            if (genome == null) return Fail(GenomeError.NullGenome, out error);
+
+            genome.SecondaryColor = new Color32(tint.r, tint.g, tint.b, 255);
 
             error = GenomeError.None;
             return true;

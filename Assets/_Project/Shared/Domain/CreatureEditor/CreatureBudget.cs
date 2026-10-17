@@ -38,10 +38,17 @@ namespace Leeway.Creature.Domain
 
             for (int i = 0; i < genome.PartCount; i++)
             {
+                PartGene gene = genome.GetPart(i);
+
                 // A part outside the catalog has no price; reporting that it is unknown is the
                 // validator's job, not the pricing's — here it simply costs nothing.
-                if (rules.TryGetRule(genome.GetPart(i).PartId, out PartRule rule))
+                if (rules.TryGetRule(gene.PartId, out PartRule rule))
                     spent += rule.Cost;
+
+                // What is fitted into a limb is bought as well. A hoof is a part the player chose,
+                // and one leg with an expensive hand on it must not cost the same as a bare stump.
+                if (gene.HasFitting && rules.TryGetRule(gene.FittingId, out PartRule fitting))
+                    spent += fitting.Cost;
             }
 
             return new BudgetReport(spent, rules.Budget);

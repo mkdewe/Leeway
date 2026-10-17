@@ -23,6 +23,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("The raycast target for \"click on the torso\" in the editor. The preview simulates no physics, so this is a trigger only.")]
         [SerializeField] private CapsuleCollider _corpusCollider;
 
+        [Tooltip("The paintable skin. Left empty: the creature keeps the flat colour from its genome and nothing can be painted on it.")]
+        [SerializeField] private CreatureSkinCanvas _skinCanvas;
+
         [Header("Preview")]
         [SerializeField] private int _starterSeed = 1;
         [SerializeField] private bool _drawBoneGizmos = true;
@@ -51,6 +54,9 @@ namespace Leeway.CreatureEditor
         public CreatureGenome Genome => _genome;
         public BuiltCreatureBody Body => _body;
         public CreaturePartCatalog Catalog => _catalog;
+
+        /// <summary>The paintable skin hung on the sculpted carcass, or <c>null</c> when the scene has none.</summary>
+        public CreatureSkinCanvas SkinCanvas => _skinCanvas;
         public PartRuleSet Rules => _catalog != null ? _catalog.BuildRuleSet() : PartRuleSet.Empty;
 
         /// <summary>Raised after every rebuild — the HUD hangs its stat readout off this.</summary>
@@ -103,6 +109,10 @@ namespace Leeway.CreatureEditor
             // A rebuild creates the renderer and the parts afresh, so they have to inherit the current
             // visibility state — otherwise a hidden preview would come back on screen.
             if (!_isVisible) SetVisible(false);
+
+            // The skin is a texture the player paints on, and the renderer it lives on has just been
+            // replaced — so the canvas is hung again and seeded from the genome's colour and coat.
+            if (_skinCanvas != null) _skinCanvas.Rebuild(_body, _genome, Rules);
 
             // The order matters: the part grab handles fit themselves to the instances' bounds, and they
             // listen to exactly this event. Unfolding the leg only afterwards leaves the handle on the

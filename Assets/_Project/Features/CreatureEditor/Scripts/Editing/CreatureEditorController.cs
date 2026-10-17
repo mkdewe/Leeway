@@ -45,6 +45,16 @@ namespace Leeway.CreatureEditor
         private UnityEngine.Camera _camera;
         private CreatureBody _localBody;
         private IDisposable _bodySubscription;
+        private IDisposable _commitSubscription;
+
+        /// <summary>Set between sending a commit and hearing back from the server. See <see cref="OnCommitResult"/>.</summary>
+        private bool _awaitingCommit;
+
+        /// <summary>The renderers this editor switched off, so showing the creature puts back exactly those.</summary>
+        private readonly System.Collections.Generic.List<Renderer> _hiddenByEditor = new();
+
+        /// <summary>A body was rebuilt and its visibility has to be decided once the frame has finished with it.</summary>
+        private bool _visibilityPending;
 
         private bool _dragging;
         private Plane _dragPlane;
@@ -146,14 +156,57 @@ namespace Leeway.CreatureEditor
             if (!GlobalMessagePipe.IsInitialized) return;
 
             _bodySubscription = GlobalMessagePipe.GetSubscriber<LocalCreatureBodyChangedMessage>().Subscribe(OnLocalBodyChanged);
+            _commitSubscription = GlobalMessagePipe.GetSubscriber<GenomeCommitResultMessage>().Subscribe(OnCommitResult);
         }
 
-        private void OnDestroy() => _bodySubscription?.Dispose();
+        private void OnDestroy()
+        {
+            _bodySubscription?.Dispose();
+            _commitSubscription?.Dispose();
+        }
+
+        /// <summary>
+        /// The end-of-frame tidy-up: visibility after a rebuild, and a camera that has lost its subject.
+        /// </summary>
+        /// <remarks>
+        /// <b>The camera check is a safety net, not a mechanism.</b> The play camera is attached when
+        /// the local creature arrives, and that is the only place it should ever need attaching. But an
+        /// exception anywhere in a rebuild leaves whatever ran after it undone, and a camera pointing at
+        /// nothing is the one failure the player cannot work around — the creature simply stops being on
+        /// screen. Noticing and reattaching costs a null check a frame.
+        /// </remarks>
+        private void LateUpdate()
+        {
+            if (_visibilityPending)
+            {
+                _visibilityPending = false;
+                SetGameCreatureVisible(Mode != CreatureEditorMode.Sculpt);
+            }
+
+            if (Mode == CreatureEditorMode.Sculpt || _localBody == null || _cameraRig == null) return;
+            if (_cameraRig.HasPlayTarget) return;
+
+            Debug.LogWarning("The camera had lost the creature — reattaching.", this);
+            _cameraRig.SetPlayTarget(_localBody.transform);
+        }
 
         private void Update()
         {
             if (_camera == null) _camera = UnityEngine.Camera.main;
             if (Mode != CreatureEditorMode.Sculpt) return;
+
+            // With the brush in hand the left button belongs to the brush: sculpting and painting both
+            // want a click on the carcass, and a click that did both would move a part every time the
+            // player drew a line on it.
+            //
+            // Standing down means putting the sculpting furniture away as well, not only ignoring the
+            // clicks. A spine that lights up under a brush stroke is telling the player they are about
+            // to grab a vertebra when they are about to paint one.
+            if (IsPainting)
+            {
+                HideSculptingTools();
+                return;
+            }
 
             // A drag from the palette runs outside the ordinary hover/drag path: the player holds the
             // button down over the UI, so world clicks never land at all.
@@ -229,7 +282,11 @@ namespace Leeway.CreatureEditor
         {
             // A rebuild creates the renderers afresh, so the visibility state has to be applied again —
             // otherwise a hidden creature comes back on screen after every commit.
-            SetGameCreatureVisible(Mode != CreatureEditorMode.Sculpt);
+            //
+            // At the end of the frame, though, not here: the leg chains are built by another listener
+            // to this same event, and they switch renderers on and off as they go. Deciding visibility
+            // in the middle of that list means deciding it about half a creature.
+            _visibilityPending = true;
 
             // The server accepted a new genome — the preview has to start from what is actually in the
             // game, not from an abandoned working version.
@@ -537,6 +594,24 @@ namespace Leeway.CreatureEditor
             float length = genome.GetVertebra(index).LocalOffset.magnitude;
 
             return Mathf.Clamp(length, GenomeLimits.MinSegmentLength, GenomeLimits.MaxSegmentLength);
+        }
+
+        /// <summary>
+        /// Clears everything the sculpting tools have on screen, for the duration of painting.
+        /// </summary>
+        /// <remarks>
+        /// The highlight is the loud one — a vertebra glowing under the cursor reads as "grab me" — but
+        /// the gizmos are the same lie in a different shape: a rotation ring around a part invites a
+        /// drag that painting will swallow.
+        /// </remarks>
+        private void HideSculptingTools()
+        {
+            ClearHover();
+
+            _handles?.SetVisible(false);
+            _rotationGizmo?.Hide();
+            _extendGizmo?.Hide();
+            _legGizmo?.Hide();
         }
 
         /// <summary>Removes the highlight from the vertebra and part the cursor was on.</summary>
@@ -937,6 +1012,93 @@ namespace Leeway.CreatureEditor
             return null;
         }
 
+        /// <summary>
+        /// Copies the skin the player painted in the editor onto their creature in the game, and sends
+        /// it to everyone else.
+        /// </summary>
+        /// <remarks>
+        /// Two canvases are involved: the preview's, which is what the brush has been drawing on, and
+        /// the creature's, which is what the world sees. The picture is moved from one to the other as
+        /// PNG bytes, because they are different renderers with different textures — and the same bytes
+        /// then go out over the network.
+        /// </remarks>
+        private void PublishSkin()
+        {
+            CreatureSkinCanvas painted = _preview != null ? _preview.SkinCanvas : null;
+            if (painted == null || _localBody == null) return;
+
+            byte[] png = painted.ToBundle();
+            if (png == null || png.Length == 0) return;
+
+            if (_localBody.TryGetComponent(out CreatureSkinCanvas worn)) worn.LoadBundle(png);
+            if (_localBody.TryGetComponent(out CreatureSkinNetwork skinNetwork)) skinNetwork.Publish();
+        }
+
+        /// <summary>
+        /// Whether the player is holding the brush rather than sculpting.
+        /// </summary>
+        /// <remarks>
+        /// Set by the skin panel, read here: the two tools share the left mouse button over the same
+        /// carcass, so exactly one of them may own it at a time.
+        /// </remarks>
+        public bool IsPainting { get; set; }
+
+
+        /// <summary>The part the palette and the gizmos are working on, or <c>-1</c> when the body itself is.</summary>
+        public int SelectedPart => _selectedPart >= 0 && _session?.Working != null && _selectedPart < _session.Working.PartCount
+            ? _selectedPart
+            : -1;
+
+        /// <summary>
+        /// Paints whatever is selected — the part under the cursor's last click, or the skin when
+        /// nothing is.
+        /// </summary>
+        /// <remarks>
+        /// Painting the skin carries the <b>unpainted</b> parts along, in a darker shade of the same
+        /// colour. Without that, repainting a creature green would leave it with the legs it was born
+        /// brown with, and the player would have to repaint every part by hand to undo a single click.
+        /// A part that was painted deliberately keeps its own colour and ignores this.
+        /// </remarks>
+        public void PaintSelection(Color32 color)
+        {
+            if (_session == null) return;
+
+            if (SelectedPart >= 0)
+            {
+                _session.PaintPart(SelectedPart, color);
+                return;
+            }
+
+            _session.PaintBody(color);
+            _session.PaintParts(Shade(color, 0.55f));
+        }
+
+        /// <summary>Puts a coat pattern on whatever is selected.</summary>
+        public void SetSelectionPattern(byte patternId)
+        {
+            if (_session == null) return;
+
+            if (SelectedPart >= 0) _session.SetPartPattern(SelectedPart, patternId);
+            else _session.SetBodyPattern(patternId);
+        }
+
+        /// <summary>
+        /// Takes a part's own colour away, so it follows the creature's again.
+        /// </summary>
+        /// <remarks>
+        /// Only meaningful for a part — the skin has no colour to fall back to, so with nothing
+        /// selected this does nothing rather than inventing one.
+        /// </remarks>
+        public void ClearSelectionPaint()
+        {
+            if (_session == null || SelectedPart < 0) return;
+
+            _session.PaintPart(SelectedPart, new Color32(0, 0, 0, 0));
+        }
+
+        private static Color32 Shade(Color32 color, float factor)
+            => new Color32((byte)(color.r * factor), (byte)(color.g * factor), (byte)(color.b * factor), 255);
+
         /// <summary>Toggles the selected part's symmetry — called by the key and by the HUD button.</summary>
         public void ToggleSelectedPartMirror()
         {
@@ -1247,14 +1409,65 @@ namespace Leeway.CreatureEditor
             _paletteDragging = false;
             _ghost?.Hide();
 
+            // A foot is not dropped on the body but into a limb: the player drags it onto the leg they
+            // want it on, and dropping it anywhere else does nothing.
+            if (IsExtremity(_paletteDragPartId))
+            {
+                if (TryResolveLimbDrop(out int partIndex)) _session.FitPart(partIndex, _paletteDragPartId);
+                return;
+            }
+
             if (!TryResolveBodyDrop(out int boneIndex, out Vector3 localPosition)) return;
 
             _session.AttachPartAt(_paletteDragPartId, boneIndex, localPosition, _paletteDragMirrored);
         }
 
+        /// <summary>Whether the part is something a limb ends in rather than something the body wears.</summary>
+        private bool IsExtremity(int partId)
+        {
+            CreaturePartCatalog catalog = _preview != null ? _preview.Catalog : null;
+
+            return catalog != null && catalog.TryGetPart(partId, out CreaturePartDefinition definition)
+                && definition != null && definition.Category == PartCategory.Extremity;
+        }
+
+        /// <summary>
+        /// The limb under the cursor that can take a foot, if there is one.
+        /// </summary>
+        /// <remarks>
+        /// It goes through the part handles rather than the limb's own geometry: the handles are what
+        /// the editor already picks parts with, so a foot lands on exactly the leg the player would
+        /// have selected by clicking.
+        /// </remarks>
+        private bool TryResolveLimbDrop(out int partIndex)
+        {
+            partIndex = -1;
+
+            ResolveHover(out _, out PartHandle part);
+            if (part == null || _session?.Working == null) return false;
+
+            int index = part.GeneIndex;
+            if (index < 0 || index >= _session.Working.PartCount) return false;
+
+            PartGene gene = _session.Working.GetPart(index);
+            if (!_session.Rules.TryGetRule(gene.PartId, out PartRule rule) || !rule.AcceptsFitting) return false;
+
+            partIndex = index;
+            return true;
+        }
+
         private void UpdatePaletteDrag()
         {
             if (_ghost == null) return;
+
+            // A foot follows the cursor and lights up only over a limb that can take it — there is no
+            // pose to preview, because where it will sit is the limb's socket, not the cursor.
+            if (IsExtremity(_paletteDragPartId))
+            {
+                _ghost.SetOverBody(TryResolveLimbDrop(out _));
+                _ghost.FollowPointer(_camera, _input.PointerPosition);
+                return;
+            }
 
             if (!TryResolveBodyDrop(out int boneIndex, out Vector3 localPosition))
             {
@@ -1338,11 +1551,54 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
+            // The flag goes up <b>before</b> the request, not after: on a host the server RPC runs on
+            // the spot, so the answer can come back inside this very call. Setting it afterwards meant
+            // the host's own commit was accepted and then ignored, leaving the player in the editor
+            // staring at a creature that had in fact been rebuilt.
+            _awaitingCommit = true;
+
             if (!_localBody.RequestCommit(_session.Working, out GenomeError error))
             {
+                _awaitingCommit = false;
                 Debug.LogWarning($"The commit did not go through: {error}.", this);
                 return;
             }
+
+            // And now we wait, if we are not done already: the answer comes back from the server
+            // through GenomeCommitResultMessage, and only an accepted commit ends the session.
+        }
+
+        /// <summary>
+        /// The server's verdict on the commit.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>This used to be assumed.</b> Apply sent the genome, marked it applied and walked the
+        /// player into the playground without waiting — so every rejection the server can issue
+        /// (standing off the editor pad, the commit cooldown, a genome the server's own catalog does not
+        /// recognise) left the player driving their <b>previous</b> creature, with the only trace a
+        /// warning in the console. A player who had just spent ten minutes building saw the old animal
+        /// spawn and had nothing to go on.</para>
+        ///
+        /// <para>So the session now ends on the answer, not on the request: accepted, and sculpting
+        /// closes; refused, and the player stays in the editor with the reason on screen and their work
+        /// still in front of them.</para>
+        /// </remarks>
+        private void OnCommitResult(GenomeCommitResultMessage message)
+        {
+            if (!_awaitingCommit) return;
+
+            _awaitingCommit = false;
+
+            if (!message.Accepted)
+            {
+                Debug.LogWarning($"The server refused the commit: {message.Error}. Staying in the editor.", this);
+                return;
+            }
+
+            // The paintwork follows the genome on the same occasion. It travels on its own channel,
+            // because a texture cannot be rebuilt from a few hundred bytes the way the body can — and
+            // it goes out after the commit, so it lands on a carcass that has already been rebuilt.
+            PublishSkin();
 
             _session.MarkApplied();
 
@@ -1386,12 +1642,37 @@ namespace Leeway.CreatureEditor
         /// Hides or shows the player's creature in the playground. It disappears while sculpting, so the
         /// scene does not hold two copies of the same creature — the sculpted one and the in-game one.
         /// </summary>
+        /// <remarks>
+        /// <para><b>It puts back only what it took away.</b> Switching every renderer on was a blunt
+        /// instrument that could not tell "hidden because the player is sculpting" from "hidden because
+        /// something else owns this". A skinned limb is exactly that second case: the leg chain
+        /// switches the rigid model off and drives a skinned copy of it instead, so turning everything
+        /// back on gave the creature <b>two sets of legs</b> — one walking, one standing still in the
+        /// bind pose.</para>
+        ///
+        /// <para>So hiding records what it hid, and showing restores that list and nothing else.</para>
+        /// </remarks>
         private void SetGameCreatureVisible(bool visible)
         {
+            if (visible)
+            {
+                foreach (Renderer renderer in _hiddenByEditor)
+                    if (renderer != null) renderer.enabled = true;
+
+                _hiddenByEditor.Clear();
+                return;
+            }
+
+            _hiddenByEditor.Clear();
             if (_localBody == null) return;
 
             foreach (Renderer renderer in _localBody.GetComponentsInChildren<Renderer>(true))
-                renderer.enabled = visible;
+            {
+                if (!renderer.enabled) continue;
+
+                renderer.enabled = false;
+                _hiddenByEditor.Add(renderer);
+            }
         }
 
         /// <summary>Hides all the sculpting machinery: the preview, the handles, the gizmos and any grabs in progress.</summary>

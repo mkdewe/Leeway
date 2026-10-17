@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Part_loco_hoof_legs
   m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
   <PartKey>k__BackingField: loco.hoof_legs
-  <DisplayName>k__BackingField: Hoofed legs
+  <DisplayName>k__BackingField: Mammal legs
   <Category>k__BackingField: 0
   <AllowedSites>k__BackingField: 2
   <MirrorCapable>k__BackingField: 1
@@ -25,7 +25,10 @@ MonoBehaviour:
     DamageBonus: 0
     SenseRadiusBonus: 0
     MassKg: 1.4
-  <BendPoints>k__BackingField: 2
-  <SegmentLength>k__BackingField: 0.3
+  <BendPoints>k__BackingField: 1
+  <WholeLimb>k__BackingField: 1
+  <SegmentLength>k__BackingField: 0.3235
+  <AcceptsFitting>k__BackingField: 1
+  <DefaultFitting>k__BackingField: {fileID: 11400000, guid: 14929d0adc09a5b40b0d919696026130, type: 2}
   <Cost>k__BackingField: 30
   _cachedPartId: -179235692

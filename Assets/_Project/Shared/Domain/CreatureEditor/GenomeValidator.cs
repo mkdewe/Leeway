@@ -117,6 +117,19 @@ namespace Leeway.Creature.Domain
 
                 if (p.Scale < GenomeLimits.MinPartScale || p.Scale > GenomeLimits.MaxPartScale)
                     return GenomeValidationResult.Fail(GenomeError.ScaleOutOfRange, i);
+
+                // An extremity belongs in a limb's socket, never on the spine: a hoof growing out of
+                // the ribs is not a creature anyone meant to build.
+                if (rule.Category == PartCategory.Extremity)
+                    return GenomeValidationResult.Fail(GenomeError.InvalidAttachmentSite, i);
+
+                if (!p.HasFitting) continue;
+
+                if (!rule.AcceptsFitting)
+                    return GenomeValidationResult.Fail(GenomeError.FittingNotSupported, i);
+
+                if (!rules.TryGetRule(p.FittingId, out PartRule fitting) || fitting.Category != PartCategory.Extremity)
+                    return GenomeValidationResult.Fail(GenomeError.InvalidFitting, i);
             }
 
             return GenomeValidationResult.Ok;

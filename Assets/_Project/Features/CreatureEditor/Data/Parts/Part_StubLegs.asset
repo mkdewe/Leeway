@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Part_StubLegs
   m_EditorClassIdentifier: Assembly-CSharp::Leeway.CreatureEditor.CreaturePartDefinition
   <PartKey>k__BackingField: loco.stub_legs
-  <DisplayName>k__BackingField: Stubby legs
+  <DisplayName>k__BackingField: Human legs
   <Category>k__BackingField: 0
   <AllowedSites>k__BackingField: 2
   <MirrorCapable>k__BackingField: 1
@@ -26,6 +26,9 @@ MonoBehaviour:
     SenseRadiusBonus: 0
     MassKg: 1.1
   <BendPoints>k__BackingField: 1
-  <SegmentLength>k__BackingField: 0.16
+  <WholeLimb>k__BackingField: 1
+  <SegmentLength>k__BackingField: 0.22
+  <AcceptsFitting>k__BackingField: 1
+  <DefaultFitting>k__BackingField: {fileID: 11400000, guid: 43422ba3c7be8894babad2e77640b043, type: 2}
   <Cost>k__BackingField: 25
   _cachedPartId: -158721008

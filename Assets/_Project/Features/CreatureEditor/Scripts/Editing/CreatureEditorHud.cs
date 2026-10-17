@@ -248,6 +248,8 @@ namespace Leeway.CreatureEditor
             GenomeError.InsufficientFunds => "not enough currency",
             GenomeError.RateLimited => "too fast — wait a moment",
             GenomeError.NotInEditorPad => "step onto the editor pad to apply",
+            GenomeError.FittingNotSupported => "nothing can be fitted into that part",
+            GenomeError.InvalidFitting => "that is not a foot or a hand",
             GenomeError.PayloadTooLarge => "the creature is too complicated",
             _ => error.ToString(),
         };

@@ -16,5 +16,6 @@ MonoBehaviour:
   <RadialSegments>k__BackingField: 8
   <CapRings>k__BackingField: 3
   <BodyMaterial>k__BackingField: {fileID: 2100000, guid: 5c81b7a545beb3f48a8b368d7997aeb5, type: 2}
+  <SkinPalette>k__BackingField: {fileID: 11400000, guid: 16efbb01e99a5a24197e96e530e1b4f7, type: 2}
   <BoundsPadding>k__BackingField: 1.5
   <MinColliderRadius>k__BackingField: 0.15

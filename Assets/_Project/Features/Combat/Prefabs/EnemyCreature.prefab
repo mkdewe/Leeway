@@ -1,0 +1,441 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!1 &2973926895447517286
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 8124981232362034999}
+  - component: {fileID: 356151917533279400}
+  - component: {fileID: 5711271545182202821}
+  - component: {fileID: 8965603421633069982}
+  - component: {fileID: 4393049704329876662}
+  - component: {fileID: 6809572789179557282}
+  - component: {fileID: 450349953203720368}
+  - component: {fileID: 2611493270509865435}
+  - component: {fileID: 7773527015602067390}
+  - component: {fileID: 5418282619768888697}
+  - component: {fileID: 4075836457445021666}
+  - component: {fileID: 1708013897878967949}
+  - component: {fileID: 870939631999767388}
+  - component: {fileID: 3280983527784954848}
+  - component: {fileID: 3079268080025749817}
+  - component: {fileID: 6948382055312876540}
+  m_Layer: 9
+  m_Name: EnemyCreature
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!4 &8124981232362034999
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: 0, y: 0, z: 0}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!54 &356151917533279400
+Rigidbody:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  serializedVersion: 5
+  m_Mass: 10
+  m_LinearDamping: 0
+  m_AngularDamping: 0.05
+  m_CenterOfMass: {x: 0, y: 0, z: 0}
+  m_InertiaTensor: {x: 1, y: 1, z: 1}
+  m_InertiaRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ImplicitCom: 1
+  m_ImplicitTensor: 1
+  m_UseGravity: 1
+  m_IsKinematic: 0
+  m_Interpolate: 1
+  m_Constraints: 80
+  m_CollisionDetection: 2
+--- !u!136 &5711271545182202821
+CapsuleCollider:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Material: {fileID: 0}
+  m_IncludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_ExcludeLayers:
+    serializedVersion: 2
+    m_Bits: 0
+  m_LayerOverridePriority: 0
+  m_IsTrigger: 0
+  m_ProvidesContacts: 0
+  m_Enabled: 1
+  serializedVersion: 2
+  m_Radius: 0.3
+  m_Height: 1.2
+  m_Direction: 2
+  m_Center: {x: 0, y: 0, z: 0}
+--- !u!114 &8965603421633069982
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 26b716c41e9b56b4baafaf13a523ba2e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: FishNet.Runtime::FishNet.Object.NetworkObject
+  _localLevelOfDetailCalculationType: 0
+  _useLevelOfDetail: 0
+  _useRootLevelOfDetail: 1
+  NetworkObserver: {fileID: 0}
+  _enablePrediction: 0
+  _predictionType: 0
+  _localReconcileCorrectionType: 2
+  _graphicalObject: {fileID: 0}
+  _detachGraphicalObject: 0
+  _enableStateForwarding: 1
+  _networkTransform: {fileID: 0}
+  _ownerInterpolation: 1
+  _ownerSmoothedProperties: 255
+  _adaptiveInterpolation: 3
+  _spectatorSmoothedProperties: 255
+  _spectatorInterpolation: 2
+  _enableTeleport: 0
+  _teleportThreshold: 1
+  <PrefabId>k__BackingField: 7
+  <SpawnableCollectionId>k__BackingField: 0
+  <AssetPathHash>k__BackingField: 14256836510166620105
+  SceneId: 0
+  SerializedTransformProperties:
+    Position: {x: 0, y: 0, z: 0}
+    Rotation: {x: 0, y: 0, z: 0, w: 1}
+    Scale: {x: 1, y: 1, z: 1}
+    IsValid: 1
+  <IsNested>k__BackingField: 0
+  WasActiveDuringEdit: 0
+  WasActiveDuringEdit_Set1: 1
+  <ComponentIndex>k__BackingField: 0
+  <PredictedSpawn>k__BackingField: {fileID: 0}
+  <PredictedOwner>k__BackingField: {fileID: 0}
+  NetworkBehaviours:
+  - {fileID: 4393049704329876662}
+  - {fileID: 450349953203720368}
+  InitializedParentNetworkBehaviour: {fileID: 0}
+  InitializedNestedNetworkObjects: []
+  RuntimeParentNetworkBehaviour: {fileID: 0}
+  RuntimeChildNetworkBehaviours: []
+  _isNetworked: 1
+  _isSpawnable: 1
+  _isGlobal: 0
+  _initializeOrder: 0
+  _preventDespawnOnDisconnect: 0
+  _defaultDespawnType: 0
+  _initializedTimestamp: -8584131342949858461
+--- !u!114 &4393049704329876662
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 22983fbd0491b1b42943f993745599fd, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::Leeway.CreatureEditor.PlaygroundCreatureController
+  _componentIndexCache: 0
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 8965603421633069982}
+  _catalog: {fileID: 11400000, guid: b0fc1a3dc535979479d17e034cc15a35, type: 2}
+  _buildSettings: {fileID: 11400000, guid: caff1d8c0456ec4458244ce2293e5e01, type: 2}
+  _tuning:
+    BaseHp: 40
+    HpPerVertebra: 20
+    BaseMass: 4
+    MassPerVolume: 60
+    BaseSpeed: 3.5
+    ReferenceMass: 12
+    MinSpeedFactor: 0.5
+    MaxSpeedFactor: 1.5
+    BaseTurnSpeed: 150
+    BaseAttackDamage: 5
+    BaseSenseRadius: 6
+    SpeedPerBendPoint: 0.35
+    LegSpeedHeadroom: 1.6
+    CrawlSpeed: 1.1
+    Gravity: 9.81
+    LeanTolerance: 1.5
+  _locomotionCollider: {fileID: 5711271545182202821}
+  _ragdoll: {fileID: 6809572789179557282}
+  _puppet: {fileID: 5418282619768888697}
+  _skinCanvas: {fileID: 4075836457445021666}
+  _knockdownSeconds: 2
+  _knockdownImpulseThreshold: 4
+  _requireEditorPad: 1
+  _acceleration: 6
+  _braking: 14
+  _orbitCamera: {fileID: 0}
+  _tipSeconds: 0.5
+  _tipRecoverySeconds: 0.35
+  _maxBankDegrees: 12
+  _tipDegrees: 38
+  _tipCollapse: 0.6
+--- !u!114 &6809572789179557282
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: ff623eb9f97ca0d449e57dec82010d7c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureRagdoll
+  _boneDrag: 0.4
+  _boneAngularDrag: 3
+  _swingLimitDegrees: 35
+  _twistLimitDegrees: 20
+  _recoverySeconds: 0.45
+  _groundProbeHeight: 3
+--- !u!114 &450349953203720368
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: aa7c1765fb333e34f8c769ef72363ebc, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureShover
+  _componentIndexCache: 1
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 8965603421633069982}
+  _range: 2.2
+  _radius: 0.6
+  _impulse: 9
+  _upwardBias: 0.35
+  _cooldownTicks: 20
+--- !u!114 &2611493270509865435
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: b0190aa5ff51df14ebf1cee536a57964, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureLocomotion
+  _groundMask:
+    serializedVersion: 2
+    m_Bits: 1
+  _footResponsiveness: 18
+  _idleSpeed: 0.05
+  _leanResponsiveness: 220
+--- !u!114 &7773527015602067390
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 88715d11e4c68cb4cac073e57968fefb, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSuspension
+  _stiffness: 70
+  _dampingRatio: 1
+  _maxDroop: 0.45
+  _groundMask:
+    serializedVersion: 2
+    m_Bits: 1
+--- !u!114 &5418282619768888697
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 0
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 37cd68c3c382b774abeef9a909bc5a5a, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePuppet
+  _settings:
+    _drag: 0.4
+    _angularDrag: 3
+    _colliderScale: 0.85
+    _swingLimitDegrees: 35
+    _twistLimitDegrees: 20
+    _pinWeight: 1
+    _muscleWeight: 1
+    _mappingWeight: 1
+    _muscleSpring: 2500
+    _muscleDamper: 40
+    _angularPinning: 1
+    _legMuscleMass: 0.4
+    _legColliderThickness: 0.18
+    _legPinWeight: 0.7
+    _collisionThreshold: 2
+    _knockOutDistance: 0.2
+    _getUpDelay: 2.5
+  _ragdollLayer: CreatureRagdoll
+  _controllerLayer: Creature
+  _locomotion: {fileID: 0}
+--- !u!114 &4075836457445021666
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6677f9013e85f14478e3b7c178f1a43c, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinCanvas
+  _texelsPerMetre: 500
+  _minResolution: 256
+  _maxResolution: 2048
+  _paintableParts: 1
+  _partResolution: 128
+  _palette: {fileID: 11400000, guid: 16efbb01e99a5a24197e96e530e1b4f7, type: 2}
+--- !u!114 &1708013897878967949
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0c693213b9baa284ba6a19ca946ae5e0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinNetwork
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 0}
+  _canvas: {fileID: 4075836457445021666}
+--- !u!114 &870939631999767388
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 0962255f58a71b249b9aca28c2d8a33b, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePuppetPush
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 0}
+  _deadzone: 0.05
+  _strength: 6
+  _maxSpeed: 6
+--- !u!114 &3280983527784954848
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: fd6a1570070f5784b9ad93f31a6cff49, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureMuscleLocomotion
+  _enabled: 0
+  _acceleration: 26
+  _supportSpring: 90
+  _supportDamper: 12
+  _uprightTorque: 40
+  _maxDriveSpeed: 8
+  _maxFollowSpeed: 12
+  _teleportDistance: 1.5
+  _followStiffness: 6
+--- !u!114 &3079268080025749817
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9cb8fa7314fd12d4ba7c506051ac66b0, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureCombatant
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 0}
+  _tuning:
+    ReachPadding: 0.35
+    UnarmedReach: 0.6
+    ArcDegrees: 110
+    BaseCooldown: 1.1
+    MinCooldown: 0.45
+    MaxCooldown: 2.6
+    ReferenceMass: 12
+    MassCooldownExponent: 0.35
+    ImpulsePerDamage: 0.7
+    UpwardBias: 0.25
+    UnarmedFactor: 0.45
+  _team: 1
+  _hitMask:
+    serializedVersion: 2
+    m_Bits: 4294967295
+  _forgiveness: 0.2
+--- !u!114 &6948382055312876540
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3177496f560f8254fb9f78d3de2a5004, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.NpcCreatureAgent
+  _componentIndexCache: 255
+  _addedNetworkObject: {fileID: 8965603421633069982}
+  _networkObjectCache: {fileID: 0}
+  _type: 1
+  _wanderRadius: 14
+  _wanderSeconds: 5
+  _engageFraction: 0.85
+  _corpseSeconds: 8
+  _senseMask:
+    serializedVersion: 2
+    m_Bits: 4294967295

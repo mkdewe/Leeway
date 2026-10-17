@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Part_grasp_claw_arm
   m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
   <PartKey>k__BackingField: grasp.claw_arm
-  <DisplayName>k__BackingField: Claw arm
+  <DisplayName>k__BackingField: Human arms
   <Category>k__BackingField: 3
   <AllowedSites>k__BackingField: 2
   <MirrorCapable>k__BackingField: 1
@@ -26,6 +26,9 @@ MonoBehaviour:
     SenseRadiusBonus: 0
     MassKg: 0.9
   <BendPoints>k__BackingField: 2
+  <WholeLimb>k__BackingField: 0
   <SegmentLength>k__BackingField: 0.18
+  <AcceptsFitting>k__BackingField: 1
+  <DefaultFitting>k__BackingField: {fileID: 11400000, guid: 0cc6f24672f99224393025c65081b54d, type: 2}
   <Cost>k__BackingField: 40
   _cachedPartId: 1035706864

@@ -90,7 +90,14 @@ namespace Leeway.Creature.Domain
             if (eligible.Count == 0) return;
 
             PartRule rule = eligible[pick];
-            var gene = new PartGene(rule.PartId, (byte)boneIndex, direction, Quaternion.identity, 1f, rule.MirrorCapable);
+
+            // A limb comes with the foot the catalog fits by default. The starter creature has to be
+            // able to stand up; choosing something else is what the editor is for.
+            int fitting = rule.AcceptsFitting && rules.TryGetRule(rule.DefaultFittingId, out _) ? rule.DefaultFittingId : 0;
+
+            var gene = new PartGene(rule.PartId, (byte)boneIndex, direction, Quaternion.identity, 1f,
+                rule.MirrorCapable, false, default, default, 0, fitting);
+
             GenomeEditOperations.TryAttachPart(genome, gene, rules, out _);
         }
 

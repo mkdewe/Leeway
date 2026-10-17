@@ -44,6 +44,17 @@ namespace Leeway.CreatureEditor
             return _byId.TryGetValue(partId, out definition);
         }
 
+        /// <summary>
+        /// The authored key behind an identifier, or <c>null</c> when this catalog has no such part.
+        /// </summary>
+        /// <remarks>
+        /// The identifier is the key's hash and the hash is one-way, so a saved creature can only name
+        /// its parts by asking the catalog. Used when writing presets — a file that says
+        /// <c>"loco.hoof_legs"</c> can be read, and one that says <c>-179235692</c> cannot.
+        /// </remarks>
+        public string KeyOf(int partId)
+            => TryGetPart(partId, out CreaturePartDefinition definition) && definition != null ? definition.PartKey : null;
+
         public List<CreaturePartDefinition> GetByCategory(PartCategory category)
         {
             var result = new List<CreaturePartDefinition>();

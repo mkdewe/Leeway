@@ -9,6 +9,9 @@
         "Unity.InputSystem",
         "Unity.Cinemachine",
         "LitMotion",
+        "RootMotion",
+        "PaintIn3D",
+        "CW.Common",
         "UnityEngine.UI",
         "Unity.TextMeshPro"
     ],

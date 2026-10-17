@@ -13,7 +13,7 @@ MonoBehaviour:
   m_Name: Part_RunnerLegs
   m_EditorClassIdentifier: Assembly-CSharp::Leeway.CreatureEditor.CreaturePartDefinition
   <PartKey>k__BackingField: loco.runner_legs
-  <DisplayName>k__BackingField: Slender legs
+  <DisplayName>k__BackingField: Bird legs
   <Category>k__BackingField: 0
   <AllowedSites>k__BackingField: 2
   <MirrorCapable>k__BackingField: 1
@@ -25,7 +25,10 @@ MonoBehaviour:
     DamageBonus: 0
     SenseRadiusBonus: 0
     MassKg: 0.7
-  <BendPoints>k__BackingField: 2
-  <SegmentLength>k__BackingField: 0.26
+  <BendPoints>k__BackingField: 1
+  <WholeLimb>k__BackingField: 1
+  <SegmentLength>k__BackingField: 0.2975
+  <AcceptsFitting>k__BackingField: 1
+  <DefaultFitting>k__BackingField: {fileID: 11400000, guid: 43422ba3c7be8894babad2e77640b043, type: 2}
   <Cost>k__BackingField: 25
   _cachedPartId: 2095990230

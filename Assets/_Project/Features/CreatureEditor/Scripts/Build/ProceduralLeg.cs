@@ -15,6 +15,15 @@ namespace Leeway.CreatureEditor
     /// around the world. The number of links still follows from the bend points in the catalog — only a
     /// chain can actually bend.</para>
     ///
+    /// <para><b>A prefab is one link — unless it says it is a whole limb.</b> Because the further links
+    /// are copies of it, a prefab holding a complete authored leg — thigh, shank and foot in one model
+    /// — would come out drawn once per link: the same leg twice over, with what reads as a knee exactly
+    /// where the second copy starts. Such a part ticks <c>WholeLimb</c>, and then the chain does the
+    /// opposite of copying: it <b>skins that one model across its links</b> (see
+    /// <see cref="SkinnedLimb"/>), so the leg keeps a knee and there is only ever one of it. Parts
+    /// authored as a single link of a longer limb — a tentacle joint, a fin ray — leave it off and are
+    /// repeated as before.</para>
+    ///
     /// <para><b>The links hang under the hip</b>, i.e. under the part instance attached to a bone. The
     /// solver computes the joints in world space but stores them in hip space, so the leg is welded to
     /// the carcass: a rotation of the torso carries it along even between solver steps, instead of
@@ -34,8 +43,14 @@ namespace Leeway.CreatureEditor
     {
         private const float Epsilon = 1e-5f;
 
+        /// <summary>Reused for carrying a renderer's tint to a cloned link — a block per clone would be pure garbage.</summary>
+        private static MaterialPropertyBlock _propertyBlock;
+
         /// <summary>The fraction of the reach the foot may not escape past — beyond it the leg would only splay out.</summary>
         private const float MaxReachFactor = 0.995f;
+
+        /// <summary>The shortest a link may be squashed to, as a fraction of its authored length.</summary>
+        private const float MinStretch = 0.05f;
 
         private readonly Vector3[] _joints;
         private readonly Transform[] _segments;
@@ -47,6 +62,27 @@ namespace Leeway.CreatureEditor
 
         /// <summary>How far along <c>+Z</c> the part's authored visuals reach, in hip space.</summary>
         private readonly float _naturalLength;
+
+        /// <summary>The length of each link the solver works with, in world metres. They need not be equal.</summary>
+        private readonly float[] _lengths;
+
+        /// <summary>An unscaled twin of each link, for physics to hold on to. See <see cref="MuscleTargets"/>.</summary>
+        private readonly Transform[] _anchors;
+
+        /// <summary>The authored length each link stands for, in hip space — what its stretch is measured against.</summary>
+        private readonly float[] _naturals;
+
+        /// <summary>The object holding the part's authored visuals. It is link 0 itself unless the limb is skinned.</summary>
+        private readonly Transform _visuals;
+
+        /// <summary>The skinned model, when the part is a whole limb. Undone when the leg is taken apart.</summary>
+        private readonly LimbBinding _binding;
+
+        /// <summary>
+        /// Which way the knee bends, in the part's own space. Zero when the model does not say — the
+        /// direction of travel decides then, as it always used to.
+        /// </summary>
+        private readonly Vector3 _bendHintLocal;
 
         private Vector3 _footTarget;
         private bool _initialised;
@@ -64,7 +100,36 @@ namespace Leeway.CreatureEditor
         /// <summary>The leg's attachment point in world space.</summary>
         public Vector3 HipPosition => _hip != null ? _hip.position : Vector3.zero;
 
-        public ProceduralLeg(LegSpec spec, Transform hip, float phaseOffset, int geneIndex = -1)
+        /// <summary>The part instance the leg grows out of — the puppet hangs its leg muscles off the same bone.</summary>
+        public Transform Hip => _hip;
+
+        /// <summary>
+        /// The links, hip to foot. These are the transforms the solver moves every frame.
+        /// </summary>
+        public IReadOnlyList<Transform> Segments => _segments;
+
+        /// <summary>
+        /// One unscaled transform per link, in the same order — what physics may be attached to.
+        /// </summary>
+        /// <remarks>
+        /// <para><b>Never hang a muscle off a link itself.</b> A link is <b>stretched</b> along its own
+        /// axis every frame, and a joint driven from a non-uniformly scaled transform is driven from a
+        /// matrix that no longer describes a rotation. PuppetMaster pulls the joint's target rotation
+        /// out of exactly that matrix; when the stretch approaches zero it comes out as
+        /// <c>NaN</c>, Unity reports "Invalid quaternion rotation", and the joint then throws the whole
+        /// ragdoll across the level — with the camera left watching where the creature used to be.</para>
+        ///
+        /// <para>So the anchors carry the link's <b>pose</b> and nothing else: same position, same
+        /// rotation, scale always one. They cost one transform per link and they are the only thing the
+        /// physical body is allowed to see.</para>
+        /// </remarks>
+        public IReadOnlyList<Transform> MuscleTargets => _anchors;
+
+        /// <param name="wholeLimb">
+        /// Whether the part's model is the complete leg. Then the chain skins that one model over its
+        /// links instead of repeating it — see the class remarks.
+        /// </param>
+        public ProceduralLeg(LegSpec spec, Transform hip, float phaseOffset, int geneIndex = -1, bool wholeLimb = false)
         {
             _spec = spec;
             _gait = spec.Gait;
@@ -74,40 +139,121 @@ namespace Leeway.CreatureEditor
 
             _joints = new Vector3[spec.JointCount];
             _segments = new Transform[spec.SegmentCount];
+            _lengths = new float[spec.SegmentCount];
+            _naturals = new float[spec.SegmentCount];
 
-            _adopted = AdoptVisuals(hip, out Transform first);
-            _segments[0] = first;
+            bool skin = wholeLimb && spec.SegmentCount == 2;
+
+            _adopted = AdoptVisuals(hip, skin ? VisualName : SegmentName(0), out _visuals);
 
             // A part with no mesh (or one reaching only sideways) cannot be measured — stretching is
             // then off and the link runs at its authored length.
-            float measured = MeasureLength(first);
+            float measured = MeasureLength(_visuals);
             _naturalLength = measured > Epsilon ? measured : spec.SegmentLength;
 
-            for (int i = 1; i < _segments.Length; i++)
-                _segments[i] = CloneSegment(first, hip, i);
+            if (skin) BuildSkinnedChain(hip, measured, out _binding, out _bendHintLocal);
+            else BuildRepeatedChain(hip);
+
+            _anchors = new Transform[spec.SegmentCount];
+            for (int i = 0; i < _anchors.Length; i++)
+            {
+                var anchor = new GameObject(AnchorName(i)).transform;
+                anchor.SetParent(hip, false);
+
+                _anchors[i] = anchor;
+            }
         }
+
+        /// <summary>
+        /// The ordinary chain: link 0 <b>is</b> the part's model and every further link is a copy of it.
+        /// Right for a part authored as one link of a limb, which is what most parts are.
+        /// </summary>
+        private void BuildRepeatedChain(Transform hip)
+        {
+            _segments[0] = _visuals;
+
+            for (int i = 1; i < _segments.Length; i++)
+                _segments[i] = CloneSegment(_visuals, hip, i);
+
+            for (int i = 0; i < _segments.Length; i++)
+            {
+                _lengths[i] = _spec.SegmentLength;
+                _naturals[i] = _naturalLength;
+            }
+        }
+
+        /// <summary>
+        /// The chain for a whole authored limb: two bare links, with the single model skinned across
+        /// them and the joint placed where the model itself bends.
+        /// </summary>
+        /// <remarks>
+        /// <para>The links are <b>not</b> equal: the thigh runs from the hip to the knee the artist
+        /// drew, the shank from there to the foot. Splitting the chain anywhere else would crease the
+        /// mesh in a place that is not a joint.</para>
+        ///
+        /// <para>The bones start at rest — strung along <c>+Z</c>, unrotated — because that pose is what
+        /// <see cref="SkinnedLimb"/> binds the mesh against.</para>
+        /// </remarks>
+        private void BuildSkinnedChain(Transform hip, float measured, out LimbBinding binding, out Vector3 bendHint)
+        {
+            LimbKnee knee = SkinnedLimb.FindKnee(_visuals, measured);
+            float fraction = Mathf.Clamp(knee.Fraction, MinKneeFraction, MaxKneeFraction);
+
+            _naturals[0] = measured * fraction;
+            _naturals[1] = measured * (1f - fraction);
+            _lengths[0] = _spec.Reach * fraction;
+            _lengths[1] = _spec.Reach * (1f - fraction);
+
+            for (int i = 0; i < _segments.Length; i++)
+            {
+                var bone = new GameObject(SegmentName(i)).transform;
+                bone.SetParent(hip, false);
+                bone.localPosition = new Vector3(0f, 0f, i == 0 ? 0f : _naturals[0]);
+                bone.localRotation = Quaternion.identity;
+
+                _segments[i] = bone;
+            }
+
+            binding = SkinnedLimb.Skin(_visuals, _segments, _naturals[0], measured * SkinnedLimb.DefaultBlendBand);
+
+            // A model that turned out to be unreadable cannot be skinned; the leg then stays rigid
+            // rather than disappearing, and the links still hold it at the right length.
+            if (!binding.IsBound) _visuals.SetParent(_segments[0], true);
+
+            bendHint = knee.Found ? knee.BendDirection : Vector3.zero;
+        }
+
+        /// <summary>How far along the limb the knee may sit. A joint outside this range is a mismeasurement, not a leg.</summary>
+        private const float MinKneeFraction = 0.25f;
+        private const float MaxKneeFraction = 0.75f;
 
         private static string SegmentName(int index) => $"LegSegment_{index}";
 
+        /// <summary>The name of a link's unscaled twin — see <see cref="MuscleTargets"/>.</summary>
+        private static string AnchorName(int index) => $"LegAnchor_{index}";
+
+        /// <summary>The object the part's own model hangs from once the chain has taken it over.</summary>
+        private const string VisualName = "LegVisual";
+
         /// <summary>
-        /// Moves the part's visuals under the chain's first link. Deliberately a takeover rather than a
-        /// copy — otherwise the attached leg would stay on top as a second, motionless shape beside the
-        /// one the solver moves.
+        /// Moves the part's visuals under an object the chain owns. Deliberately a takeover rather than
+        /// a copy — otherwise the attached leg would stay on top as a second, motionless shape beside
+        /// the one the solver moves.
         /// </summary>
-        private static AdoptedVisual[] AdoptVisuals(Transform hip, out Transform segment)
+        private static AdoptedVisual[] AdoptVisuals(Transform hip, string name, out Transform holder)
         {
             int count = hip.childCount;
             var children = new Transform[count];
             for (int i = 0; i < count; i++) children[i] = hip.GetChild(i);
 
-            segment = new GameObject(SegmentName(0)).transform;
-            segment.SetParent(hip, false);
+            holder = new GameObject(name).transform;
+            holder.SetParent(hip, false);
 
             var adopted = new AdoptedVisual[count];
             for (int i = 0; i < count; i++)
             {
                 adopted[i] = new AdoptedVisual(children[i]);
-                children[i].SetParent(segment, false);
+                children[i].SetParent(holder, false);
             }
 
             return adopted;
@@ -117,7 +263,69 @@ namespace Leeway.CreatureEditor
         {
             GameObject clone = Object.Instantiate(template.gameObject, hip);
             clone.name = SegmentName(index);
+            CopyPropertyBlocks(template, clone.transform);
+            ShareSkin(template, clone.transform);
+
             return clone.transform;
+        }
+
+        /// <summary>
+        /// Makes a cloned link wear the same skin as the link it was copied from.
+        /// </summary>
+        /// <remarks>
+        /// <para>A painted part carries Paint in 3D components and a material of its own. Cloning them
+        /// gives every link its own canvas and its own material — a leg with three links paints in three
+        /// places and costs three render textures, and painting the leg leaves two of them untouched.</para>
+        ///
+        /// <para>So the copies are stripped of the painting machinery and pointed at the template's
+        /// material instead. One leg, one skin: paint it once and the whole leg wears it.</para>
+        /// </remarks>
+        private static void ShareSkin(Transform template, Transform clone)
+        {
+            foreach (Component component in clone.GetComponentsInChildren<Component>(true))
+            {
+                if (component == null) continue;
+
+                string type = component.GetType().Name;
+                if (type == "P3dPaintable" || type == "P3dPaintableTexture" || type == "P3dMaterialCloner")
+                    Object.Destroy(component);
+            }
+
+            Renderer[] from = template.GetComponentsInChildren<Renderer>(true);
+            Renderer[] to = clone.GetComponentsInChildren<Renderer>(true);
+            if (from.Length != to.Length) return;
+
+            for (int i = 0; i < from.Length; i++)
+                to[i].sharedMaterials = from[i].sharedMaterials;
+        }
+
+        /// <summary>
+        /// Carries the per-renderer property blocks over to the copy.
+        /// </summary>
+        /// <remarks>
+        /// <para>A part is painted in the creature's colour through a <c>MaterialPropertyBlock</c>
+        /// (<c>CreaturePartInstantiator.Tint</c>), and <c>Instantiate</c> does not copy that block.
+        /// Without this the first link — which <b>takes over</b> the original objects and keeps their
+        /// block — would wear the creature's colour while every cloned link walked around in whatever
+        /// colour the model was authored in.</para>
+        ///
+        /// <para>The clone is a copy of the template's hierarchy, so the two renderer lists come out in
+        /// the same order and can be walked in step. Should they ever not, we leave the copy alone
+        /// rather than paint the wrong renderer.</para>
+        /// </remarks>
+        private static void CopyPropertyBlocks(Transform template, Transform clone)
+        {
+            Renderer[] from = template.GetComponentsInChildren<Renderer>(true);
+            Renderer[] to = clone.GetComponentsInChildren<Renderer>(true);
+            if (from.Length != to.Length) return;
+
+            _propertyBlock ??= new MaterialPropertyBlock();
+
+            for (int i = 0; i < from.Length; i++)
+            {
+                from[i].GetPropertyBlock(_propertyBlock);
+                to[i].SetPropertyBlock(_propertyBlock);
+            }
         }
 
         /// <summary>
@@ -193,11 +401,24 @@ namespace Leeway.CreatureEditor
 
             _joints[0] = hip;
 
-            // We push the knee forwards — otherwise FABRIK would bend the chain in a random direction.
-            LimbIk.Solve(_joints, _spec.SegmentLength, _footTarget, forward);
+            // We push the knee somewhere deliberate — otherwise FABRIK bends the chain in a random
+            // direction.
+            LimbIk.Solve(_joints, _lengths, _footTarget, BendHint(forward));
 
             ApplyToSegments();
         }
+
+        /// <summary>
+        /// Which way the knee is pushed.
+        /// </summary>
+        /// <remarks>
+        /// A model drawn with a knee says for itself which way that knee goes — a hind leg bends
+        /// backwards whichever way the creature happens to be running, and bending it towards the
+        /// direction of travel would turn the mesh inside out. Only a model that says nothing falls
+        /// back on the direction of travel.
+        /// </remarks>
+        private Vector3 BendHint(Vector3 forward)
+            => _bendHintLocal.sqrMagnitude > Epsilon ? _hip.TransformDirection(_bendHintLocal) : forward;
 
         /// <summary>
         /// Puts the leg in a resting pose: the foot straight under the hip at its working height, the
@@ -223,7 +444,7 @@ namespace Leeway.CreatureEditor
             _initialised = true;
 
             _joints[0] = hip;
-            LimbIk.Solve(_joints, _spec.SegmentLength, _footTarget, forward);
+            LimbIk.Solve(_joints, _lengths, _footTarget, BendHint(forward));
 
             ApplyToSegments();
         }
@@ -263,15 +484,17 @@ namespace Leeway.CreatureEditor
         private void ApplyToSegments()
         {
             Quaternion inverseHip = Quaternion.Inverse(_hip.rotation);
-
-            // The authored length is in hip space while the joints are in world space — the part's scale
-            // (the scale gene) is what links the two.
-            float natural = Mathf.Max(Epsilon, _naturalLength * Mathf.Abs(_hip.lossyScale.z));
+            float hipScale = Mathf.Abs(_hip.lossyScale.z);
 
             for (int i = 0; i < _segments.Length; i++)
             {
                 Transform segment = _segments[i];
                 if (segment == null) continue;
+
+                // The authored length is in hip space while the joints are in world space — the part's
+                // scale (the scale gene) is what links the two. Each link carries its own, because a
+                // skinned limb's thigh and shank are not the same length.
+                float natural = Mathf.Max(Epsilon, _naturals[i] * hipScale);
 
                 Vector3 from = _joints[i];
                 Vector3 to = _joints[i + 1];
@@ -282,9 +505,24 @@ namespace Leeway.CreatureEditor
 
                 Vector3 direction = axis / length;
 
-                segment.localPosition = _hip.InverseTransformPoint(from);
-                segment.localRotation = inverseHip * Quaternion.LookRotation(direction, RollReference(direction));
-                segment.localScale = new Vector3(1f, 1f, length / natural);
+                Vector3 localPosition = _hip.InverseTransformPoint(from);
+                Quaternion localRotation = inverseHip * Quaternion.LookRotation(direction, RollReference(direction));
+
+                segment.localPosition = localPosition;
+                segment.localRotation = localRotation;
+
+                // Never let the stretch reach zero. A link squashed to nothing is a transform whose
+                // matrix has no rotation left in it, and everything downstream that reads a rotation
+                // from it — physics above all — gets a NaN for its trouble.
+                segment.localScale = new Vector3(1f, 1f, Mathf.Max(MinStretch, length / natural));
+
+                // The anchor takes the pose and leaves the stretch behind, so a muscle hanging off it
+                // is driven by a rotation rather than by a squashed matrix.
+                Transform anchor = _anchors != null && i < _anchors.Length ? _anchors[i] : null;
+                if (anchor == null) continue;
+
+                anchor.localPosition = localPosition;
+                anchor.localRotation = localRotation;
             }
         }
 
@@ -306,6 +544,10 @@ namespace Leeway.CreatureEditor
 
         public void Dispose()
         {
+            // The skinned copy goes first and the part's own renderers come back on: the model belongs
+            // to the attached part, and the chain only borrowed it.
+            _binding.Undo();
+
             // The visuals go back under the hip before the links are destroyed. If they went with them,
             // switching locomotion off would permanently delete the leg attached in the editor — these
             // are the same objects, not copies of them.
@@ -316,12 +558,23 @@ namespace Leeway.CreatureEditor
             }
 
             for (int i = 0; i < _segments.Length; i++)
-            {
-                if (_segments[i] == null) continue;
+                Destroy(_segments[i]);
 
-                if (Application.isPlaying) Object.Destroy(_segments[i].gameObject);
-                else Object.DestroyImmediate(_segments[i].gameObject);
+            if (_anchors != null)
+            {
+                for (int i = 0; i < _anchors.Length; i++) Destroy(_anchors[i]);
             }
+
+            // The holder is one of the links in an ordinary chain, and its own object in a skinned one.
+            if (_visuals != null && System.Array.IndexOf(_segments, _visuals) < 0) Destroy(_visuals);
+        }
+
+        private static void Destroy(Transform transform)
+        {
+            if (transform == null) return;
+
+            if (Application.isPlaying) Object.Destroy(transform.gameObject);
+            else Object.DestroyImmediate(transform.gameObject);
         }
 
         /// <summary>A part's authored visuals together with the pose the chain found them in.</summary>

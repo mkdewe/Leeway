@@ -1,0 +1,78 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: a0bb4b2223000dd4a94632c9ee2fe753, type: 3}
+  m_Name: SkinPalette
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinPalette
+  _colors:
+  - _name: Moss
+    _color: {r: 0.47843137, g: 0.627451, b: 0.3372549, a: 1}
+  - _name: Fern
+    _color: {r: 0.2901961, g: 0.47843137, b: 0.27450982, a: 1}
+  - _name: Ochre
+    _color: {r: 0.7764706, g: 0.5882353, b: 0.2901961, a: 1}
+  - _name: Sand
+    _color: {r: 0.8862745, g: 0.78431374, b: 0.5882353, a: 1}
+  - _name: Clay
+    _color: {r: 0.69803923, g: 0.40784314, b: 0.28235295, a: 1}
+  - _name: Rust
+    _color: {r: 0.54901963, g: 0.2509804, b: 0.16470589, a: 1}
+  - _name: Plum
+    _color: {r: 0.47843137, g: 0.2901961, b: 0.45490196, a: 1}
+  - _name: Rose
+    _color: {r: 0.8392157, g: 0.5019608, b: 0.5803922, a: 1}
+  - _name: Sky
+    _color: {r: 0.45490196, g: 0.63529414, b: 0.8, a: 1}
+  - _name: Deep
+    _color: {r: 0.21176471, g: 0.32941177, b: 0.5019608, a: 1}
+  - _name: Teal
+    _color: {r: 0.27450982, g: 0.5882353, b: 0.5568628, a: 1}
+  - _name: Ice
+    _color: {r: 0.76862746, g: 0.87058824, b: 0.8862745, a: 1}
+  - _name: Bone
+    _color: {r: 0.91764706, g: 0.89411765, b: 0.83137256, a: 1}
+  - _name: Ash
+    _color: {r: 0.54901963, g: 0.5411765, b: 0.5254902, a: 1}
+  - _name: Slate
+    _color: {r: 0.30588236, g: 0.3137255, b: 0.3372549, a: 1}
+  - _name: Coal
+    _color: {r: 0.14901961, g: 0.14901961, b: 0.16470589, a: 1}
+  _patterns:
+  - _name: Bare skin
+    _baseMap: {fileID: 0}
+    _normalMap: {fileID: 0}
+    _tiling: 1
+    _normalStrength: 0
+  - _name: Spots
+    _baseMap: {fileID: 2800000, guid: 57f547aa56df0a04ea95ed5aba5c7bb1, type: 3}
+    _normalMap: {fileID: 2800000, guid: 0604af9943a1ae4459e248358fd71e7a, type: 3}
+    _tiling: 2.5
+    _normalStrength: 0.8
+  - _name: Stripes
+    _baseMap: {fileID: 2800000, guid: 85e3d75033f22dd409c84b6086f51b3d, type: 3}
+    _normalMap: {fileID: 2800000, guid: 7665b564d3d54864db8bb63cb3322e4f, type: 3}
+    _tiling: 2
+    _normalStrength: 0.7
+  - _name: Scales
+    _baseMap: {fileID: 2800000, guid: d77f4b2f974f50540bd658c36ae57ec0, type: 3}
+    _normalMap: {fileID: 2800000, guid: 510b67de35e87a94892d0972aafc4529, type: 3}
+    _tiling: 3
+    _normalStrength: 1
+  - _name: Patches
+    _baseMap: {fileID: 2800000, guid: 6c72df59ac288b346b12b01cfef85d6a, type: 3}
+    _normalMap: {fileID: 2800000, guid: e1024122ff71ea84292dfe023f1867dd, type: 3}
+    _tiling: 1.5
+    _normalStrength: 0.5
+  - _name: Speckle
+    _baseMap: {fileID: 2800000, guid: a94c0ae501651b545bc2deac10c5f5d4, type: 3}
+    _normalMap: {fileID: 2800000, guid: 4bdd949e822735c4ba4cd571a5af174b, type: 3}
+    _tiling: 3
+    _normalStrength: 0.6

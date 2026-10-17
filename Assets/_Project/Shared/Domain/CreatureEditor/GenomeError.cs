@@ -26,6 +26,12 @@ namespace Leeway.Creature.Domain
         MirrorNotSupported = 15,
         ScaleOutOfRange = 16,
 
+        /// <summary>Something was fitted into a part that has nowhere to fit it — a hoof on a horn.</summary>
+        FittingNotSupported = 17,
+
+        /// <summary>The fitted part is unknown, or is not something a limb can end in.</summary>
+        InvalidFitting = 18,
+
         // Transport
         PayloadTooLarge = 30,
         MalformedPayload = 31,

@@ -24,6 +24,9 @@ namespace Leeway.CreatureEditor
         [Header("Rendering")]
         [field: SerializeField] public Material BodyMaterial { get; private set; }
 
+        [Tooltip("The colours and coat patterns a creature can be painted with. Left empty: creatures come out in flat colour, with no markings.")]
+        [field: SerializeField] public CreatureSkinPalette SkinPalette { get; private set; }
+
         [Tooltip("Padding for the explicit SkinnedMeshRenderer bounds. The default bounds would cull the creature mid-ragdoll.")]
         [field: SerializeField] public float BoundsPadding { get; private set; } = 1.5f;
 

@@ -1,4 +1,5 @@
 using Leeway.Creature;
+using Leeway.Combat;
 using Leeway.CreatureEditor;
 using Leeway.Network.Messages;
 using MessagePipe;
@@ -49,6 +50,10 @@ namespace Leeway.Core
             builder.AddMessageBroker<LobbySnapshotChangedMessage>();
             builder.AddMessageBroker<LobbyChatReceivedMessage>();
             builder.AddMessageBroker<SessionErrorMessage>();
+
+            // Combat
+            builder.AddMessageBroker<CreatureStruckMessage>();
+            builder.AddMessageBroker<CreatureDiedMessage>();
 
             GlobalMessagePipe.SetProvider(builder.BuildServiceProvider());
             return true;

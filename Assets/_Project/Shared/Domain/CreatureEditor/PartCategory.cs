@@ -24,6 +24,12 @@ namespace Leeway.Creature.Domain
 
         /// <summary>Ornaments with no combat effect — crests, fins, dorsal spikes.</summary>
         Detail = 5,
+
+        /// <summary>
+        /// What a limb ends in: a hoof, a paw, a hand. Never attached to the body itself — it is
+        /// fitted into a leg or an arm, which is why it has a category of its own.
+        /// </summary>
+        Extremity = 6,
     }
 
     /// <summary>

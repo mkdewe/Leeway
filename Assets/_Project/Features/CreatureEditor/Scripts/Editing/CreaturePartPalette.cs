@@ -22,6 +22,11 @@ namespace Leeway.CreatureEditor
         private static readonly PartCategory[] TabOrder =
         {
             PartCategory.Locomotion,
+
+            // Feet and hands sit next to the limbs they go into: the player picks a leg and then what
+            // it stands on, and the two tabs are one decision made twice.
+            PartCategory.Extremity,
+
             PartCategory.Mouth,
             PartCategory.Sense,
             PartCategory.Grasper,
@@ -229,20 +234,36 @@ namespace Leeway.CreatureEditor
             return image;
         }
 
+        /// <summary>The largest the cost may be drawn, in points.</summary>
+        /// <remarks>
+        /// The cap is what keeps the number inside its strip. Auto-sizing on its own only fits text to
+        /// the <b>width</b> of the box while the overflow mode is <c>Overflow</c>, so a short value was
+        /// blown up until it spanned the whole tile — twice the height of the strip — and a longer one
+        /// ("100", "21.23") ran out past the edge of the tile.
+        /// </remarks>
+        private const float CostFontSizeMax = 20f;
+
         /// <summary>Seats the label in the strip below the preview.</summary>
+        /// <remarks>
+        /// One line, always: wrapping breaks a value across the strip instead of shrinking it, and
+        /// truncation leaves an honest ellipsis should a cost ever outgrow the tile.
+        /// </remarks>
         private static void PlaceCostLabel(TextMeshProUGUI label)
         {
             RectTransform rect = label.rectTransform;
 
             rect.anchorMin = Vector2.zero;
             rect.anchorMax = new Vector2(1f, CostStripHeight);
-            rect.offsetMin = Vector2.zero;
-            rect.offsetMax = Vector2.zero;
+            rect.offsetMin = new Vector2(6f, 2f);
+            rect.offsetMax = new Vector2(-6f, -2f);
             rect.pivot = new Vector2(0.5f, 0.5f);
 
             label.alignment = TextAlignmentOptions.Center;
+            label.textWrappingMode = TextWrappingModes.NoWrap;
+            label.overflowMode = TextOverflowModes.Ellipsis;
             label.enableAutoSizing = true;
-            label.fontSizeMin = 8f;
+            label.fontSizeMin = 10f;
+            label.fontSizeMax = CostFontSizeMax;
         }
 
         private void RefreshTabColors()
@@ -284,6 +305,7 @@ namespace Leeway.CreatureEditor
         private static string TabName(PartCategory category) => category switch
         {
             PartCategory.Locomotion => "Movement",
+            PartCategory.Extremity => "Feet & hands",
             PartCategory.Mouth => "Mouth",
             PartCategory.Sense => "Senses",
             PartCategory.Grasper => "Graspers",
