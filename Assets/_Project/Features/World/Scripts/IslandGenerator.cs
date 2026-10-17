@@ -46,6 +46,7 @@ namespace Leeway.World
         private static readonly int GrowDurationId = Shader.PropertyToID("_LeewayGrowDuration");
 
         private Transform _root;
+        private MaterialPropertyBlock _waterProperties;
         private readonly List<UnityEngine.Object> _owned = new();
         private readonly Dictionary<GameObject, PrefabParts> _partsCache = new();
         private bool _growActive;
@@ -125,6 +126,9 @@ namespace Leeway.World
             return HubPosition;
         }
 
+        public Vector3 FieldToWorld(Vector3 point) => _root != null ? _root.TransformPoint(point) : transform.TransformPoint(point);
+        public Vector3 WorldToField(Vector3 point) => _root != null ? _root.InverseTransformPoint(point) : transform.InverseTransformPoint(point);
+
         public Vector3 HubPosition => Field == null ? transform.position : _root.TransformPoint(Field.HubCenter);
 
         /// <summary>World position of the island's own origin (its centre at sea level).</summary>
@@ -181,10 +185,24 @@ namespace Leeway.World
         private void BuildWater()
         {
             if (_biome.WaterMaterial == null) return;
+            _waterProperties = new MaterialPropertyBlock();
+            var impacts = IslandMeshBuilder.BuildWaterImpacts(Field);
+            var positions = new Vector4[IslandMeshBuilder.MaxWaterImpacts];
+            var directions = new Vector4[IslandMeshBuilder.MaxWaterImpacts];
+            for (int i=0;i<impacts.Count;i++)
+            {
+                Vector3 p=_root.TransformPoint(impacts[i].Position);
+                Vector3 d=_root.TransformDirection(impacts[i].Direction).normalized;
+                positions[i]=new Vector4(p.x,p.y,p.z,impacts[i].Radius);
+                directions[i]=new Vector4(d.x,d.z,impacts[i].Ocean?1f:0f,1f);
+            }
+            _waterProperties.SetFloat("_LeewayWaterImpactCount",impacts.Count);
+            _waterProperties.SetVectorArray("_LeewayWaterImpactPositions",positions);
+            _waterProperties.SetVectorArray("_LeewayWaterImpactDirections",directions);
 
             Mesh surface = IslandMeshBuilder.BuildWaterSurface(Field);
             if (surface != null) AddWaterRenderer("Water", surface, _biome.WaterMaterial);
-            GameObject openSea = AddWaterRenderer("OpenSea", IslandMeshBuilder.BuildSeaRing(_waterSize, Field.Settings.Size, Field.Settings.SeaLevel),
+            GameObject openSea = AddWaterRenderer("OpenSea", IslandMeshBuilder.BuildSeaRing(_waterSize, Field.Settings.Size, Field.Settings.SeaLevel + 0.008f, Field.Settings.CellSize),
                 _biome.WaterMaterial, meshCollider: false);
 
             // The open sea's triangles are kilometres long - a mesh collider of them is unstable in PhysX.
@@ -201,6 +219,7 @@ namespace Leeway.World
             go.AddComponent<MeshFilter>().sharedMesh = Own(mesh);
             var renderer = go.AddComponent<MeshRenderer>();
             renderer.sharedMaterial = material;
+            renderer.SetPropertyBlock(_waterProperties);
             renderer.shadowCastingMode = ShadowCastingMode.Off;
 
             // The surface can be found by a raycast: creatures float on it. The Water layer collides with
@@ -280,12 +299,12 @@ namespace Leeway.World
                 Vector3 up = Vector3.Slerp(Vector3.up, point.Normal, layer.AlignToNormal);
                 Quaternion rotation = Quaternion.FromToRotation(Vector3.up, up) * Quaternion.Euler(0f, point.Yaw, 0f);
                 Vector3 position = point.Position - up * (layer.Sink * point.Scale);
-                Place(batches, prefab, Matrix4x4.TRS(position, rotation, Vector3.one * point.Scale), parents[point.Rule], layer.CombineMeshes);
+                Place(batches, prefab, Matrix4x4.TRS(position, rotation, Vector3.one * point.Scale), parents[point.Rule], layer.CombineMeshes, layer.WindStrength);
             }
         }
 
         /// <summary>Adds a prefab at a root-local transform: merged visuals plus, if needed, a renderer-less instance for colliders and lights.</summary>
-        private void Place(PropBatches batches, GameObject prefab, Matrix4x4 rootLocal, Transform parent, bool combine)
+        private void Place(PropBatches batches, GameObject prefab, Matrix4x4 rootLocal, Transform parent, bool combine, float windStrength = 0f)
         {
             if (!combine)
             {
@@ -306,6 +325,7 @@ namespace Leeway.World
                     Transform = rootLocal * part.LocalToPrefab,
                     Pivot = pivot,
                     GrowDelay = growDelay,
+                    WindStrength = windStrength,
                 });
 
             if (parts.Proxy != null)
@@ -324,6 +344,7 @@ namespace Leeway.World
             var normals = new List<Vector3>();
             var uvs = new List<Vector2>();
             var grow = new List<Vector4>();
+            var wind = new List<Vector2>();
             var triangles = new List<int>();
 
             foreach (KeyValuePair<PropBatches.Key, List<PropBatches.Instance>> batch in batches.All)
@@ -332,6 +353,7 @@ namespace Leeway.World
                 normals.Clear();
                 uvs.Clear();
                 grow.Clear();
+                wind.Clear();
                 triangles.Clear();
 
                 // Own merge instead of Mesh.CombineMeshes: every vertex also carries its prop's pivot
@@ -350,6 +372,7 @@ namespace Leeway.World
                         normals.Add(instance.Transform.MultiplyVector(source.Normals[v]).normalized);
                         uvs.Add(source.Uvs[v]);
                         grow.Add(growData);
+                        wind.Add(new Vector2(instance.WindStrength, 17f));
                     }
                     foreach (int index in source.Triangles) triangles.Add(start + index);
                 }
@@ -359,8 +382,12 @@ namespace Leeway.World
                 mesh.SetNormals(normals);
                 mesh.SetUVs(0, uvs);
                 mesh.SetUVs(2, grow);
+                mesh.SetUVs(3, wind);
                 mesh.SetTriangles(triangles, 0);
                 mesh.RecalculateBounds();
+                var padded = mesh.bounds;
+                padded.Expand(4f); // Include the maximum visual sway in culling bounds.
+                mesh.bounds = padded;
 
                 var go = new GameObject(mesh.name);
                 go.transform.SetParent(parent, false);
@@ -516,6 +543,7 @@ namespace Leeway.World
                 public Matrix4x4 Transform;
                 public Vector3 Pivot;
                 public float GrowDelay;
+                public float WindStrength;
             }
 
             public readonly Dictionary<Key, List<Instance>> All = new();

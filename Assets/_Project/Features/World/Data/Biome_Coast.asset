@@ -16,18 +16,21 @@ MonoBehaviour:
     <Size>k__BackingField: 520
     <Resolution>k__BackingField: 208
     <CoastRadius>k__BackingField: 0.62
-    <CoastIrregularity>k__BackingField: 0.25
-    <CoastFrequency>k__BackingField: 2.2
+    <CoastIrregularity>k__BackingField: 0.38
+    <CoastFrequency>k__BackingField: 2.5
     <ShoreWidth>k__BackingField: 0.08
     <SeaFloorDepth>k__BackingField: -5
     <BeachHeight>k__BackingField: 0.6
-    <HillHeight>k__BackingField: 14
-    <CentralRise>k__BackingField: 10
-    <HillFrequency>k__BackingField: 2.4
+    <HillHeight>k__BackingField: 32
+    <CentralRise>k__BackingField: 22
+    <HillFrequency>k__BackingField: 3.6
     <HillOctaves>k__BackingField: 4
-    <TerraceStrength>k__BackingField: 0.75
-    <TerraceStep>k__BackingField: 4
-    <TerraceSharpness>k__BackingField: 0.12
+    <RidgeHeight>k__BackingField: 48
+    <ValleyDepth>k__BackingField: 10
+    <DetailHeight>k__BackingField: 3
+    <TerraceStrength>k__BackingField: 0.38
+    <TerraceStep>k__BackingField: 5
+    <TerraceSharpness>k__BackingField: 0.22
     <HubRadius>k__BackingField: 16
     <HubBlend>k__BackingField: 7
     <HubDistance>k__BackingField: 0.35
@@ -71,6 +74,7 @@ MonoBehaviour:
     _alignToNormal: 0
     _sink: 0.2
     _combineMeshes: 1
+    _windStrength: 0.65
   - _name: Spruces
     _prefabs:
     - {fileID: 2861203862802961992, guid: 35eb2442e37a011419e57fbaf52e1c2c, type: 3}
@@ -88,6 +92,7 @@ MonoBehaviour:
     _alignToNormal: 0
     _sink: 0.2
     _combineMeshes: 1
+    _windStrength: 0.65
   - _name: Broadleaf
     _prefabs:
     - {fileID: 8718111573234879416, guid: 87d048544b4994546a0fd41f9f303084, type: 3}
@@ -105,6 +110,7 @@ MonoBehaviour:
     _alignToNormal: 0
     _sink: 0.15
     _combineMeshes: 1
+    _windStrength: 0.65
   - _name: DeadTrees
     _prefabs:
     - {fileID: 1049856930643074643, guid: 4d194d18597035d4c8399f077a7f2afb, type: 3}
@@ -122,6 +128,7 @@ MonoBehaviour:
     _alignToNormal: 0
     _sink: 0.1
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Stumps
     _prefabs:
     - {fileID: 7744704032553487189, guid: 6a8418d6b5f366c4e86eeccd1b8d7807, type: 3}
@@ -138,6 +145,7 @@ MonoBehaviour:
     _alignToNormal: 0.3
     _sink: 0.05
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Boulders
     _prefabs:
     - {fileID: 6744499033954319382, guid: e0a7cad58e335144db7292fbf431a6fa, type: 3}
@@ -156,6 +164,7 @@ MonoBehaviour:
     _alignToNormal: 0.6
     _sink: 0.25
     _combineMeshes: 1
+    _windStrength: 0
   - _name: MossyBoulders
     _prefabs:
     - {fileID: 1862610941332566028, guid: ae929093f2109d34eaff5fbace1b7547, type: 3}
@@ -173,6 +182,7 @@ MonoBehaviour:
     _alignToNormal: 0.5
     _sink: 0.25
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Spires
     _prefabs:
     - {fileID: 3398824238762938168, guid: 2f87f600a31b6ee47b0abebbb560eb36, type: 3}
@@ -190,6 +200,7 @@ MonoBehaviour:
     _alignToNormal: 0.2
     _sink: 0.5
     _combineMeshes: 1
+    _windStrength: 0
   - _name: ShoreSlabs
     _prefabs:
     - {fileID: 4110056889517049229, guid: a2fdd14069e10bb4bad9193ca37b13b0, type: 3}
@@ -207,6 +218,7 @@ MonoBehaviour:
     _alignToNormal: 0.9
     _sink: 0.15
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Pebbles
     _prefabs:
     - {fileID: 4836708428667890853, guid: 922d2342b5182a5449cd06ff39b181a9, type: 3}
@@ -223,6 +235,7 @@ MonoBehaviour:
     _alignToNormal: 1
     _sink: 0.02
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Bushes
     _prefabs:
     - {fileID: 2982889815155058843, guid: 8dd9320e627cdcd45b13026d890a9003, type: 3}
@@ -240,6 +253,7 @@ MonoBehaviour:
     _alignToNormal: 0.3
     _sink: 0.15
     _combineMeshes: 1
+    _windStrength: 0.9
   - _name: Ferns
     _prefabs:
     - {fileID: 3119627259439569983, guid: 7058d36e654afae4f95d2182928f4604, type: 3}
@@ -257,6 +271,7 @@ MonoBehaviour:
     _alignToNormal: 0.6
     _sink: 0.02
     _combineMeshes: 1
+    _windStrength: 1.3
   - _name: Grass
     _prefabs:
     - {fileID: 4542332184247912750, guid: 040e25c7115e49648a4451e3e0bf5f16, type: 3}
@@ -274,6 +289,7 @@ MonoBehaviour:
     _alignToNormal: 0.8
     _sink: 0.02
     _combineMeshes: 1
+    _windStrength: 1.6
   - _name: GlowShrooms
     _prefabs:
     - {fileID: 5554214648994276992, guid: e460a1c5c1f46834a8f17ffaa670a187, type: 3}
@@ -291,6 +307,7 @@ MonoBehaviour:
     _alignToNormal: 0.7
     _sink: 0.02
     _combineMeshes: 1
+    _windStrength: 0
   - _name: Logs
     _prefabs:
     - {fileID: 5912417647160196866, guid: dbe81e1e58b812140a4567df3abf72fa, type: 3}
@@ -307,6 +324,7 @@ MonoBehaviour:
     _alignToNormal: 0.9
     _sink: 0.1
     _combineMeshes: 1
+    _windStrength: 0
   _cavePrefab: {fileID: 1022504733738541942, guid: 087e22c3fccd5c14bb59736d6d7d3104, type: 3}
   _hubStones:
   - {fileID: 182761545514120559, guid: bb28166186c961a419ccbd1583205592, type: 3}

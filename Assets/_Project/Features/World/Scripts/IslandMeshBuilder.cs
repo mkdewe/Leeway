@@ -67,8 +67,10 @@ namespace Leeway.World
                 float fresh = field.FreshWaterLevel(centre.x, centre.z);
                 Color color;
                 if (centre.y < s.SeaLevel - 0.2f || centre.y < fresh - 0.3f) color = biome.SeaBed;
-                else if (centre.y < s.BeachHeight + 0.45f || centre.y < fresh + 0.6f) color = biome.Sand;
+                // Cliff faces must stay rock: nearest water levels can differ sharply at a fall.
+                // Painting sand before testing slope made tall, bright triangular teeth on the bank.
                 else if (normal.y < grassMinNormalY) color = biome.Rock;
+                else if (centre.y < s.BeachHeight + 0.45f || centre.y < fresh + 0.6f) color = biome.Sand;
                 else
                 {
                     float patch = patches.Fbm(centre.x / 22f, centre.z / 22f, 2);
@@ -112,100 +114,235 @@ namespace Leeway.World
         }
 
         /// <summary>
-        /// Water over the terrain grid: sea near the coast, lakes and rivers in one mesh. Each quad
-        /// has its own vertices at the water level of its wet corners, so a drop in a river becomes
-        /// a sloped quad - a waterfall. Vertex colour carries what <c>Leeway/ToonWater</c> needs:
-        /// r = depth below the surface (0..1 over <paramref name="depthRange"/>), g = 1 for fresh water.
+        /// A continuous water datum shared by neighbouring terrain triangles, clipped against the
+        /// exact same terrain diagonal. Shore edges are real intersections, not whole wet quads.
+        /// Colour: r=depth, g=fresh water. Flow UVs are attributes of this same surface.
         /// </summary>
         public static Mesh BuildWaterSurface(IslandHeightField field, float depthRange = 3f)
         {
-            IslandSettings s = field.Settings;
             int n = field.VertexCount;
-            var level = new float[n * n];
-            var fresh = new bool[n * n];
-            for (int z = 0; z < n; z++)
-            for (int x = 0; x < n; x++)
+            float sea = field.Settings.SeaLevel;
+            var levels = new float[n*n];
+            var fresh = new bool[n*n];
+            var ground = new float[n*n];
+            var wet = new bool[n*n];
+            for(int z=0;z<n;z++)for(int x=0;x<n;x++)
             {
-                float freshLevel = field.FreshWaterAt(x, z);
-                fresh[z * n + x] = freshLevel > s.SeaLevel;
-                level[z * n + x] = Mathf.Max(s.SeaLevel, freshLevel);
+                int i=z*n+x;
+                ground[i]=field.HeightAt(x,z);
+                levels[i]=field.WaterSurfaceAt(x,z);
+                fresh[i]=field.IsFreshSurfaceAt(x,z);
+                wet[i]=ground[i]<levels[i]-0.001f;
             }
 
-            var vertices = new List<Vector3>();
-            var colors = new List<Color>();
-            var triangles = new List<int>();
-            var corner = new int[4];
-
-            for (int z = 0; z < n - 1; z++)
-            for (int x = 0; x < n - 1; x++)
+            var flowUV=new Vector2[n*n];var flowAmount=new float[n*n];var closest=new float[n*n];
+            for(int i=0;i<closest.Length;i++)closest[i]=float.PositiveInfinity;
+            foreach(var river in field.Rivers)
             {
-                corner[0] = z * n + x;
-                corner[1] = z * n + x + 1;
-                corner[2] = (z + 1) * n + x;
-                corner[3] = (z + 1) * n + x + 1;
-
-                // Dry corners take the highest wet corner level; the excess hides under the bank.
-                float wetMax = float.NegativeInfinity;
-                foreach (int i in corner)
-                    if (field.HeightAt(i % n, i / n) < level[i]) wetMax = Mathf.Max(wetMax, level[i]);
-                if (float.IsNegativeInfinity(wetMax)) continue;
-
-                int start = vertices.Count;
-                foreach (int i in corner)
+                float along=0;
+                for(int j=1;j<river.Points.Count;j++)
                 {
-                    float ground = field.HeightAt(i % n, i / n);
-                    float surface = ground < level[i] ? level[i] : wetMax;
-                    Vector3 p = field.VertexPosition(i % n, i / n);
-                    p.y = surface;
-                    vertices.Add(p);
-                    colors.Add(new Color(Mathf.Clamp01((surface - ground) / depthRange), fresh[i] ? 1f : 0f, 0f, 1f));
+                    Vector3 a=river.Points[j-1],b=river.Points[j];
+                    Vector2 start=new Vector2(a.x,a.z),delta=new Vector2(b.x-a.x,b.z-a.z);
+                    float length2=delta.sqrMagnitude,segmentLength=Vector3.Distance(a,b);
+                    if(length2<0.00001f)continue;
+                    float reach=river.Width*0.8f;
+                    Vector2 side=new Vector2(delta.y,-delta.x)/Mathf.Sqrt(length2);
+                    int x0=Mathf.Max(0,Mathf.FloorToInt((Mathf.Min(a.x,b.x)-reach+field.Settings.HalfSize)/field.Settings.CellSize));
+                    int x1=Mathf.Min(n-1,Mathf.CeilToInt((Mathf.Max(a.x,b.x)+reach+field.Settings.HalfSize)/field.Settings.CellSize));
+                    int z0=Mathf.Max(0,Mathf.FloorToInt((Mathf.Min(a.z,b.z)-reach+field.Settings.HalfSize)/field.Settings.CellSize));
+                    int z1=Mathf.Min(n-1,Mathf.CeilToInt((Mathf.Max(a.z,b.z)+reach+field.Settings.HalfSize)/field.Settings.CellSize));
+                    for(int z=z0;z<=z1;z++)for(int x=x0;x<=x1;x++)
+                    {
+                        int i=z*n+x;if(!fresh[i])continue;
+                        Vector2 p=new Vector2(-field.Settings.HalfSize+x*field.Settings.CellSize,-field.Settings.HalfSize+z*field.Settings.CellSize);
+                        float t=Mathf.Clamp01(Vector2.Dot(p-start,delta)/length2);
+                        Vector2 offset=p-start-delta*t;
+                        float d=offset.sqrMagnitude,error=Mathf.Abs(levels[i]-Mathf.Lerp(a.y,b.y,t));
+                        float score=d+error*error;
+                        if(d>reach*reach||score>=closest[i])continue;
+                        closest[i]=score;flowUV[i]=new Vector2(0.5f+Vector2.Dot(offset,side)/river.Width,along+t*segmentLength);
+                        flowAmount[i]=1f-Mathf.SmoothStep(0f,1f,Mathf.InverseLerp(river.Width*0.5f,reach,Mathf.Sqrt(d)));
+                    }
+                    along+=segmentLength;
                 }
-
-                // Corners are 00, 10, 01, 11 - same diagonal as the terrain.
-                triangles.Add(start); triangles.Add(start + 3); triangles.Add(start + 1);
-                triangles.Add(start); triangles.Add(start + 2); triangles.Add(start + 3);
             }
-
-            if (vertices.Count == 0) return null;
-
-            var mesh = new Mesh { name = $"IslandWater_{field.Seed}", indexFormat = IndexFormat.UInt32 };
-            mesh.SetVertices(vertices);
-            mesh.SetColors(colors);
-            mesh.SetTriangles(triangles, 0);
-            mesh.RecalculateNormals();
+            var vertices=new List<Vector3>();
+            var normals=new List<Vector3>();
+            var colors=new List<Color>();
+            var uvs=new List<Vector2>();var flows=new List<Vector2>();
+            var triangles=new List<int>();
+            var polygon=new WaterVertex[4];
+            var input=new WaterVertex[3];
+            for(int z=0;z<n-1;z++)
+            for(int x=0;x<n-1;x++)
+            {
+                int a=z*n+x,b=a+1,c=a+n,d=c+1;
+                AddClipped(a,d,b);
+                AddClipped(a,c,d);
+            }
+            if(vertices.Count==0)return null;
+            var mesh=new Mesh{name=$"IslandWater_{field.Seed}",indexFormat=IndexFormat.UInt32};
+            mesh.SetVertices(vertices);mesh.SetNormals(normals);mesh.SetColors(colors);mesh.SetUVs(0,uvs);mesh.SetUVs(1,flows);mesh.SetTriangles(triangles,0);
             mesh.RecalculateBounds();
+            var bounds=mesh.bounds;bounds.Expand(2f);mesh.bounds=bounds;
+            return mesh;
+
+            void AddClipped(int a,int b,int c)
+            {
+                if(!wet[a]&&!wet[b]&&!wet[c])return;
+                input[0]=At(a);input[1]=At(b);input[2]=At(c);
+                int count=0;
+                WaterVertex previous=input[2];
+                for(int k=0;k<3;k++)
+                {
+                    WaterVertex current=input[k];
+                    bool inside=current.Depth>=0,wasInside=previous.Depth>=0;
+                    if(inside!=wasInside)
+                    {
+                        float t=previous.Depth/(previous.Depth-current.Depth);
+                        polygon[count++]=new WaterVertex
+                        {
+                            Position=Vector3.Lerp(previous.Position,current.Position,t),
+                            Depth=0,
+                            Fresh=Mathf.Lerp(previous.Fresh,current.Fresh,t),FlowUV=Vector2.Lerp(previous.FlowUV,current.FlowUV,t),FlowAmount=Mathf.Lerp(previous.FlowAmount,current.FlowAmount,t),Normal=Vector3.Lerp(previous.Normal,current.Normal,t).normalized
+                        };
+                    }
+                    if(inside)polygon[count++]=current;
+                    previous=current;
+                }
+                if(count<3)return;
+                for(int k=1;k<count-1;k++)
+                {
+                    Vector3 cross=Vector3.Cross(polygon[k].Position-polygon[0].Position,
+                        polygon[k+1].Position-polygon[0].Position);
+                    if(cross.sqrMagnitude<1e-10f)continue;
+                    int start=vertices.Count;
+                    Add(polygon[0]);Add(polygon[k]);Add(polygon[k+1]);
+                    triangles.Add(start);triangles.Add(start+1);triangles.Add(start+2);
+                }
+            }
+            WaterVertex At(int i)
+            {
+                Vector3 p=field.VertexPosition(i%n,i/n);p.y=levels[i];
+                int x=i%n,z=i/n;float cell=field.Settings.CellSize;
+                int left=Mathf.Max(0,x-1),right=Mathf.Min(n-1,x+1),back=Mathf.Max(0,z-1),front=Mathf.Min(n-1,z+1);
+                float dx=(field.WaterSurfaceAt(right,z)-field.WaterSurfaceAt(left,z))/Mathf.Max(cell,(right-left)*cell);
+                float dz=(field.WaterSurfaceAt(x,front)-field.WaterSurfaceAt(x,back))/Mathf.Max(cell,(front-back)*cell);
+                Vector3 normal=new Vector3(-dx,1,-dz).normalized;
+                return new WaterVertex{Position=p,Depth=levels[i]-ground[i],Fresh=fresh[i]?1:0,FlowUV=flowUV[i],FlowAmount=flowAmount[i],Normal=normal};
+            }
+            void Add(WaterVertex v)
+            {
+                // Millimetre bias prevents shoreline z-fighting without a visible floating bank.
+                vertices.Add(v.Position+Vector3.up*0.008f);
+                normals.Add(v.Normal);
+                colors.Add(new Color(Mathf.Clamp01(v.Depth/Mathf.Max(depthRange,0.01f)),v.Fresh,0,0));
+                uvs.Add(v.FlowUV);flows.Add(new Vector2(v.FlowAmount,0));
+            }
+        }
+
+        private struct WaterVertex
+        {
+            public Vector3 Position,Normal;
+            public float Depth,Fresh,FlowAmount;
+            public Vector2 FlowUV;
+        }
+
+        /// <summary>Concentric tessellated rings; the inner boundary matches the terrain grid exactly.</summary>
+        public static Mesh BuildSeaRing(float outerSize,float innerSize,float height,float cellSize=2.5f)
+        {
+            float inner=Mathf.Max(1,innerSize)*0.5f,outer=Mathf.Max(outerSize,innerSize+2)*0.5f;
+            int sideCount=Mathf.Max(4,Mathf.CeilToInt(innerSize/Mathf.Max(cellSize,0.5f)));
+            int perimeter=sideCount*4;
+            var vertices=new List<Vector3>();var normals=new List<Vector3>();
+            var colors=new List<Color>();var triangles=new List<int>();
+            float radius=inner,spacing=Mathf.Max(0.5f,cellSize);
+            int ring=0;
+            for(int ringLimit=0;ringLimit<128;ringLimit++)
+            {
+                for(int side=0;side<4;side++)
+                for(int i=0;i<sideCount;i++)
+                {
+                    float u=i/(float)sideCount,t=Mathf.Lerp(-radius,radius,u);
+                    Vector3 p=side==0?new Vector3(t,height,-radius):
+                        side==1?new Vector3(radius,height,t):
+                        side==2?new Vector3(-t,height,radius):new Vector3(-radius,height,-t);
+                    vertices.Add(p);normals.Add(Vector3.up);colors.Add(new Color(1,0,0,0));
+                }
+                if(ring>0)
+                for(int i=0;i<perimeter;i++)
+                {
+                    int next=(i+1)%perimeter,a=(ring-1)*perimeter+i,b=(ring-1)*perimeter+next;
+                    int c=ring*perimeter+i,d=ring*perimeter+next;
+                    triangles.Add(a);triangles.Add(b);triangles.Add(c);
+                    triangles.Add(b);triangles.Add(d);triangles.Add(c);
+                }
+                if(radius>=outer)break;
+                radius=Mathf.Min(outer,radius+spacing);spacing*=1.35f;ring++;
+            }
+            var mesh=new Mesh{name="IslandOpenSea",indexFormat=IndexFormat.UInt32};
+            mesh.SetVertices(vertices);mesh.SetNormals(normals);mesh.SetColors(colors);
+            mesh.SetTriangles(triangles,0);mesh.RecalculateBounds();
+            var bounds=mesh.bounds;bounds.Expand(2f);mesh.bounds=bounds;
             return mesh;
         }
 
-        /// <summary>Open sea around the grid: a square ring, so it never overlaps <see cref="BuildWaterSurface"/>.</summary>
-        public static Mesh BuildSeaRing(float outerSize, float innerSize, float height)
+
+        public const int MaxWaterImpacts=24;
+        public struct WaterImpact
         {
-            float o = outerSize * 0.5f;
-            float i = innerSize * 0.5f;
-            var mesh = new Mesh { name = "IslandOpenSea" };
-            mesh.vertices = new[]
+            public Vector3 Position,Direction;
+            public float Radius;
+            public bool Ocean;
+        }
+        /// <summary>Receiver-side splash zones, prioritising river/ocean mouths.</summary>
+        public static List<WaterImpact> BuildWaterImpacts(IslandHeightField field)
+        {
+            var result=new List<WaterImpact>();
+            float sea=field.Settings.SeaLevel;
+            foreach(var river in field.Rivers)
+            for(int i=1;i<river.Points.Count;i++)
             {
-                new Vector3(-o, height, -o), new Vector3(o, height, -o), new Vector3(o, height, o), new Vector3(-o, height, o),
-                new Vector3(-i, height, -i), new Vector3(i, height, -i), new Vector3(i, height, i), new Vector3(-i, height, i),
-            };
-            var normals = new Vector3[8];
-            var colors = new Color[8];
-            for (int k = 0; k < 8; k++)
-            {
-                normals[k] = Vector3.up;
-                colors[k] = new Color(1f, 0f, 0f, 1f); // deep salt water
+                Vector3 a=river.Points[i-1],b=river.Points[i];
+                float before=field.SampleWaterSurface(a.x,a.z),after=field.SampleWaterSurface(b.x,b.z);
+                if(after>sea+0.12f||before<=sea+0.12f)continue;
+                Vector3 direction=b-a;direction.y=0;direction.Normalize();
+                Vector3 point=b;point.y=sea+0.008f;
+                Add(new WaterImpact{Position=point,Direction=direction,Radius=river.Width*1.05f,Ocean=true});break;
             }
-            mesh.normals = normals;
-            mesh.colors = colors;
-            mesh.triangles = new[]
+            foreach(var river in field.Rivers)
             {
-                0, 4, 1, 1, 4, 5,
-                1, 5, 2, 2, 5, 6,
-                2, 6, 3, 3, 6, 7,
-                3, 7, 0, 0, 7, 4,
-            };
-            mesh.RecalculateBounds();
-            return mesh;
+                float runDrop=0;
+                for(int i=1;i<river.Points.Count;i++)
+                {
+                    Vector3 a=river.Points[i-1],b=river.Points[i],delta=b-a;
+                    float drop=-delta.y;delta.y=0;
+                    bool steep=drop>0.7f&&drop/Mathf.Max(delta.magnitude,0.01f)>0.45f;
+                    if(steep)runDrop+=drop;
+                    bool nextSteep=false;
+                    if(i+1<river.Points.Count)
+                    {Vector3 next=river.Points[i+1]-b;float nextDrop=-next.y;next.y=0;nextSteep=nextDrop>0.7f&&nextDrop/Mathf.Max(next.magnitude,0.01f)>0.45f;}
+                    if(runDrop>1.1f&&!nextSteep)
+                    {
+                        Vector3 direction=delta.normalized,point=b+direction*field.Settings.CellSize*0.35f;
+                        float height=field.SampleWaterSurface(point.x,point.z);
+                        if(height>sea+0.2f)
+                        {point.y=height+0.008f;Add(new WaterImpact{Position=point,Direction=direction,Radius=river.Width*0.9f});}
+                        runDrop=0;
+                    }
+                    if(!steep)runDrop=0;
+                }
+            }
+            return result;
+            void Add(WaterImpact impact)
+            {
+                foreach(var old in result)
+                    if(Mathf.Abs(old.Position.y-impact.Position.y)<0.8f&&
+                       Vector2.Distance(new Vector2(old.Position.x,old.Position.z),new Vector2(impact.Position.x,impact.Position.z))
+                        <Mathf.Min(old.Radius,impact.Radius)*0.85f)return;
+                if(result.Count<MaxWaterImpacts)result.Add(impact);
+            }
         }
 
         private static int[] Sequence(int count)

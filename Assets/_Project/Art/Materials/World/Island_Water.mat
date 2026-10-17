@@ -26,11 +26,20 @@ Material:
     m_Ints: []
     m_Floats:
     - _FallFoam: 0.35
+    - _FlowContrast: 0.03
+    - _FlowDistortion: 0.003
+    - _FlowNormalStrength: 0.03
     - _FoamWidth: 0.12
     - _LightInfluence: 0.35
+    - _OceanWaveHeight: 0.38
+    - _OceanWaveLength: 18
+    - _OceanWaveSpeed: 1.8
+    - _ReflectionDistortion: 0.006
+    - _ReflectionStrength: 0.75
     - _RippleScale: 0.07
     - _RippleSpeed: 0.04
-    - _RippleStrength: 0.5
+    - _RippleStrength: 0
+    - _RiverFlowSpeed: 1.8
     m_Colors:
     - _DeepColor: {r: 0.13, g: 0.26, b: 0.31, a: 1}
     - _FoamColor: {r: 0.86, g: 0.95, b: 0.88, a: 1}

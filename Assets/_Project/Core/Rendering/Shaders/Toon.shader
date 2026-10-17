@@ -59,6 +59,8 @@ Shader "Leeway/Toon"
         // Wyrastanie propow wyspy (IslandGenerator): uv2 = (pivot.xyz, opoznienie + 2).
         // w < 2 to zwykly obiekt - dziala jak dotad (brakujacy kanal UV2 bywa czytany jako (0,0,0,1)). Globalne, bo propy sa
         // scalone w meshe chunkow i nie maja wlasnych transformow do skalowania.
+        float _LeewayDayNightEnabled;
+        float _LeewayDaylight;
         float _LeewayGrowActive;
         float _LeewayGrowElapsed;
         float _LeewayGrowDuration;
@@ -70,6 +72,23 @@ Shader "Leeway/Toon"
             float u = t - 1.0;
             float s = 1.0 + 2.70158 * u * u * u + 1.70158 * u * u; // easeOutBack - lekkie przestrzelenie
             return grow.xyz + (positionOS - grow.xyz) * s;
+        }
+        #include "IslandWeather.hlsl"
+        // UV3.x is authored only for living vegetation. Rock, terrain and creatures stay still.
+        float3 ApplyVegetationWind(float3 positionOS, float4 grow, float2 wind)
+        {
+            if (wind.x <= 0.0 || abs(wind.y - 17.0) > 0.01 || _LeewayWindEnabled < 0.5) return positionOS;
+            float3 world = TransformObjectToWorld(positionOS);
+            float3 pivot = TransformObjectToWorld(grow.xyz);
+            float height = max(0, world.y - pivot.y);
+            float time = LeewayWeatherTime();
+            float phase = dot(pivot.xz,float2(0.17,0.23));
+            float gust = 0.75 + 0.25*sin(time*0.65+dot(pivot.xz,LeewayWindDirection())*0.025);
+            float sway = 0.55+0.35*sin(time*1.45+phase)+0.1*sin(time*3.1+phase*2.3);
+            float bend = (height*0.055+height*height*0.002)*wind.x*_LeewayWind.z*gust;
+            world.xz += LeewayWindDirection()*bend*sway;
+            world.xz += float2(-_LeewayWind.y,_LeewayWind.x)*sin(time*2.4+phase)*bend*0.12;
+            return TransformWorldToObject(world);
         }
         ENDHLSL
 
@@ -103,6 +122,7 @@ Shader "Leeway/Toon"
             {
                 float4 positionOS : POSITION;
                 float4 grow : TEXCOORD2;
+                float2 wind : TEXCOORD3;
                 float3 normalOS : NORMAL;
                 float4 tangentOS : TANGENT;
                 float2 uv : TEXCOORD0;
@@ -128,7 +148,7 @@ Shader "Leeway/Toon"
                 UNITY_SETUP_INSTANCE_ID(input);
                 UNITY_TRANSFER_INSTANCE_ID(input, output);
 
-                VertexPositionInputs pos = GetVertexPositionInputs(ApplyGrow(input.positionOS.xyz, input.grow));
+                VertexPositionInputs pos = GetVertexPositionInputs(ApplyVegetationWind(ApplyGrow(input.positionOS.xyz, input.grow), input.grow, input.wind));
                 output.positionCS = pos.positionCS;
                 output.positionWS = pos.positionWS;
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
@@ -150,7 +170,7 @@ Shader "Leeway/Toon"
             {
                 half ndotl = dot(normalWS, light.direction) * 0.5 + 0.5; // half-lambert: miekszy przejscie na pasy
                 // Cien osobno od pasow: miekki shadowmap mnozony przez ndotl dawal prazki na plaskim terenie.
-                half lit = Band(ndotl) * smoothstep(0.3, 0.7, light.shadowAttenuation);
+                half lit = Band(ndotl) * saturate(light.shadowAttenuation);
                 // Strona cienia nie schodzi do czerni, tylko do przyciemnionego koloru palety.
                 half3 shadowCol = lerp(half3(1, 1, 1), _ShadowTint.rgb, _ShadowStrength) * 0.35;
                 return albedo * light.color * light.distanceAttenuation * lerp(shadowCol, half3(1, 1, 1), lit);
@@ -177,8 +197,9 @@ Shader "Leeway/Toon"
                 float4 shadowCoord = TransformWorldToShadowCoord(input.positionWS);
                 Light mainLight = GetMainLight(shadowCoord);
 
-                half3 color = ShadeLight(mainLight, normalWS, albedo);
-                color += albedo * SampleSH(normalWS) * _AmbientStrength;
+                AmbientOcclusionFactor ao = GetScreenSpaceAmbientOcclusion(GetNormalizedScreenSpaceUV(input.positionCS));
+                half3 color = ShadeLight(mainLight, normalWS, albedo) * ao.directAmbientOcclusion;
+                color += albedo * SampleSH(normalWS) * _AmbientStrength * ao.indirectAmbientOcclusion;
 
                 #if defined(_ADDITIONAL_LIGHTS)
                 InputData inputData = (InputData)0;
@@ -195,7 +216,7 @@ Shader "Leeway/Toon"
                 #endif
 
                 half rim = PositivePow(1.0 - saturate(dot(normalWS, viewWS)), _RimPower);
-                color += _RimColor.rgb * rim * _RimStrength * (0.4 + 0.6 * mainLight.shadowAttenuation);
+                color += _RimColor.rgb * rim * _RimStrength * (0.4 + 0.6 * mainLight.shadowAttenuation) * lerp(1.0, lerp(0.12, 1.0, _LeewayDaylight), _LeewayDayNightEnabled);
 
                 color += _EmissionColor.rgb;
                 color = MixFog(color, input.fogFactor);
@@ -226,6 +247,7 @@ Shader "Leeway/Toon"
             {
                 float4 positionOS : POSITION;
                 float4 grow : TEXCOORD2;
+                float2 wind : TEXCOORD3;
                 float3 normalOS : NORMAL;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -233,7 +255,7 @@ Shader "Leeway/Toon"
             float4 ShadowVert(Attributes input) : SV_POSITION
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                float3 positionWS = TransformObjectToWorld(ApplyGrow(input.positionOS.xyz, input.grow));
+                float3 positionWS = TransformObjectToWorld(ApplyVegetationWind(ApplyGrow(input.positionOS.xyz, input.grow), input.grow, input.wind));
                 float3 normalWS = TransformObjectToWorldNormal(input.normalOS);
                 #if _CASTING_PUNCTUAL_LIGHT_SHADOW
                     float3 lightDirectionWS = normalize(_LightPosition - positionWS);
@@ -264,13 +286,14 @@ Shader "Leeway/Toon"
             {
                 float4 positionOS : POSITION;
                 float4 grow : TEXCOORD2;
+                float2 wind : TEXCOORD3;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
 
             float4 DepthVert(Attributes input) : SV_POSITION
             {
                 UNITY_SETUP_INSTANCE_ID(input);
-                return TransformObjectToHClip(ApplyGrow(input.positionOS.xyz, input.grow));
+                return TransformObjectToHClip(ApplyVegetationWind(ApplyGrow(input.positionOS.xyz, input.grow), input.grow, input.wind));
             }
 
             half DepthFrag() : SV_Target { return 0; }
@@ -294,6 +317,7 @@ Shader "Leeway/Toon"
             {
                 float4 positionOS : POSITION;
                 float4 grow : TEXCOORD2;
+                float2 wind : TEXCOORD3;
                 float3 normalOS : NORMAL;
                 UNITY_VERTEX_INPUT_INSTANCE_ID
             };
@@ -308,7 +332,7 @@ Shader "Leeway/Toon"
             {
                 UNITY_SETUP_INSTANCE_ID(input);
                 Varyings output;
-                output.positionCS = TransformObjectToHClip(ApplyGrow(input.positionOS.xyz, input.grow));
+                output.positionCS = TransformObjectToHClip(ApplyVegetationWind(ApplyGrow(input.positionOS.xyz, input.grow), input.grow, input.wind));
                 output.normalWS = TransformObjectToWorldNormal(input.normalOS);
                 return output;
             }

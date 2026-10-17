@@ -155,13 +155,13 @@ MonoBehaviour:
     m_Value: 1
   fogStart:
     m_OverrideState: 1
-    m_Value: 8
+    m_Value: 30
   fogEnd:
     m_OverrideState: 1
-    m_Value: 90
+    m_Value: 260
   fogDensity:
     m_OverrideState: 1
-    m_Value: 0.8
+    m_Value: 0.6
   fogLuminance:
     m_OverrideState: 1
     m_Value: 0.85

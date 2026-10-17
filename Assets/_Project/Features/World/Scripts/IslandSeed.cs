@@ -15,6 +15,8 @@ namespace Leeway.World
         [SerializeField] private int _fixedSeed;
 
         private readonly SyncVar<int> _seed = new();
+        private readonly SyncVar<uint> _weatherEpochTick = new();
+        private Leeway.Rendering.IslandWind _weather;
         private IslandGenerator _generator;
         private int _generatedSeed;
         // Seed serwera poza SyncVarem: spawner moze poprosic o wyspe, zanim ten obiekt wystartuje w sieci.
@@ -33,11 +35,13 @@ namespace Leeway.World
         {
             base.OnStopNetwork();
             _seed.OnChange -= OnSeedChanged;
+            if (_weather != null) _weather.ClearNetworkClock();
         }
 
         public override void OnStartServer()
         {
             base.OnStartServer();
+            _weatherEpochTick.Value = TimeManager.Tick;
             ServerEnsureGenerated();
             _seed.Value = _serverSeed;
         }
@@ -58,6 +62,17 @@ namespace Leeway.World
                 _serverSeed = _fixedSeed != 0 ? _fixedSeed : Random.Range(1, int.MaxValue);
             BuildIfNeeded(_serverSeed);
             if (IsServerInitialized) _seed.Value = _serverSeed;
+        }
+
+        private void Update()
+        {
+            if (!IsServerInitialized && !IsClientInitialized) return;
+            int seed = IsServerInitialized ? _serverSeed : _seed.Value;
+            if (seed == 0) return;
+            if (_weather == null) _weather = FindFirstObjectByType<Leeway.Rendering.IslandWind>();
+            if (_weather == null) return;
+            int ticks = unchecked((int)(TimeManager.Tick - _weatherEpochTick.Value));
+            _weather.SetNetworkClock(seed ^ 0x6d2b79f5, TimeManager.TicksToTime((uint)Mathf.Max(0,ticks)));
         }
 
         private void OnSeedChanged(int previous, int next, bool asServer)

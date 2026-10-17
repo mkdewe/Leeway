@@ -1,234 +1,143 @@
 using FishNet.Object;
+using FishNet.Object.Synchronizing;
 using Leeway.Creature.Domain;
 using Leeway.CreatureEditor;
+using Leeway.World;
 using UnityEngine;
-
 namespace Leeway.Combat
 {
-    /// <summary>
-    /// What makes a creature with no player behind it act like an animal: it looks, it chooses, it
-    /// walks and it bites.
-    /// </summary>
-    /// <remarks>
-    /// <para><b>Server only.</b> Everything here decides, and decisions are the server's. The clients
-    /// see the result through the same replication a player's creature uses — they never simulate the
-    /// animal, so there is nothing for them to disagree about.</para>
-    ///
-    /// <para><b>It drives the ordinary controller</b> rather than moving the transform itself. That is
-    /// the whole trick: traction, the suspension, toppling in a sharp turn, the legs pacing themselves
-    /// off the body's travel — an enemy gets all of it because it walks through
-    /// <see cref="PlaygroundCreatureController"/> exactly as a player does. Writing a second mover
-    /// would have produced a second set of movement bugs and an enemy that slid about like a puck.</para>
-    ///
-    /// <para><b>The decision itself lives in the domain</b> (<see cref="INpcCreatureBehavior"/>), so
-    /// what a predator does as opposed to prey is a unit test rather than a play session.</para>
-    /// </remarks>
     [RequireComponent(typeof(CreatureBody))]
-    public class NpcCreatureAgent : NetworkBehaviour
+    public class NpcCreatureAgent:NetworkBehaviour
     {
-        [Header("Behaviour")]
-        [SerializeField] private NpcCreatureType _type = NpcCreatureType.Predator;
-
-        [Tooltip("How far from where it woke up the animal will wander.")]
-        [SerializeField, Min(1f)] private float _wanderRadius = 14f;
-
-        [Tooltip("Seconds before it picks somewhere new to wander to.")]
-        [SerializeField, Min(0.5f)] private float _wanderSeconds = 5f;
-
-        [Header("Fighting")]
-        [Tooltip("How much of its reach it closes to before striking. Below 1 it walks right up to the target.")]
-        [SerializeField, Range(0.3f, 1f)] private float _engageFraction = 0.85f;
-
-        [Tooltip("Seconds a body lies there before it is removed. Zero leaves it lying.")]
-        [SerializeField, Min(0f)] private float _corpseSeconds = 8f;
-
-        [Tooltip("What the animal may notice. Creatures only - the rest is scenery.")]
-        [SerializeField] private LayerMask _senseMask = ~0;
-
-        /// <summary>The throttle used while holding position: enough for the body to keep turning, not enough to travel.</summary>
-        private const float FacingThrottle = 0.03f;
-
-        private readonly Collider[] _sensed = new Collider[32];
-
-        private CreatureBody _body;
+        [SerializeField] private NpcCreatureType _type=NpcCreatureType.Predator;
+        [SerializeField,Min(1)] private float _wanderRadius=14;
+        [SerializeField,Min(0.5f)] private float _wanderSeconds=5;
+        [SerializeField,Range(0.3f,1)] private float _engageFraction=0.85f;
+        [SerializeField,Min(0)] private float _corpseSeconds=40;
+        [SerializeField] private LayerMask _senseMask=~0;
+        private readonly SyncVar<IslandSpecies> _species=new();
+        private readonly Collider[] _sensed=new Collider[96];
+        private CreatureBody _body,_aggressor;
         private CreatureCombatant _combatant;
         private PlaygroundCreatureController _controller;
-        private INpcCreatureBehavior _behavior;
-
-        private Vector3 _home;
-        private Vector3 _wanderTarget;
-        private float _nextWander;
-        private float _deadSince = -1f;
-        private EditorPad _pad;
-
-        private float Now => (float)TimeManager.Tick * (float)TimeManager.TickDelta;
-
+        private IslandGenerator _island;
+        private Vector3 _home,_wanderTarget,_heading;
+        private float _nextWander,_nextThink,_deadSince=-1,_provokedUntil,_throttle;
+        private bool _configured;
+        private System.Random _rng;
+        public IslandSpecies Species=>_species.Value;
+        public string SpeciesName=>IslandSpeciesLibrary.Name(Species);
+        public NpcCreatureType Disposition=>IslandSpeciesLibrary.Behavior(Species);
+        public Vector3 Home=>_home;
+        public bool IsPredator=>_type==NpcCreatureType.Predator;
+        private float Now=>TimeManager!=null?(float)TimeManager.Tick*(float)TimeManager.TickDelta:Time.time;
         private void Awake()
-        {
-            _body = GetComponent<CreatureBody>();
-            TryGetComponent(out _combatant);
-            TryGetComponent(out _controller);
-
-            _behavior = NpcCreatureBehaviorFactory.Create(_type);
-        }
-
+        {_body=GetComponent<CreatureBody>();TryGetComponent(out _combatant);TryGetComponent(out _controller);}
+        public void Configure(IslandSpecies species,Vector3 home,float territory,IslandGenerator island)
+        {_species.Value=species;_type=IslandSpeciesLibrary.Behavior(species);_home=home;_wanderRadius=territory;_island=island;_configured=true;}
         public override void OnStartServer()
         {
-            base.OnStartServer();
-
-            _home = transform.position;
-            _wanderTarget = _home;
-            _nextWander = 0f;
-
-            TimeManager.OnTick += OnServerTick;
+            base.OnStartServer();if(!_configured)_home=transform.position;
+            _rng=new System.Random((int)(_home.x*997+_home.z*73)^((int)Species*7919));
+            _wanderTarget=_home;_nextWander=0;_nextThink=0;_deadSince=-1;_heading=transform.forward;
+            TimeManager.OnTick+=OnServerTick;
         }
-
-        public override void OnStopServer()
-        {
-            base.OnStopServer();
-            TimeManager.OnTick -= OnServerTick;
-        }
-
+        public override void OnStopServer(){base.OnStopServer();if(TimeManager!=null)TimeManager.OnTick-=OnServerTick;}
+        [Server] public void RecordHit(CreatureBody attacker){_aggressor=attacker;_provokedUntil=Now+12;}
         private void OnServerTick()
         {
-            if (!IsServerInitialized) return;
-
-            if (!_body.IsAlive)
+            if(!IsServerInitialized||!isActiveAndEnabled)return;
+            if(!_body.IsAlive)
             {
-                HandleDeath();
+                _controller?.ServerDrive(transform.forward,0);
+                if(_deadSince<0)_deadSince=Now;
+                if(_corpseSeconds>0&&Now-_deadSince>_corpseSeconds&&NetworkObject.IsSpawned)NetworkObject.Despawn();
                 return;
             }
-
-            // Flat on its back it has no say in anything until it is up again.
-            if (_body.IsKnockedDown)
-            {
-                _controller?.ServerDrive(transform.forward, 0f);
-                return;
-            }
-
-            // Wandered onto the build pad: turn round and leave. The pad is furniture, not territory,
-            // and an animal standing on it blocks the one place the game lets a player rebuild.
-            if (_body.IsInEditorPad && TryLeavePad()) return;
-
-            CreatureBody quarry = FindQuarry(out float distance);
-
-            Vector3 goal = _behavior.DecideTarget(new CreaturePerception(
-                selfPosition: transform.position,
-                fleeDistance: _body.Stats.SenseRadius,
-                hasThreat: false,
-                threatPosition: Vector3.zero,
-                hasTarget: quarry != null,
-                targetPosition: quarry != null ? quarry.transform.position : Vector3.zero,
-                wanderTarget: WanderTarget()));
-
-            Vector3 heading = goal - transform.position;
-            heading.y = 0f;
-
-            if (heading.sqrMagnitude < 1e-4f) heading = transform.forward;
-
-            // Close enough to bite: stop walking but keep facing, so circling the animal does not take
-            // it out of the fight.
-            float engageRange = _combatant != null ? _combatant.Spec.Reach * _engageFraction : 0f;
-            bool engaged = quarry != null && distance <= engageRange;
-
-            _controller?.ServerDrive(heading, engaged ? FacingThrottle : 1f);
-
-            if (engaged) _combatant?.ServerAttack();
+            if(_body.IsKnockedDown){_controller?.ServerDrive(transform.forward,0);return;}
+            if(Now>=_nextThink){_nextThink=Now+0.2f;Think();}
+            _controller?.ServerDrive(_heading,_throttle);
         }
-
-        /// <summary>
-        /// The nearest creature worth attacking: alive, on another team and within the senses this
-        /// genome grew.
-        /// </summary>
-        private CreatureBody FindQuarry(out float distance)
+        private void Think()
         {
-            distance = float.MaxValue;
-
-            float radius = Mathf.Max(1f, _body.Stats.SenseRadius);
-            int count = Physics.OverlapSphereNonAlloc(transform.position, radius, _sensed, _senseMask, QueryTriggerInteraction.Ignore);
-
-            CreatureBody best = null;
-
-            for (int i = 0; i < count; i++)
+            float radius=Mathf.Max(3,_body.Stats.SenseRadius);
+            CreatureBody quarry=null,threat=null;float best=float.MaxValue,nearestThreat=float.MaxValue;
+            bool provoked=_aggressor&&_aggressor.IsAlive&&Now<_provokedUntil;
+            int count=Physics.OverlapSphereNonAlloc(transform.position,radius,_sensed,_senseMask,QueryTriggerInteraction.Ignore);
+            for(int i=0;i<count;i++)
             {
-                Collider collider = _sensed[i];
-                if (collider == null) continue;
-
-                CreatureBody candidate = collider.GetComponentInParent<CreatureBody>();
-                if (candidate == null || candidate == _body || !candidate.IsAlive) continue;
-
-                // Whoever is standing on the editor pad is building, not playing. Hunting them there
-                // shoved players off the pad mid-build — and a commit off the pad is refused, so the
-                // animal quietly cost them the creature they had just made.
-                if (candidate.IsInEditorPad) continue;
-
-                // Its own kind is not dinner. Anything without a combatant has no team and is fair game.
-                if (_combatant != null && candidate.TryGetComponent(out CreatureCombatant other)
-                    && other.Team == _combatant.Team) continue;
-
-                Vector3 offset = candidate.transform.position - transform.position;
-                offset.y = 0f;
-
-                float candidateDistance = offset.magnitude;
-                if (candidateDistance >= distance) continue;
-
-                distance = candidateDistance;
-                best = candidate;
+                var c=_sensed[i];if(!c)continue;var other=c.GetComponentInParent<CreatureBody>();
+                if(!other||other==_body||!other.IsAlive||other.IsInEditorPad)continue;
+                other.TryGetComponent(out NpcCreatureAgent npc);
+                if(npc&&npc.Species==Species)continue;
+                float distance=FlatDistance(transform.position,other.transform.position);
+                bool player=npc==null;
+                bool danger=(npc&&npc.IsPredator)||(player&&distance<4)||(provoked&&other==_aggressor);
+                if(danger&&distance<nearestThreat){threat=other;nearestThreat=distance;}
+                bool hunt=_type==NpcCreatureType.Predator&&(player||npc&&npc._type==NpcCreatureType.Prey);
+                bool defend=_type==NpcCreatureType.Territorial&&
+                    ((provoked&&other==_aggressor)||FlatDistance(other.transform.position,_home)<6);
+                if(!(hunt||defend)||distance>=best||!Visible(other))continue;
+                quarry=other;best=distance;
             }
-
-            return best;
+            Vector3 goal=WanderTarget();
+            bool flee=_type==NpcCreatureType.Prey&&threat||_body.Hp<_body.MaxHp*0.2f&&threat;
+            if(flee)
+            {var away=transform.position-threat.transform.position;away.y=0;goal=transform.position+away.normalized*8;quarry=null;}
+            else if(quarry)goal=quarry.transform.position;
+            if(FlatDistance(transform.position,_home)>_wanderRadius*2.2f||_body.IsInEditorPad)
+            {goal=_home;quarry=null;}
+            var delta=goal-transform.position;delta.y=0;
+            _heading=delta.sqrMagnitude>0.01f?delta.normalized:transform.forward;
+            _throttle=delta.magnitude<1?0:quarry||flee?1:0.48f;
+            if(quarry&&_combatant)
+            {
+                var ability=BodyAbilityRules.Secondary(_body.Genome,_body.Rules);
+                if(ability!=CreatureAbility.Horn&&ability!=CreatureAbility.Claw)ability=BodyAbilityRules.Primary(_body.Genome,_body.Rules);
+                var attack=_combatant.AttackFor(ability);
+                if(best<=attack.Reach*_engageFraction)
+                {_throttle=0.03f;_combatant.ServerUseAbility(ability);}
+            }
+            if(_island&&_throttle>0.05f)SteerOnLand();
         }
-
-        /// <summary>
-        /// Walks straight off the editor pad, away from its centre.
-        /// </summary>
-        /// <remarks>
-        /// The direction comes from the pad in the scene rather than from a remembered spot, because an
-        /// animal that was shoved onto the pad has no memory of a way out. Away from the middle is the
-        /// shortest one from anywhere on it.
-        /// </remarks>
-        private bool TryLeavePad()
+        private bool Visible(CreatureBody other)
         {
-            if (_pad == null) _pad = FindAnyObjectByType<EditorPad>();
-            if (_pad == null) return false;
-
-            Vector3 out_ = transform.position - _pad.transform.position;
-            out_.y = 0f;
-
-            if (out_.sqrMagnitude < 1e-4f) out_ = transform.forward;
-
-            _controller?.ServerDrive(out_.normalized, 1f);
-            return true;
+            var from=transform.position+Vector3.up*0.15f;var to=other.transform.position+Vector3.up*0.15f;
+            if(!Physics.Linecast(from,to,out var hit,1,QueryTriggerInteraction.Ignore))return true;
+            return hit.collider.GetComponentInParent<CreatureBody>()==other;
         }
-
-        /// <summary>Somewhere to be when there is nothing to chase. Renewed every few seconds.</summary>
+        private void SteerOnLand()
+        {
+            var f=_island.Field;if(f==null)return;
+            var local=_island.WorldToField(transform.position);
+            for(int attempt=0;attempt<7;attempt++)
+            {
+                float angle=attempt==0?0:((attempt+1)/2)*35*(attempt%2==0?-1:1);
+                var dir=Quaternion.Euler(0,angle,0)*_heading;
+                var end=_island.WorldToField(transform.position+dir*(1.8f+_body.Stats.MoveSpeed*0.35f));
+                if(!IslandPopulationPlan.CanTraverse(f,local,end))continue;
+                _heading=dir;if(attempt>0)_throttle=Mathf.Min(_throttle,0.5f);return;
+            }
+            _throttle=0;_nextWander=0;
+        }
         private Vector3 WanderTarget()
         {
-            if (Now < _nextWander) return _wanderTarget;
-
-            _nextWander = Now + _wanderSeconds;
-
-            Vector2 offset = Random.insideUnitCircle * _wanderRadius;
-            _wanderTarget = _home + new Vector3(offset.x, 0f, offset.y);
-
-            return _wanderTarget;
+            if(Now<_nextWander)return _wanderTarget;
+            _nextWander=Now+_wanderSeconds*(0.8f+(float)_rng.NextDouble()*0.4f);
+            for(int i=0;i<20;i++)
+            {
+                float a=(float)_rng.NextDouble()*Mathf.PI*2,r=Mathf.Sqrt((float)_rng.NextDouble())*_wanderRadius;
+                var p=_home+new Vector3(Mathf.Cos(a)*r,0,Mathf.Sin(a)*r);
+                if(_island)
+                {
+                    var l=_island.WorldToField(p);
+                    if(!_island.Field.IsLand(l.x,l.z)||Vector3.Angle(_island.Field.SampleNormal(l.x,l.z),Vector3.up)>30)continue;
+                    p.y=_island.GroundHeight(p);
+                }
+                _wanderTarget=p;return p;
+            }
+            return _home;
         }
-
-        /// <summary>
-        /// Lets the body lie where it fell, then takes it away.
-        /// </summary>
-        /// <remarks>
-        /// The pause is not decoration: without it a creature vanishes at the instant of the killing
-        /// blow, and the player is left unsure whether they killed it or it walked off.
-        /// </remarks>
-        private void HandleDeath()
-        {
-            _controller?.ServerDrive(transform.forward, 0f);
-
-            if (_deadSince < 0f) _deadSince = Now;
-            if (_corpseSeconds <= 0f || Now - _deadSince < _corpseSeconds) return;
-
-            if (NetworkObject != null && NetworkObject.IsSpawned) NetworkObject.Despawn();
-        }
+        private static float FlatDistance(Vector3 a,Vector3 b){a.y=b.y=0;return Vector3.Distance(a,b);}
     }
 }

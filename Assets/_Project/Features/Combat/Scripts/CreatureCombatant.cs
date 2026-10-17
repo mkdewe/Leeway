@@ -1,249 +1,172 @@
 using FishNet.Object;
+using FishNet.Object.Synchronizing;
 using Leeway.Creature.Domain;
 using Leeway.CreatureEditor;
 using MessagePipe;
 using UnityEngine;
-
 namespace Leeway.Combat
 {
-    /// <summary>
-    /// The ability to hit something. One blow, aimed with the body the creature was built with.
-    /// </summary>
-    /// <remarks>
-    /// <para><b>The server decides everything.</b> A client asks to strike and nothing more: it names
-    /// no target, no position and no damage. The server runs its own overlap query, checks the arc
-    /// itself and applies the result. Anything else and a doctored packet would be enough to kill a
-    /// player from across the map — the same reasoning as in <see cref="CreatureShover"/>, which this
-    /// sits beside: a shove moves someone, a strike hurts them.</para>
-    ///
-    /// <para><b>What the blow is like comes out of the genome</b>, through <see cref="CombatRules"/>:
-    /// a maw on a long neck reaches further than a horn set in the chest, a heavy creature swings
-    /// slower than a light one, and a creature with nothing to bite with can still throw its weight
-    /// about — just not well. Building a predator is therefore something the player does in the
-    /// editor, not something this component is configured for.</para>
-    ///
-    /// <para><b>Teams, not factions.</b> Wildlife does not bite wildlife and players do not hit each
-    /// other by accident; the team is a plain number on the prefab. It is deliberately not a rich
-    /// system — when the game wants packs, prey and rivalry, this is the one place to grow it.</para>
-    /// </remarks>
     [RequireComponent(typeof(CreatureBody))]
-    public class CreatureCombatant : NetworkBehaviour
+    public class CreatureCombatant:NetworkBehaviour
     {
-        /// <summary>The team players' creatures are on.</summary>
-        public const byte PlayerTeam = 0;
-
-        /// <summary>The team everything wild is on.</summary>
-        public const byte WildTeam = 1;
-
-        [Header("Balance")]
-        [SerializeField] private CombatTuning _tuning = CombatTuning.Default;
-
-        [Tooltip("Creatures on the same team never hit one another. 0 = players, 1 = wildlife.")]
-        [SerializeField] private byte _team = PlayerTeam;
-
-        [Tooltip("What the strike may hit. It still only damages creatures - this is the broad-phase filter.")]
-        [SerializeField] private LayerMask _hitMask = ~0;
-
-        [Header("Feel")]
-        [Tooltip("How far past its own reach a blow may still find a target, to forgive a near miss (metres).")]
-        [SerializeField, Min(0f)] private float _forgiveness = 0.2f;
-
-        private readonly Collider[] _overlap = new Collider[24];
-
+        public const byte PlayerTeam=0,WildTeam=1;
+        [SerializeField] private CombatTuning _tuning=CombatTuning.Default;
+        [SerializeField] private byte _team=PlayerTeam;
+        [SerializeField] private LayerMask _hitMask=~0;
+        [SerializeField,Min(0)] private float _forgiveness=0.2f;
+        private readonly Collider[] _overlap=new Collider[96];
+        private readonly SyncVar<float> _readyAt=new(),_impactAt=new(),_scanReady=new(),_forageReady=new();
+        private readonly SyncVar<bool> _winding=new();
+        private readonly SyncVar<CreatureAbility> _action=new();
         private CreatureBody _body;
-        private AttackSpec _spec;
-        private float _lastStrike = float.NegativeInfinity;
-
-        /// <summary>The blow this creature's build produces. Recomputed whenever the body changes.</summary>
-        public AttackSpec Spec => _spec;
-
-        public byte Team => _team;
-
-        /// <summary>Seconds until the next blow may be thrown. Zero when it is ready.</summary>
-        public float CooldownRemaining => Mathf.Max(0f, _spec.Cooldown - (Now - _lastStrike));
-
-        private float Now => TimeManager != null ? (float)TimeManager.Tick * (float)TimeManager.TickDelta : Time.time;
-
+        private AttackSpec _spec,_pendingSpec;
+        private Vector3 _attackHeading;
+        private bool _harvested;
+        private float _scanUntil,_noticeUntil;
+        private string _notice;
+        public AttackSpec Spec=>_spec;
+        public byte Team=>_team;
+        public CreatureAbility PendingAbility=>_action.Value;
+        public bool IsWindingUp=>_winding.Value;
+        public float WindupProgress=>1-Mathf.Clamp01((_impactAt.Value-Now)/BodyAbilityRules.Windup(PendingAbility));
+        public float CooldownRemaining=>Mathf.Max(0,_readyAt.Value-Now);
+        public float ScanCooldown=>Mathf.Max(0,_scanReady.Value-Now);
+        public float ForageCooldown=>Mathf.Max(0,_forageReady.Value-Now);
+        public bool ScanActive=>Time.time<_scanUntil;
+        public string Notice=>Time.time<_noticeUntil?_notice:string.Empty;
+        private float Now=>TimeManager!=null?(float)TimeManager.Tick*(float)TimeManager.TickDelta:Time.time;
+        public void ConfigureTeam(byte team){_team=team;}
         private void Awake()
+        {_body=GetComponent<CreatureBody>();_body.BodyRebuilt+=OnBodyRebuilt;OnBodyRebuilt(_body.Genome,_body.Stats);}
+        private void OnDestroy(){if(_body)_body.BodyRebuilt-=OnBodyRebuilt;}
+        private void OnBodyRebuilt(CreatureGenome genome,CreatureStats stats)
+        {_spec=BodyAbilityRules.Attack(genome,_body.Rules,in stats,BodyAbilityRules.Primary(genome,_body.Rules),in _tuning);
+         if(IsServerInitialized)_winding.Value=false;}
+        public AttackSpec AttackFor(CreatureAbility ability)
+        {var stats=_body.Stats;return BodyAbilityRules.Attack(_body.Genome,_body.Rules,in stats,ability,in _tuning);}
+        public void RequestAttack()=>RequestAbility(BodyAbilityRules.Primary(_body.Genome,_body.Rules));
+        public void RequestAbility(CreatureAbility ability)
         {
-            _body = GetComponent<CreatureBody>();
-            _body.BodyRebuilt += OnBodyRebuilt;
-
-            Rebuild(_body.Genome, _body.Stats);
+            if(!IsOwner||!_body.IsAlive||_body.IsKnockedDown||_body.IsInEditorPad)return;
+            if(!BodyAbilityRules.Has(_body.Genome,_body.Rules,ability))return;
+            if(ability<=CreatureAbility.Horn&&CooldownRemaining>0)return;
+            if(ability==CreatureAbility.Scan&&ScanCooldown>0||ability==CreatureAbility.Forage&&ForageCooldown>0)return;
+            CmdAbility(ability);
         }
-
-        private void OnDestroy()
+        [ServerRpc(RequireOwnership=true)] private void CmdAbility(CreatureAbility ability)=>ServerUseAbility(ability);
+        [Server] public bool ServerAttack()=>ServerUseAbility(BodyAbilityRules.Primary(_body.Genome,_body.Rules));
+        [Server] public bool ServerUseAbility(CreatureAbility ability)
         {
-            if (_body != null) _body.BodyRebuilt -= OnBodyRebuilt;
-        }
-
-        private void OnBodyRebuilt(CreatureGenome genome, CreatureStats stats) => Rebuild(genome, stats);
-
-        private void Rebuild(CreatureGenome genome, CreatureStats stats)
-            => _spec = CombatRules.Derive(genome, _body.Rules, in stats, in _tuning);
-
-        /// <summary>Called by the player's controls. Nothing happens while the creature is down.</summary>
-        public void RequestAttack()
-        {
-            if (!IsOwner || !_body.IsAlive || _body.IsKnockedDown) return;
-
-            // The cooldown is checked here as well so a held key does not flood the server with calls
-            // it will refuse anyway. The server's own check is the one that decides.
-            if (CooldownRemaining > 0f) return;
-
-            CmdAttack();
-        }
-
-        [ServerRpc(RequireOwnership = true)]
-        private void CmdAttack() => ServerAttack();
-
-        /// <summary>
-        /// Throws the blow. Split out of the RPC so the AI — which has no client behind it — strikes
-        /// through exactly the same rules a player does.
-        /// </summary>
-        /// <returns>True when something was hit.</returns>
-        [Server]
-        public bool ServerAttack()
-        {
-            if (!_body.IsAlive || _body.IsKnockedDown) return false;
-            if (!CombatRules.IsReady(Now, _lastStrike, _spec.Cooldown)) return false;
-
-            _lastStrike = Now;
-
-            Vector3 origin = transform.position;
-            Vector3 forward = transform.forward;
-
-            CreatureBody target = FindTarget(origin, forward, out Vector3 point);
-            if (target == null)
-            {
-                RpcStruck(null, 0f, origin, false);
-                return false;
-            }
-
-            float damage = _spec.Damage;
-
-            // The knockback goes first, and deliberately so: a creature that is already dead refuses to
-            // be knocked down (see CreatureBody.Knockdown), so damaging it first would leave the
-            // killing blow the only one in the game that does not send its victim to the ground.
-            Vector3 impulse = CombatRules.Knockback(origin, target.transform.position, in _spec, in _tuning);
-            bool toppled = target.Knockdown(impulse, NearestBone(target, point));
-
-            target.TakeDamage(damage);
-
-            RpcStruck(target, damage, point, toppled);
-
-            if (!target.IsAlive) RpcDied(target);
-
+            if((byte)ability>(byte)CreatureAbility.Forage||!_body.IsAlive||_body.IsKnockedDown||
+                _body.IsInEditorPad||_winding.Value||!BodyAbilityRules.Has(_body.Genome,_body.Rules,ability))return false;
+            if(ability==CreatureAbility.Scan)return Scan();
+            if(ability==CreatureAbility.Forage)return Forage();
+            if(Now<_readyAt.Value)return false;
+            _pendingSpec=AttackFor(ability);_action.Value=ability;
+            _attackHeading=transform.forward;
+            _impactAt.Value=Now+BodyAbilityRules.Windup(ability);
+            _readyAt.Value=Now+_pendingSpec.Cooldown;_winding.Value=true;
             return true;
         }
-
-        /// <summary>
-        /// The creature this blow lands on: the nearest one in front, within reach.
-        /// </summary>
-        /// <remarks>
-        /// The nearest rather than the most damaged or the most dangerous — a blow goes where the body
-        /// is pointing, and picking anything cleverer would have the creature biting past the animal in
-        /// its face.
-        /// </remarks>
-        [Server]
-        private CreatureBody FindTarget(Vector3 origin, Vector3 forward, out Vector3 point)
+        private void Update()
         {
-            point = origin;
-
-            float reach = _spec.Reach + _forgiveness;
-            int count = Physics.OverlapSphereNonAlloc(origin, reach, _overlap, _hitMask, QueryTriggerInteraction.Ignore);
-
-            CreatureBody best = null;
-            float bestDistance = float.MaxValue;
-
-            for (int i = 0; i < count; i++)
+            if(!IsServerInitialized||!_winding.Value)return;
+            if(!_body.IsAlive||_body.IsKnockedDown||_body.IsInEditorPad){_winding.Value=false;return;}
+            if(Now<_impactAt.Value)return;
+            _winding.Value=false;ResolveAttack();
+        }
+        private void ResolveAttack()
+        {
+            Vector3 origin=transform.position;
+            var target=FindTarget(origin,_attackHeading,in _pendingSpec,out var point);
+            if(!target){RpcStruck(null,0,origin,false);return;}
+            Vector3 impulse=CombatRules.Knockback(origin,target.transform.position,in _pendingSpec,in _tuning);
+            bool toppled=target.Knockdown(impulse,NearestBone(target,point));
+            target.TakeDamage(_pendingSpec.Damage);
+            if(target.TryGetComponent(out NpcCreatureAgent npc))npc.RecordHit(_body);
+            RpcStruck(target,_pendingSpec.Damage,point,toppled);
+            if(!target.IsAlive)RpcDied(target);
+        }
+        private CreatureBody FindTarget(Vector3 origin,Vector3 forward,in AttackSpec attack,out Vector3 point)
+        {
+            point=origin;float reach=attack.Reach+_forgiveness;
+            int count=Physics.OverlapSphereNonAlloc(origin,reach,_overlap,_hitMask,QueryTriggerInteraction.Ignore);
+            CreatureBody best=null;float distance=float.MaxValue;
+            for(int i=0;i<count;i++)
             {
-                Collider collider = _overlap[i];
-                if (collider == null) continue;
-
-                CreatureBody candidate = collider.GetComponentInParent<CreatureBody>();
-                if (candidate == null || candidate == _body) continue;
-                if (SameTeam(candidate)) continue;
-
-                Vector3 candidatePoint = collider.ClosestPoint(origin);
-
-                var spec = new AttackSpec(_spec.Damage, reach, _spec.ArcDegrees, _spec.Cooldown, _spec.Impulse, _spec.Armed);
-                if (!CombatRules.CanStrike(_body.IsAlive, _body.IsKnockedDown, candidate.IsAlive,
-                        origin, forward, candidatePoint, in spec)) continue;
-
-                float distance = (candidatePoint - origin).sqrMagnitude;
-                if (distance >= bestDistance) continue;
-
-                bestDistance = distance;
-                best = candidate;
-                point = candidatePoint;
+                var c=_overlap[i];if(!c)continue;var candidate=c.GetComponentInParent<CreatureBody>();
+                if(!candidate||candidate==_body||candidate.IsInEditorPad||SameTeam(candidate))continue;
+                Vector3 p=c.ClosestPoint(origin);
+                var spec=new AttackSpec(attack.Damage,reach,attack.ArcDegrees,attack.Cooldown,attack.Impulse,attack.Armed);
+                if(!CombatRules.CanStrike(_body.IsAlive,_body.IsKnockedDown,candidate.IsAlive,origin,forward,p,in spec))continue;
+                if(!ClearTo(candidate))continue;
+                float d=(p-origin).sqrMagnitude;if(d>=distance)continue;
+                best=candidate;point=p;distance=d;
             }
-
             return best;
         }
-
-        /// <summary>Whether the other creature fights on the same side. Anything without a combatant is fair game.</summary>
-        private bool SameTeam(CreatureBody other)
-            => other.TryGetComponent(out CreatureCombatant combatant) && combatant._team == _team;
-
-        /// <summary>Which bone took the blow — it decides how the creature folds up if it goes down.</summary>
-        private static int NearestBone(CreatureBody target, Vector3 worldPoint)
+        private bool ClearTo(CreatureBody target)
         {
-            Transform[] bones = target.Built?.Bones;
-            if (bones == null || bones.Length == 0) return 0;
-
-            int best = 0;
-            float bestDistance = float.MaxValue;
-
-            for (int i = 0; i < bones.Length; i++)
+            var origin=transform.position+Vector3.up*0.1f;
+            if(!Physics.Linecast(origin,target.transform.position+Vector3.up*0.1f,out var hit,1,QueryTriggerInteraction.Ignore))return true;
+            return hit.collider.GetComponentInParent<CreatureBody>()==target;
+        }
+        private bool SameTeam(CreatureBody other)=>other.TryGetComponent(out CreatureCombatant c)&&c._team==_team;
+        private bool Scan()
+        {
+            if(Now<_scanReady.Value)return false;_scanReady.Value=Now+8;
+            int count=Physics.OverlapSphereNonAlloc(transform.position,_body.Stats.SenseRadius*2,_overlap,_hitMask,QueryTriggerInteraction.Ignore);
+            var seen=new System.Collections.Generic.HashSet<CreatureBody>();
+            for(int i=0;i<count;i++)
+            {var b=_overlap[i]?_overlap[i].GetComponentInParent<CreatureBody>():null;if(b&&b!=_body&&b.IsAlive)seen.Add(b);}
+            RpcUtility(CreatureAbility.Scan,seen.Count);return true;
+        }
+        private bool Forage()
+        {
+            if(Now<_forageReady.Value)return false;
+            int count=Physics.OverlapSphereNonAlloc(transform.position,2.5f,_overlap,_hitMask,QueryTriggerInteraction.Ignore);
+            CreatureBody best=null;float nearest=float.MaxValue;bool assist=false;
+            bool arms=BodyAbilityRules.Has(_body.Genome,_body.Rules,CreatureAbility.Claw);
+            for(int i=0;i<count;i++)
             {
-                if (bones[i] == null) continue;
-
-                float distance = (bones[i].position - worldPoint).sqrMagnitude;
-                if (distance >= bestDistance) continue;
-
-                bestDistance = distance;
-                best = i;
+                var c=_overlap[i];if(!c)continue;var b=c.GetComponentInParent<CreatureBody>();
+                if(!b||b==_body||b.IsInEditorPad||!ClearTo(b))continue;
+                bool help=arms&&b.IsAlive&&b.IsKnockedDown&&SameTeam(b);
+                bool eat=!b.IsAlive&&b.TryGetComponent(out NpcCreatureAgent _)&&
+                    b.TryGetComponent(out CreatureCombatant fighter)&&!fighter._harvested&&_body.Hp<_body.MaxHp;
+                float d=(b.transform.position-transform.position).sqrMagnitude;
+                if(!(help||eat)||d>=nearest)continue;nearest=d;best=b;assist=help;
             }
-
-            return best;
+            if(!best){_forageReady.Value=Now+0.6f;RpcUtility(CreatureAbility.Forage,0);return false;}
+            _forageReady.Value=Now+6;
+            if(assist){best.Recover();RpcUtility(CreatureAbility.Forage,-1);return true;}
+            var corpse=best.GetComponent<CreatureCombatant>();corpse._harvested=true;
+            float amount=Mathf.Min(_body.MaxHp-_body.Hp,_body.MaxHp*0.22f);_body.Heal(amount);
+            RpcUtility(CreatureAbility.Forage,amount);
+            if(best.NetworkObject.IsSpawned)best.NetworkObject.Despawn();
+            return true;
         }
-
-        /// <summary>
-        /// Tells everyone watching that a blow was thrown — including the ones that missed, because a
-        /// swing at thin air is exactly as visible as one that connects.
-        /// </summary>
-        [ObserversRpc(RunLocally = true)]
-        private void RpcStruck(CreatureBody target, float damage, Vector3 point, bool knockedDown)
+        private static int NearestBone(CreatureBody target,Vector3 point)
         {
-            if (!GlobalMessagePipe.IsInitialized) return;
-
-            GlobalMessagePipe.GetPublisher<CreatureStruckMessage>()
-                .Publish(new CreatureStruckMessage(_body, target, damage, point, knockedDown));
+            var bones=target.Built?.Bones;if(bones==null)return 0;int index=0;float best=float.MaxValue;
+            for(int i=0;i<bones.Length;i++)if(bones[i])
+            {float d=(bones[i].position-point).sqrMagnitude;if(d<best){best=d;index=i;}}
+            return index;
         }
-
-        [ObserversRpc(RunLocally = true)]
-        private void RpcDied(CreatureBody target)
+        [ObserversRpc(RunLocally=true)]
+        private void RpcStruck(CreatureBody target,float damage,Vector3 point,bool down)
         {
-            if (!GlobalMessagePipe.IsInitialized || target == null) return;
-
-            GlobalMessagePipe.GetPublisher<CreatureDiedMessage>().Publish(new CreatureDiedMessage(target, _body));
+            if(target&&target.TryGetComponent(out CreatureCombatPresentation visual))visual.Flash();
+            if(GlobalMessagePipe.IsInitialized)GlobalMessagePipe.GetPublisher<CreatureStruckMessage>()
+                .Publish(new CreatureStruckMessage(_body,target,damage,point,down));
         }
-
-        private void OnDrawGizmosSelected()
+        [ObserversRpc(RunLocally=true)] private void RpcDied(CreatureBody target)
+        {if(GlobalMessagePipe.IsInitialized&&target)GlobalMessagePipe.GetPublisher<CreatureDiedMessage>().Publish(new CreatureDiedMessage(target,_body));}
+        [ObserversRpc(RunLocally=true)] private void RpcUtility(CreatureAbility ability,float result)
         {
-            if (_spec.Reach <= 0f) return;
-
-            // The arc the blow covers, drawn where it is actually aimed.
-            Gizmos.color = new Color(1f, 0.4f, 0.2f, 0.7f);
-            Vector3 origin = transform.position;
-
-            int steps = 16;
-            for (int i = 0; i <= steps; i++)
-            {
-                float angle = Mathf.Lerp(-_spec.ArcDegrees * 0.5f, _spec.ArcDegrees * 0.5f, i / (float)steps);
-                Gizmos.DrawRay(origin, Quaternion.Euler(0f, angle, 0f) * transform.forward * _spec.Reach);
-            }
+            if(!IsOwner)return;_noticeUntil=Time.time+3;
+            if(ability==CreatureAbility.Scan){_scanUntil=Time.time+5;_notice="Wykryto stworzeń: "+result.ToString("0");}
+            else _notice=result<0?"Pomoc: sojusznik podniesiony":result>0?"Żerowanie: +"+result.ToString("0")+" HP":"Podejdź do rannego sojusznika lub pokonanego zwierzęcia.";
         }
     }
 }

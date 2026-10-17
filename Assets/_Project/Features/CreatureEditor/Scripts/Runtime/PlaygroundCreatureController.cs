@@ -24,6 +24,7 @@ namespace Leeway.CreatureEditor
 
         /// <summary>Space was pressed. Travels in the payload so a replay jumps on the same tick.</summary>
         public bool Jump;
+        public bool Sprint;
 
         private uint _tick;
         public void Dispose() { }
@@ -56,6 +57,10 @@ namespace Leeway.CreatureEditor
 
         [Tooltip("Friction braking once the key is released (m/s^2). Lower = a longer slide.")]
         [SerializeField] private float _braking = 14f;
+        [SerializeField, Range(1f, 2f)] private float _sprintMultiplier = 1.45f;
+        private bool _sprintHeld;
+        public bool IsSprinting { get; private set; }
+        public float SprintMultiplier => _sprintMultiplier;
 
         [Tooltip("The game camera - its heading is the frame of reference for the movement keys. " +
                  "Left empty: the creature is a prefab, so it finds the camera in the scene at startup.")]
@@ -189,6 +194,7 @@ namespace Leeway.CreatureEditor
                 if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) strafe -= 1f;
             }
             _moveInput = new Vector2(strafe, forward);
+            _sprintHeld = keyboard != null && (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
 
             // Latched until the next tick sends it - a press shorter than a tick must not be lost.
             if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) _jumpQueued = true;
@@ -218,6 +224,7 @@ namespace Leeway.CreatureEditor
                     Strafe = _moveInput.x,
                     CameraYaw = _orbitCamera != null ? _orbitCamera.Yaw : 0f,
                     Jump = _jumpQueued,
+                    Sprint = _sprintHeld,
                 });
                 _jumpQueued = false;
             }
@@ -273,6 +280,7 @@ namespace Leeway.CreatureEditor
         [Replicate]
         private void Move(PlaygroundMoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
         {
+            if (!IsAlive) { IsSprinting = false; return; }
             float delta = (float)TimeManager.TickDelta;
 
             // Read before the suspension runs: it adds lift every tick that only the next physics step's
@@ -294,6 +302,7 @@ namespace Leeway.CreatureEditor
             // has to keep running (see RiseInPlace).
             if (IsKnockedDown)
             {
+                IsSprinting = false;
                 RiseInPlace(delta);
                 return;
             }
@@ -321,7 +330,7 @@ namespace Leeway.CreatureEditor
             if (_muscles != null && _muscles.IsActive)
             {
                 if (IsServerInitialized)
-                    _muscles.Drive(direction, Stats.MoveSpeed, GenomeStatRules.StandHeight(Genome, Rules), delta);
+                    _muscles.Drive(direction, CreatureSprintRules.Speed(Stats.MoveSpeed, md.Sprint, _suspension == null || _suspension.IsGrounded, Genome != null && Genome.CountParts(PartCategory.Locomotion, Rules) > 0, _sprintMultiplier), GenomeStatRules.StandHeight(Genome, Rules), delta);
 
                 return;
             }
@@ -335,7 +344,10 @@ namespace Leeway.CreatureEditor
             // Water holds the body up where the legs cannot reach the bottom - and lets it paddle along.
             bool swimming = Float(grounded, delta);
 
-            if (grounded) ApplyTraction(direction * Stats.MoveSpeed, throttle, delta);
+            IsSprinting = md.Sprint && grounded && !swimming && throttle > 0.01f &&
+                Genome != null && Genome.CountParts(PartCategory.Locomotion, Rules) > 0;
+            float speed = CreatureSprintRules.Speed(Stats.MoveSpeed, IsSprinting, grounded, true, _sprintMultiplier);
+            if (grounded) ApplyTraction(direction * speed, throttle, delta);
             else if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
 
             // Only from the ground, and not again while still rising from the last push-off.

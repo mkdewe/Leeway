@@ -333,7 +333,7 @@ namespace Leeway.UI.Editor
             var columnRect = (RectTransform)column;
             columnRect.anchorMin = columnRect.anchorMax = new Vector2(0f, 1f);
             columnRect.pivot = new Vector2(0f, 1f);
-            columnRect.anchoredPosition = new Vector2(20f, -20f);
+            columnRect.anchoredPosition = new Vector2(48f, -48f);
             columnRect.sizeDelta = new Vector2(420f, 0f);
 
             VerticalLayoutGroup columnLayout = Ensure<VerticalLayoutGroup>(column.gameObject);

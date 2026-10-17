@@ -142,6 +142,7 @@ namespace Leeway.CreatureEditor
 
         public override void OnStopNetwork()
         {
+            if (_puppet != null) _puppet.ReleaseBody();
             base.OnStopNetwork();
             _genome.OnChange -= OnGenomeSyncChanged;
             _knockdown.OnChange -= OnKnockdownSyncChanged;
@@ -171,7 +172,11 @@ namespace Leeway.CreatureEditor
             RebuildBody(_genome.Value);
         }
 
-        private void OnDestroy() => _built?.Dispose();
+        private void OnDestroy()
+        {
+            if (_puppet != null) _puppet.ReleaseBody();
+            _built?.Dispose();
+        }
 
         private void OnGenomeSyncChanged(GenomePayload previous, GenomePayload next, bool asServer) => RebuildBody(next);
 
@@ -577,9 +582,16 @@ namespace Leeway.CreatureEditor
         }
 
         [Server]
+        public void Heal(float amount)
+        {
+            if (!_isAlive.Value || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0) return;
+            _hp.Value = Mathf.Min(MaxHp, _hp.Value + amount);
+        }
+
+        [Server]
         public void TakeDamage(float damage)
         {
-            if (!_isAlive.Value) return;
+            if (!_isAlive.Value || float.IsNaN(damage) || float.IsInfinity(damage) || damage <= 0) return;
 
             _hp.Value = Mathf.Max(0f, _hp.Value - damage);
             if (_hp.Value <= 0f) Die();
@@ -589,6 +601,8 @@ namespace Leeway.CreatureEditor
         public virtual void Die()
         {
             if (!_isAlive.Value) return;
+            // Death enters the same replicated ragdoll state, but never recovers automatically.
+            if (!_knockdown.Value.IsDown) Knockdown(Vector3.up * (_knockdownImpulseThreshold + 0.1f), 0);
             _isAlive.Value = false;
         }
 
@@ -610,6 +624,7 @@ namespace Leeway.CreatureEditor
             _builtGenomeHash = payload.Hash;
             _genomeCache = genome;
 
+            if (_puppet != null) _puppet.ReleaseBody();
             _built?.Dispose();
             _built = CreatureBodyBuilder.Build(genome, _catalog, _buildSettings, transform, _tuning);
             if (_built == null) return;

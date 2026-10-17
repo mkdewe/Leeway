@@ -31,7 +31,7 @@ namespace Leeway.CreatureEditor
         /// <summary>Called by the player's controls. No effect while the creature is down itself.</summary>
         public void RequestShove()
         {
-            if (!IsOwner || _body.IsKnockedDown) return;
+            if (!IsOwner || !_body.IsAlive || _body.IsKnockedDown) return;
             CmdShove();
         }
 
@@ -40,7 +40,7 @@ namespace Leeway.CreatureEditor
         {
             uint tick = TimeManager.Tick;
             if (_hasShoved && tick - _lastShoveTick < _cooldownTicks) return;
-            if (_body.IsKnockedDown) return;
+            if (!_body.IsAlive || _body.IsKnockedDown) return;
 
             _lastShoveTick = tick;
             _hasShoved = true;
@@ -52,6 +52,7 @@ namespace Leeway.CreatureEditor
         [Server]
         public bool ServerShove()
         {
+            if (!_body.IsAlive || _body.IsKnockedDown) return false;
             Vector3 origin = transform.position;
             Vector3 direction = transform.forward;
 

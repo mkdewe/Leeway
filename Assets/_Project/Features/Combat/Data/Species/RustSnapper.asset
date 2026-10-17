@@ -1,0 +1,106 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4fc3ad8b2cc643a4e9d4f17fe0b8de99, type: 3}
+  m_Name: RustSnapper
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePreset
+  _displayName: "Z\u0119bacz rdzawy"
+  _notes: "Rdzawy \u0142owca na czterech \u0142apach, z du\u017C\u0105 paszcz\u0105
+    i d\u0142ugim ogonem. Poluje na mniejsze gatunki; ranny wycofuje si\u0119."
+  _document:
+    _version: 1
+    _name: "Z\u0119bacz rdzawy"
+    _primaryColor:
+      serializedVersion: 2
+      rgba: 4282140310
+    _secondaryColor:
+      serializedVersion: 2
+      rgba: 4280690758
+    _bodyPattern: 0
+    _vertebrae:
+    - _offset: {x: 0, y: 0, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.3
+    - _offset: {x: 0, y: 0, z: -0.35}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.38
+    - _offset: {x: 0, y: 0, z: -0.35}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.34
+    - _offset: {x: 0, y: 0, z: -0.35}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.2
+    _parts:
+    - _key: mouth.maw
+      _id: -587581707
+      _bone: 0
+      _position: {x: 0, y: -0.1, z: 1}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 0
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: 
+      _fitting: 0
+    - _key: sense.eye
+      _id: -102873942
+      _bone: 0
+      _position: {x: 0.55, y: 0.5, z: 0.6}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: 
+      _fitting: 0
+    - _key: loco.runner_legs
+      _id: 2095990230
+      _bone: 1
+      _position: {x: 0.35, y: -1, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: limb.paw
+      _fitting: 1606341255
+    - _key: loco.runner_legs
+      _id: 2095990230
+      _bone: 2
+      _position: {x: 0.35, y: -1, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: limb.paw
+      _fitting: 1606341255
+    _skin: 

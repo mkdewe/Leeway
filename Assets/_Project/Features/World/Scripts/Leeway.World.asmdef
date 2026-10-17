@@ -3,7 +3,8 @@
     "rootNamespace": "Leeway.World",
     "references": [
         "Leeway.Domain",
-        "FishNet.Runtime"
+        "FishNet.Runtime",
+        "Leeway.Rendering"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

@@ -41,6 +41,11 @@ namespace Leeway.World.Domain
         [field: Range(1, 6)]
         [field: SerializeField] public int HillOctaves { get; private set; } = 4;
 
+        [field: Header("Ridges and valleys")]
+        [field: SerializeField, Min(0f)] public float RidgeHeight { get; private set; } = 48f;
+        [field: SerializeField, Min(0f)] public float ValleyDepth { get; private set; } = 10f;
+        [field: SerializeField, Min(0f)] public float DetailHeight { get; private set; } = 3f;
+
         [field: Header("Terraces")]
         [field: Tooltip("0 = smooth hills, 1 = flat plateaus with cliffs between them.")]
         [field: Range(0f, 1f)]

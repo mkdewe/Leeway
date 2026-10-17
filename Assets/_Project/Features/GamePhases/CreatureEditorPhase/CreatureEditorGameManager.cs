@@ -38,6 +38,9 @@ namespace Leeway.GamePhases
         [Tooltip("The puppets' separate physics scene copies the world once at startup; the island is built later, so it has to copy again.")]
         [SerializeField] private CreaturePhysicsWorld _creaturePhysics;
 
+        [SerializeField, Min(1f)] private float _respawnSeconds = 6f;
+        private readonly Dictionary<int,float> _deadSince = new();
+        private readonly List<int> _respawnQueue = new();
         private readonly Dictionary<int, NetworkObject> _playerBodies = new();
 
         private void Awake()
@@ -91,6 +94,33 @@ namespace Leeway.GamePhases
             // Without this the entries survive the server stopping, and after restarting within the
             // same session SpawnPlayerBody decides the player already has a creature — nobody gets a body.
             _playerBodies.Clear();
+            _deadSince.Clear();
+        }
+
+        private void Update()
+        {
+            if (!IsServerInitialized) return;
+            _respawnQueue.Clear();
+            foreach (var pair in _playerBodies)
+            {
+                if (!pair.Value || !pair.Value.TryGetComponent(out CreatureBody body)) continue;
+                if (body.IsAlive) { _deadSince.Remove(pair.Key); continue; }
+                if (!_deadSince.TryGetValue(pair.Key, out float since)) _deadSince[pair.Key] = Time.time;
+                else if (Time.time - since >= _respawnSeconds) _respawnQueue.Add(pair.Key);
+            }
+            foreach (int id in _respawnQueue)
+            {
+                if (!ServerManager.Clients.TryGetValue(id, out NetworkConnection connection)) continue;
+                CreatureGenome saved = _playerBodies[id].GetComponent<CreatureBody>().Genome?.Clone();
+                if (_playerBodies[id].IsSpawned) _playerBodies[id].Despawn();
+                _playerBodies.Remove(id); _deadSince.Remove(id);
+                SpawnPlayerBody(connection);
+                if (saved != null && _playerBodies.TryGetValue(id, out var replacement))
+                {
+                    var body = replacement.GetComponent<CreatureBody>();
+                    if (body.ServerSetGenome(saved, out _)) body.Heal(body.MaxHp);
+                }
+            }
         }
 
         private void OnRemoteConnectionState(NetworkConnection conn, RemoteConnectionStateArgs args)
@@ -139,6 +169,7 @@ namespace Leeway.GamePhases
                 networkObject.Despawn();
 
             _playerBodies.Remove(conn.ClientId);
+            _deadSince.Remove(conn.ClientId);
         }
 
         /// <summary>Spreads players around a circle so the starting creatures do not intersect.</summary>

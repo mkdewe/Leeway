@@ -358,7 +358,11 @@ namespace Leeway.World.Editor
         // ---------------------------------------------------------------- helpers
 
         private static IslandBiome.ScatterLayer Layer(string name, GameObject[] prefabs, ScatterRule rule, float align, float sink)
-            => new(name, prefabs, rule, align, sink);
+            => new(name, prefabs, rule, align, sink, windStrength: name switch
+            {
+                "Grass" => 1.6f, "Ferns" => 1.3f, "Bushes" => 0.9f,
+                "Pines" or "Spruces" or "Broadleaf" => 0.65f, _ => 0f
+            });
 
         private static GameObject[] Variants(int count, Func<int, GameObject> make)
         {

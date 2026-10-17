@@ -1,27 +1,29 @@
 {
-    "name": "Leeway.Tests.EditMode",
-    "rootNamespace": "Leeway.Tests",
-    "references": [
-        "UnityEngine.TestRunner",
-        "UnityEditor.TestRunner",
-        "Leeway.Domain",
-        "Leeway.CreatureEditor",
-        "FishNet.Runtime",
-        "Leeway.CreatureEditor.Editor"
-    ],
-    "includePlatforms": [
-        "Editor"
-    ],
-    "excludePlatforms": [],
-    "allowUnsafeCode": false,
-    "overrideReferences": true,
-    "precompiledReferences": [
-        "nunit.framework.dll"
-    ],
-    "autoReferenced": false,
-    "defineConstraints": [
-        "UNITY_INCLUDE_TESTS"
-    ],
-    "versionDefines": [],
-    "noEngineReferences": false
+  "name": "Leeway.Tests.EditMode",
+  "rootNamespace": "Leeway.Tests",
+  "references": [
+    "UnityEngine.TestRunner",
+    "UnityEditor.TestRunner",
+    "Leeway.Domain",
+    "Leeway.CreatureEditor",
+    "FishNet.Runtime",
+    "Leeway.CreatureEditor.Editor",
+    "Leeway.World",
+    "Leeway.Combat"
+  ],
+  "includePlatforms": [
+    "Editor"
+  ],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "overrideReferences": true,
+  "precompiledReferences": [
+    "nunit.framework.dll"
+  ],
+  "autoReferenced": false,
+  "defineConstraints": [
+    "UNITY_INCLUDE_TESTS"
+  ],
+  "versionDefines": [],
+  "noEngineReferences": false
 }

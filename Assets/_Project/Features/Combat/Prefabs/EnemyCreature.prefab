@@ -24,6 +24,7 @@ GameObject:
   - component: {fileID: 3280983527784954848}
   - component: {fileID: 3079268080025749817}
   - component: {fileID: 6948382055312876540}
+  - component: {fileID: 8234730104389478615}
   m_Layer: 9
   m_Name: EnemyCreature
   m_TagString: Untagged
@@ -199,6 +200,13 @@ MonoBehaviour:
   _acceleration: 6
   _braking: 14
   _orbitCamera: {fileID: 0}
+  _waterMask:
+    serializedVersion: 2
+    m_Bits: 16
+  _floatHeight: 0.1
+  _buoyancyStiffness: 55
+  _buoyancyDamping: 0.9
+  _swimSpeedFactor: 0.6
   _tipSeconds: 0.5
   _tipRecoverySeconds: 0.35
   _maxBankDegrees: 12
@@ -259,6 +267,8 @@ MonoBehaviour:
     m_Bits: 1
   _footResponsiveness: 18
   _idleSpeed: 0.05
+  _gaitBlendSpeed: 5
+  _airborneMargin: 0.2
   _leanResponsiveness: 220
 --- !u!114 &7773527015602067390
 MonoBehaviour:
@@ -278,6 +288,7 @@ MonoBehaviour:
   _groundMask:
     serializedVersion: 2
     m_Bits: 1
+  _lookAhead: 0.2
 --- !u!114 &5418282619768888697
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -325,9 +336,9 @@ MonoBehaviour:
   m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureSkinCanvas
   _texelsPerMetre: 500
   _minResolution: 256
-  _maxResolution: 2048
+  _maxResolution: 512
   _paintableParts: 1
-  _partResolution: 128
+  _partResolution: 64
   _palette: {fileID: 11400000, guid: 16efbb01e99a5a24197e96e530e1b4f7, type: 2}
 --- !u!114 &1708013897878967949
 MonoBehaviour:
@@ -435,7 +446,20 @@ MonoBehaviour:
   _wanderRadius: 14
   _wanderSeconds: 5
   _engageFraction: 0.85
-  _corpseSeconds: 8
+  _corpseSeconds: 40
   _senseMask:
     serializedVersion: 2
     m_Bits: 4294967295
+--- !u!114 &8234730104389478615
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 703e7c7c1ebf01a43ab2acfea4edce63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureCombatPresentation
+  _telegraphMaterial: {fileID: 2100000, guid: 47f564faacc893a42b2102d5e9d4dd8f, type: 2}

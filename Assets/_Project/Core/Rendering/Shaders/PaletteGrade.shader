@@ -23,6 +23,8 @@ Shader "Hidden/Leeway/PaletteGrade"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareDepthTexture.hlsl"
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/DeclareNormalsTexture.hlsl"
 
+            float _LeewayDayNightEnabled;
+            float _LeewayDaylight;
             float4 _Palette[6];
             float4 _Grade;        // x intensity, y blackPoint, z whitePoint, w bands
             float4 _Grade2;       // x bandSoftness, y chromaKeep, z accentThreshold, w accentKeep
@@ -128,6 +130,11 @@ Shader "Hidden/Leeway/PaletteGrade"
                     graded = lerp(graded, _OutlineColor.rgb, OutlineMask(uv, eye) * _Outline.x * fade);
                 }
 
+                
+                // Preserve the celestial sky; the daytime palette would erase stars and moon.
+                float day=lerp(1.0,_LeewayDaylight,_LeewayDayNightEnabled);
+                graded*=lerp(float3(0.22,0.30,0.46),float3(1,1,1),day);
+                if(sky && _LeewayDayNightEnabled>0.5) return half4(src,1);
                 return half4(lerp(src, graded, _Grade.x), 1.0);
             }
             ENDHLSL

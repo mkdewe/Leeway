@@ -89,6 +89,8 @@ namespace Leeway.CreatureEditor
         private float _phase;
         private float _gaitWeight;
         private float _standHeight;
+        private float _unsupportedSeconds;
+        public float GaitPhase => _phase;
 
         /// <summary>
         /// Nothing under the creature within its legs' reach: mid-jump, falling, or floating over deep
@@ -114,6 +116,9 @@ namespace Leeway.CreatureEditor
         private void OnDisable()
         {
             _body.BodyRebuilt -= OnBodyRebuilt;
+            // The independent physics scene still owns muscles targeting these leg anchors.
+            var puppet = GetComponent<CreaturePuppet>();
+            if (puppet != null) puppet.ReleaseBody();
             ClearLegs();
         }
 
@@ -227,7 +232,10 @@ namespace Leeway.CreatureEditor
             // In the air the legs keep their pose relative to the body: no stepping, no reaching for a
             // ground that is not there. The bookkeeping above still runs, so landing does not count the
             // whole flight as one giant step.
-            IsAirborne = CheckAirborne(position);
+            bool supported = !CheckAirborne(position);
+            _unsupportedSeconds = supported ? 0 : _unsupportedSeconds + Time.deltaTime;
+            // A crest can put the torso over a hollow while the feet still support it.
+            IsAirborne = !supported && _unsupportedSeconds > 0.12f;
             if (IsAirborne)
             {
                 foreach (ProceduralLeg leg in _legs) leg.Hold();
@@ -267,7 +275,13 @@ namespace Leeway.CreatureEditor
 
             float reach = _standHeight + _airborneMargin;
             const float lift = 0.05f;
-            return !Physics.Raycast(position + Vector3.up * lift, Vector3.down, reach + lift, _groundMask, QueryTriggerInteraction.Ignore);
+            if (Physics.Raycast(position + Vector3.up * lift, Vector3.down, reach + lift, _groundMask, QueryTriggerInteraction.Ignore)) return false;
+
+            // Over a hollow the torso can have nothing under it while the feet still stand on the crests either side.
+            foreach (ProceduralLeg leg in _legs)
+                if (leg.HasGroundWithinReach(_groundMask, _airborneMargin)) return false;
+
+            return true;
         }
 
         /// <summary>

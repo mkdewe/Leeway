@@ -17,6 +17,8 @@ namespace Leeway.World.Domain
     {
         private readonly float[] _heights;
         private readonly float[] _water;
+        private readonly float[] _surface;
+        private readonly bool[] _surfaceFresh;
         private readonly float[] _hubWeight;
         private readonly List<IslandLake> _lakes = new();
         private readonly List<IslandRiver> _rivers = new();
@@ -37,6 +39,8 @@ namespace Leeway.World.Domain
             VertexCount = settings.Resolution + 1;
             _heights = new float[VertexCount * VertexCount];
             _water = new float[VertexCount * VertexCount];
+            _surface = new float[VertexCount * VertexCount];
+            _surfaceFresh = new bool[VertexCount * VertexCount];
             _hubWeight = new float[VertexCount * VertexCount];
             for (int i = 0; i < _water.Length; i++) _water[i] = float.NegativeInfinity;
         }
@@ -127,7 +131,9 @@ namespace Leeway.World.Domain
             // Each feature draws from its own stream, so tuning lakes doesn't move the caves.
             field.CarveLakes(new System.Random(seed * 31 + 1));
             field.CarveRivers(new System.Random(seed * 31 + 2), noise);
+            field.RebuildRiverWater();
             field.CarveCaves(new System.Random(seed * 31 + 3));
+            field.FinalizeWaterSurface();
             return field;
         }
 
@@ -153,7 +159,9 @@ namespace Leeway.World.Domain
                 float h = Terrace(s, RawHeight(s, noise, p.x, p.z, ox, oz));
 
                 float hubDist = Vector2.Distance(new Vector2(p.x, p.z), hub);
-                float w = SmoothStep01(1f - (hubDist - s.HubRadius) / Mathf.Max(s.HubBlend, 0.01f));
+                // Include the full grid triangle sampled at the edge of the playable hub.
+                float flatRadius = s.HubRadius + s.CellSize * 1.41421356f;
+                float w = SmoothStep01(1f - (hubDist - flatRadius) / Mathf.Max(s.HubBlend, 0.01f));
                 int i = z * VertexCount + x;
                 _hubWeight[i] = w;
                 _heights[i] = Mathf.Lerp(h, hubHeight, w);
@@ -169,10 +177,21 @@ namespace Leeway.World.Domain
 
             float nx = wx / s.Size * s.HillFrequency + ox;
             float nz = wz / s.Size * s.HillFrequency + oz;
+            // Domain warp creates branching ridges rather than one smooth central dome.
+            float warpX = noise.Sample(nx * 0.6f + 29f, nz * 0.6f) * 0.65f;
+            float warpZ = noise.Sample(nx * 0.6f, nz * 0.6f + 71f) * 0.65f;
+            nx += warpX;
+            nz += warpZ;
             float hills = noise.Fbm(nx, nz, s.HillOctaves);
+            float ridge = 1f - Mathf.Abs(noise.Sample(nx * 0.85f + 11f, nz * 0.85f + 37f));
+            float massif = SmoothStep01((noise.Fbm(nx * 0.55f + 91f, nz * 0.55f, 2) - 0.3f) / 0.45f);
+            float valley = Mathf.Pow(1f - Mathf.Abs(noise.Sample(nx + 63f, nz + 19f)), 10f);
+            float detail = noise.Sample(nx * 3.7f, nz * 3.7f) * s.DetailHeight;
             float centre = Mathf.Clamp01(1f - r / Mathf.Max(coast, 0.01f));
 
-            float landHeight = s.BeachHeight + hills * hills * s.HillHeight + centre * centre * s.CentralRise;
+            float landHeight = s.BeachHeight + hills * hills * s.HillHeight + centre * centre * s.CentralRise
+                + Mathf.Pow(ridge, 3f) * massif * s.RidgeHeight - valley * s.ValleyDepth + detail;
+            landHeight = Mathf.Max(s.BeachHeight + 0.25f, landHeight);
             // Hills fade in from the beach so the coast stays walkable.
             landHeight = Mathf.Lerp(s.BeachHeight, landHeight, Mathf.Clamp01(centre * 4f));
             return Mathf.Lerp(s.SeaFloorDepth, landHeight, land);
@@ -184,7 +203,8 @@ namespace Leeway.World.Domain
             float cx = Mathf.Cos(angle) * s.CoastFrequency + 500f;
             float cz = Mathf.Sin(angle) * s.CoastFrequency + 500f;
             float wobble = noise.Fbm(cx, cz, 3) * 2f - 1f;
-            return s.CoastRadius * (1f + wobble * s.CoastIrregularity);
+            // Keep a submerged border even when the biome requests extreme coast irregularity.
+            return Mathf.Clamp(s.CoastRadius * (1f + wobble * s.CoastIrregularity), 0.15f, 0.88f);
         }
 
         private static float Terrace(IslandSettings s, float h)
@@ -282,7 +302,11 @@ namespace Leeway.World.Domain
             {
                 float ground = SampleHeight(p.x, p.y);
                 // Inside a lake the surface is already set; its carved bed must not drag the river down.
-                if (FreshWaterLevel(p.x, p.y) < level - 0.01f) level = Mathf.Min(level, ground - 0.5f);
+                bool inSourceLake = false;
+                foreach (var lake in _lakes)
+                    if (Vector2.Distance(p,new Vector2(lake.Center.x,lake.Center.z)) < lake.Radius*1.05f
+                        && Mathf.Abs(level-lake.Center.y)<0.1f) inSourceLake=true;
+                if (!inSourceLake) level = Mathf.Min(level, ground - 0.5f);
                 points.Add(new Vector3(p.x, Mathf.Max(level, s.SeaLevel - 0.3f), p.y));
                 if (ground < s.SeaLevel - 1f) break;
 
@@ -320,6 +344,113 @@ namespace Leeway.World.Domain
             }
 
             _rivers.Add(new IslandRiver(points, s.RiverWidth));
+        }
+
+
+        /// <summary>Rebuild from closest river segments, not maximum-height circular splats.
+        /// Circular splats carried upstream water over lower reaches and made dams at the sea.</summary>
+        private void RebuildRiverWater()
+        {
+            for(int i=0;i<_water.Length;i++)_water[i]=float.NegativeInfinity;
+            foreach(var lake in _lakes)
+                ForVerticesNear(lake.Center.x,lake.Center.z,lake.Radius*1.15f,
+                    (i,d)=>_water[i]=Mathf.Max(_water[i],lake.Center.y));
+            foreach(var river in _rivers)
+            {
+                var nearest=new float[_water.Length];
+                var levels=new float[_water.Length];
+                for(int i=0;i<nearest.Length;i++)nearest[i]=float.PositiveInfinity;
+                float width=river.Width*0.6f;
+                for(int j=1;j<river.Points.Count;j++)
+                {
+                    Vector3 a=river.Points[j-1],b=river.Points[j];
+                    Vector2 start=new Vector2(a.x,a.z),delta=new Vector2(b.x-a.x,b.z-a.z);
+                    float length2=delta.sqrMagnitude;
+                    if(length2<0.00001f)continue;
+                    Vector2 middle=start+delta*0.5f;
+                    ForVerticesNear(middle.x,middle.y,Mathf.Sqrt(length2)*0.5f+width,(i,unused)=>
+                    {
+                        int x=i%VertexCount,z=i/VertexCount;
+                        Vector2 p=new Vector2(-Settings.HalfSize+x*Settings.CellSize,-Settings.HalfSize+z*Settings.CellSize);
+                        float t=Mathf.Clamp01(Vector2.Dot(p-start,delta)/length2);
+                        float d=(p-start-delta*t).sqrMagnitude;
+                        if(d>width*width||d>=nearest[i])return;
+                        nearest[i]=d;
+                        float level=Mathf.Max(Settings.SeaLevel,Mathf.Lerp(a.y,b.y,t));
+                        // The submerged receiving bed belongs to the sea, with no perched fresh-water shelf.
+                        if(_heights[i]<Settings.SeaLevel-0.8f||level<Settings.SeaLevel+0.08f)
+                            level=Settings.SeaLevel;
+                        levels[i]=level;
+                    });
+                }
+                for(int i=0;i<nearest.Length;i++)
+                {
+                    if(float.IsPositiveInfinity(nearest[i]))continue;
+                    _water[i]=float.IsNegativeInfinity(_water[i])?levels[i]:Mathf.Min(_water[i],levels[i]);
+                }
+            }
+        }
+
+
+        /// <summary>The only water geometry datum. Flow and foam never supply a second height.</summary>
+        public float WaterSurfaceAt(int x,int z) => _surface[z*VertexCount+x];
+        public bool IsFreshSurfaceAt(int x,int z) => _surfaceFresh[z*VertexCount+x];
+
+        private void FinalizeWaterSurface()
+        {
+            // Reservoir interiors remain horizontal, even where a river flow footprint overlaps them.
+            foreach(var lake in _lakes)
+                ForVerticesNear(lake.Center.x,lake.Center.z,lake.Radius,(i,d)=>
+                {
+                    if(_heights[i]<lake.Center.y)_water[i]=lake.Center.y;
+                });
+            int n=VertexCount;
+            var wet=new bool[n*n];
+            for(int i=0;i<_surface.Length;i++)
+            {
+                _surface[i]=Mathf.Max(Settings.SeaLevel,_water[i]);
+                _surfaceFresh[i]=_water[i]>Settings.SeaLevel;
+                wet[i]=_heights[i]<_surface[i]-0.001f;
+            }
+            var original=(float[])_surface.Clone();
+            var originalFresh=(bool[])_surfaceFresh.Clone();
+            for(int z=0;z<n;z++)for(int x=0;x<n;x++)
+            {
+                int i=z*n+x;
+                if(wet[i]||originalFresh[i]||_heights[i]<=Settings.SeaLevel)continue;
+                int nearest=-1,best=99;
+                for(int dz=-2;dz<=2;dz++)for(int dx=-2;dx<=2;dx++)
+                {
+                    int xx=x+dx,zz=z+dz,d=dx*dx+dz*dz;
+                    if(xx<0||zz<0||xx>=n||zz>=n||d>=best)continue;
+                    int j=zz*n+xx;
+                    if(!wet[j]||!originalFresh[j])continue;
+                    best=d;nearest=j;
+                }
+                if(nearest<0)continue;
+                _surface[i]=Mathf.Min(original[nearest],_heights[i]-0.02f);
+                _surfaceFresh[i]=true;
+            }
+        }
+
+        /// <summary>Water datum interpolated on the same triangles as the rendered surface.</summary>
+        public float SampleWaterSurface(float worldX,float worldZ)
+        {
+            float gx=(worldX+Settings.HalfSize)/Settings.CellSize;
+            float gz=(worldZ+Settings.HalfSize)/Settings.CellSize;
+            int max=Settings.Resolution;
+            if(gx<0||gz<0||gx>max||gz>max)return Settings.SeaLevel;
+            int x=Mathf.Min(Mathf.FloorToInt(gx),max-1),z=Mathf.Min(Mathf.FloorToInt(gz),max-1);
+            float tx=gx-x,tz=gz-z;
+            float a=WaterSurfaceAt(x,z);
+            float d=WaterSurfaceAt(x+1,z+1);
+            if(tx>=tz)
+            {
+                float b=WaterSurfaceAt(x+1,z);
+                return a+(b-a)*tx+(d-b)*tz;
+            }
+            float c=WaterSurfaceAt(x,z+1);
+            return a+(d-c)*tx+(c-a)*tz;
         }
 
         // ---------------------------------------------------------------- caves

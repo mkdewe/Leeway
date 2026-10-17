@@ -25,6 +25,7 @@ GameObject:
   - component: {fileID: 5538058752377725298}
   - component: {fileID: 6353701117271416799}
   - component: {fileID: 4145643731240362566}
+  - component: {fileID: 4207617176601483394}
   m_Layer: 9
   m_Name: PlaygroundCreature
   m_TagString: Untagged
@@ -439,7 +440,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: d92f7f326bead354ba064dadce77d0c9, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureAttackInput
-  _attackKey: 1
+  _attackKey: 0
 --- !u!114 &4145643731240362566
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -456,3 +457,16 @@ MonoBehaviour:
   _particlesPerStep: 7
   _stepSpeedRatio: 1.8
   _minStepSpeed: 1.5
+--- !u!114 &4207617176601483394
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 5575887560579506853}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 703e7c7c1ebf01a43ab2acfea4edce63, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Combat::Leeway.Combat.CreatureCombatPresentation
+  _telegraphMaterial: {fileID: 2100000, guid: 47f564faacc893a42b2102d5e9d4dd8f, type: 2}

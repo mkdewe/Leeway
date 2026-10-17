@@ -64,6 +64,11 @@ namespace Leeway.CreatureEditor
             _rowTemplate.gameObject.SetActive(false);
 
             AddRow("Humanoid (wbudowany)", _builtInColor, LoadHumanoid);
+            foreach(IslandSpecies species in System.Enum.GetValues(typeof(IslandSpecies)))
+            {
+                IslandSpecies selected=species;
+                AddRow(IslandSpeciesLibrary.Name(species)+" (wyspa)",_builtInColor,()=>LoadSpecies(selected));
+            }
 
             foreach (string name in CreaturePresetStore.List())
             {
@@ -122,6 +127,16 @@ namespace Leeway.CreatureEditor
             SetStatus($"Wczytano \"{name}\".", warning: false);
         }
 
+        private void LoadSpecies(IslandSpecies species)
+        {
+            if(_session==null||_preview==null)return;
+            var genome=IslandSpeciesLibrary.Create(species,_preview.Rules);
+            var validation=GenomeValidator.Validate(genome,_preview.Rules);
+            if(!validation.IsValid){SetStatus("Gatunek nie pasuje do katalogu: "+validation.Error,true);return;}
+            _session.Load(genome);
+            if(_nameField!=null)_nameField.text=IslandSpeciesLibrary.Name(species);
+            SetStatus(IslandSpeciesLibrary.Notes(species),false);
+        }
         private void LoadHumanoid()
         {
             if (_session == null || _preview == null) return;

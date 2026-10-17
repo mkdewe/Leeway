@@ -1,0 +1,125 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 4fc3ad8b2cc643a4e9d4f17fe0b8de99, type: 3}
+  m_Name: Rockhorn
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePreset
+  _displayName: Rogacz skalny
+  _notes: "Kr\u0119py obro\u0144ca wy\u017Cyn, z szerokim rozstawem n\xF3g i rogiem.
+    Ostrzega przed atakiem i nie \u015Bciga poza terytorium."
+  _document:
+    _version: 1
+    _name: Rogacz skalny
+    _primaryColor:
+      serializedVersion: 2
+      rgba: 4287726713
+    _secondaryColor:
+      serializedVersion: 2
+      rgba: 4284436804
+    _bodyPattern: 4
+    _vertebrae:
+    - _offset: {x: 0, y: 0, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.36
+    - _offset: {x: 0, y: 0, z: -0.42}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.48
+    - _offset: {x: 0, y: 0, z: -0.42}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.43
+    - _offset: {x: 0, y: 0, z: -0.42}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.32
+    - _offset: {x: 0, y: 0, z: -0.42}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _radius: 0.15
+    _parts:
+    - _key: mouth.maw
+      _id: -587581707
+      _bone: 0
+      _position: {x: 0, y: -0.1, z: 1}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 0.7
+      _mirrored: 0
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: 
+      _fitting: 0
+    - _key: sense.eye
+      _id: -102873942
+      _bone: 0
+      _position: {x: 0.65, y: 0.45, z: 0.7}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 0.85
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: 
+      _fitting: 0
+    - _key: loco.hoof_legs
+      _id: -179235692
+      _bone: 1
+      _position: {x: 0.8, y: -1, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: limb.cloven_hoof
+      _fitting: 1508276085
+    - _key: loco.hoof_legs
+      _id: -179235692
+      _bone: 2
+      _position: {x: 0.8, y: -1, z: 0}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1
+      _mirrored: 1
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: limb.hoof
+      _fitting: -609348391
+    - _key: weapon.horn
+      _id: -1453129432
+      _bone: 0
+      _position: {x: 0, y: 0.5, z: 1}
+      _rotation: {x: 0, y: 0, z: 0, w: 1}
+      _scale: 1.15
+      _mirrored: 0
+      _hasLegOverride: 0
+      _bendPoints: 0
+      _segmentLength: 0
+      _tint:
+        serializedVersion: 2
+        rgba: 0
+      _pattern: 0
+      _fittingKey: 
+      _fitting: 0
+    _skin: 

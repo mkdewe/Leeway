@@ -24,6 +24,9 @@ namespace Leeway.World
             [SerializeField] private float _sink;
             [Tooltip("Merge the visuals into one mesh per chunk (colliders and lights stay separate). Off for prefabs with animation or LODs.")]
             [SerializeField] private bool _combineMeshes = true;
+            [Tooltip("Wind sway for living vegetation; zero keeps rocks and landmarks still.")]
+            [SerializeField, Range(0f, 2f)] private float _windStrength;
+            public float WindStrength => _windStrength;
 
             public string Name => _name;
             public IReadOnlyList<GameObject> Prefabs => _prefabs;
@@ -32,9 +35,10 @@ namespace Leeway.World
             public float Sink => _sink;
             public bool CombineMeshes => _combineMeshes;
 
-            public ScatterLayer(string name, GameObject[] prefabs, ScatterRule rule, float alignToNormal, float sink, bool combineMeshes = true)
+            public ScatterLayer(string name, GameObject[] prefabs, ScatterRule rule, float alignToNormal, float sink, bool combineMeshes = true, float windStrength = 0f)
             {
                 _combineMeshes = combineMeshes;
+                _windStrength = windStrength;
                 _name = name;
                 _prefabs = prefabs;
                 _rule = rule;

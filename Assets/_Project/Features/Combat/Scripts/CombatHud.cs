@@ -1,145 +1,103 @@
 using System;
+using Leeway.Creature.Domain;
 using Leeway.CreatureEditor;
 using MessagePipe;
 using TMPro;
 using UnityEngine;
-
 namespace Leeway.Combat
 {
-    /// <summary>
-    /// The part of a fight the player can actually read: their own hit points, and what just hit them.
-    /// </summary>
-    /// <remarks>
-    /// <para>Without this the combat is invisible. Damage is a server-side number on a SyncVar, and a
-    /// player who cannot see it falling has no way to tell a fight they are winning from one they are
-    /// losing — or that they are in one at all.</para>
-    ///
-    /// <para>It listens to messages rather than holding a reference to the creature: the local body
-    /// arrives, is replaced on a rebuild and goes away on disconnect, and the bus already carries all
-    /// three. The hit line is fed by the blow's own message instead of by watching hit points, so the
-    /// number shown is the blow that was struck, not the difference between two sync updates.</para>
-    /// </remarks>
-    public class CombatHud : MonoBehaviour
+    public class CombatHud:MonoBehaviour
     {
-        [Header("Widgets")]
-        [SerializeField] private TextMeshProUGUI _healthText;
-        [SerializeField] private TextMeshProUGUI _hitText;
-
-        [Header("Appearance")]
-        [SerializeField] private Color _healthy = new(0.85f, 0.92f, 0.85f, 1f);
-        [SerializeField] private Color _hurt = new(0.95f, 0.55f, 0.35f, 1f);
-
-        [Tooltip("Below this fraction of full health the readout turns.")]
-        [SerializeField, Range(0f, 1f)] private float _hurtBelow = 0.4f;
-
-        [Tooltip("How long a hit line stays up.")]
-        [SerializeField, Min(0.2f)] private float _hitSeconds = 1.6f;
-
+        [SerializeField] private TextMeshProUGUI _healthText,_hitText,_abilityText;
+        [SerializeField] private GameObject _combatPanel;
+        [SerializeField] private Color _healthy=new(0.85f,0.92f,0.85f,1),_hurt=new(0.95f,0.55f,0.35f,1);
+        [SerializeField,Range(0,1)] private float _hurtBelow=0.4f;
+        [SerializeField,Min(0.2f)] private float _hitSeconds=1.6f;
         private IDisposable _subscriptions;
         private CreatureBody _body;
-        private float _hitUntil;
-
+        private CreatureCombatant _fighter;
+        private CreatureEditorController _editor;
+        private float _hitUntil,_nextResolve,_nextLabels;
+        private NpcCreatureAgent[] _labels=Array.Empty<NpcCreatureAgent>();
+        private GUIStyle _labelStyle;
         private void OnEnable()
         {
-            if (!GlobalMessagePipe.IsInitialized)
-            {
-                Debug.LogWarning("The message bus is not up — the combat HUD will stay silent.", this);
-                return;
-            }
-
-            var bag = DisposableBag.CreateBuilder();
-
-            GlobalMessagePipe.GetSubscriber<LocalCreatureBodyChangedMessage>()
-                .Subscribe(OnLocalBodyChanged).AddTo(bag);
-
-            GlobalMessagePipe.GetSubscriber<CreatureStruckMessage>()
-                .Subscribe(OnStruck).AddTo(bag);
-
-            GlobalMessagePipe.GetSubscriber<CreatureDiedMessage>()
-                .Subscribe(OnDied).AddTo(bag);
-
-            _subscriptions = bag.Build();
-
-            Clear();
+            if(!GlobalMessagePipe.IsInitialized)return;
+            var bag=DisposableBag.CreateBuilder();
+            GlobalMessagePipe.GetSubscriber<LocalCreatureBodyChangedMessage>().Subscribe(m=>Bind(m.Body)).AddTo(bag);
+            GlobalMessagePipe.GetSubscriber<CreatureStruckMessage>().Subscribe(OnStruck).AddTo(bag);
+            GlobalMessagePipe.GetSubscriber<CreatureDiedMessage>().Subscribe(OnDied).AddTo(bag);
+            _subscriptions=bag.Build();
         }
-
-        private void OnDisable()
-        {
-            _subscriptions?.Dispose();
-            _subscriptions = null;
-        }
-
-        private void OnLocalBodyChanged(LocalCreatureBodyChangedMessage message)
-        {
-            _body = message.Body;
-            Clear();
-        }
-
+        private void OnDisable(){_subscriptions?.Dispose();_subscriptions=null;}
+        private void Bind(CreatureBody body)
+        {_body=body;_fighter=body?body.GetComponent<CreatureCombatant>():null;if(_hitText)_hitText.text=string.Empty;}
+        private bool Playing=>_body&&_fighter&&(!_editor||_editor.Mode==CreatureEditorMode.Play);
         private void Update()
         {
-            if (_healthText != null) _healthText.text = HealthLine();
-
-            if (_hitText != null && _hitText.text.Length > 0 && Time.time >= _hitUntil)
-                _hitText.text = string.Empty;
-        }
-
-        private string HealthLine()
-        {
-            if (_body == null) return string.Empty;
-
-            float max = Mathf.Max(1f, _body.MaxHp);
-            float fraction = Mathf.Clamp01(_body.Hp / max);
-
-            _healthText.color = fraction <= _hurtBelow ? _hurt : _healthy;
-
-            return _body.IsAlive
-                ? $"HP {_body.Hp:F0} / {max:F0}"
-                : "Martwy";
-        }
-
-        /// <summary>
-        /// Shows the blow — but only the ones this player has a stake in. A distant scuffle between two
-        /// animals is not news, and reporting it would bury the line that matters.
-        /// </summary>
-        private void OnStruck(CreatureStruckMessage message)
-        {
-            if (_hitText == null || _body == null || message.Damage <= 0f) return;
-
-            bool taken = message.Target == _body;
-            bool dealt = message.Attacker == _body;
-            if (!taken && !dealt) return;
-
-            _hitText.color = taken ? _hurt : _healthy;
-            _hitText.text = taken
-                ? $"Trafiony! −{message.Damage:F0}" + (message.KnockedDown ? "  (przewrócony)" : string.Empty)
-                : $"Trafienie −{message.Damage:F0}" + (message.KnockedDown ? "  (przewrócony)" : string.Empty);
-
-            _hitUntil = Time.time + _hitSeconds;
-        }
-
-        private void OnDied(CreatureDiedMessage message)
-        {
-            if (_hitText == null || _body == null) return;
-
-            if (message.Body == _body)
+            if(Time.time>=_nextResolve)
             {
-                _hitText.color = _hurt;
-                _hitText.text = "Zginąłeś";
+                _nextResolve=Time.time+1;
+                if(!_editor)_editor=FindAnyObjectByType<CreatureEditorController>();
+                if(!_body)foreach(var b in FindObjectsByType<CreatureBody>(FindObjectsSortMode.None))if(b.IsOwner){Bind(b);break;}
             }
-            else if (message.Killer == _body)
+            if(_combatPanel)_combatPanel.SetActive(Playing);
+            if(!Playing)return;
+            if(_healthText)
             {
-                _hitText.color = _healthy;
-                _hitText.text = "Przeciwnik pokonany";
+                _healthText.color=_body.Hp/Mathf.Max(1,_body.MaxHp)<=_hurtBelow?_hurt:_healthy;
+                _healthText.text=_body.IsAlive?$"HP {_body.Hp:0} / {_body.MaxHp:0}":"Pokonany";
             }
-            else return;
-
-            _hitUntil = Time.time + _hitSeconds * 2f;
+            if(_hitText&&Time.time>=_hitUntil)_hitText.text=_fighter.Notice;
+            if(_abilityText)
+            {
+                var g=_body.Genome;var r=_body.Rules;
+                var primary=BodyAbilityRules.Primary(g,r);var secondary=BodyAbilityRules.Secondary(g,r);
+                string attack=_fighter.CooldownRemaining>0?$" · {_fighter.CooldownRemaining:0.0}s":" · gotowe";
+                string line="LPM: "+BodyAbilityRules.Name(primary)+attack;
+                if(secondary!=primary)line+="    R: "+BodyAbilityRules.Name(secondary);
+                if(BodyAbilityRules.Has(g,r,CreatureAbility.Scan))line+="\nQ: czujność"+(_fighter.ScanCooldown>0?$" ({_fighter.ScanCooldown:0}s)":"");
+                if(BodyAbilityRules.Has(g,r,CreatureAbility.Forage))line+="    E: pomoc / żerowanie";
+                line+="\nShift: sprint    Spacja: skok    F: odepchnięcie    1 / 2 / 3: paszcza / ramiona / róg";
+                _abilityText.text=!_body.IsAlive?"Odrodzenie w obozie za chwilę.":_body.IsInEditorPad?"Strefa edytora — wyjdź poza krąg, aby walczyć.":line;
+            }
+            if(Time.time>=_nextLabels){_nextLabels=Time.time+0.5f;_labels=FindObjectsByType<NpcCreatureAgent>(FindObjectsSortMode.None);}
         }
-
-        private void Clear()
+        private void OnStruck(CreatureStruckMessage m)
         {
-            if (_hitText != null) _hitText.text = string.Empty;
-            if (_healthText != null) _healthText.text = string.Empty;
+            if(!_hitText||!_body||m.Damage<=0)return;
+            if(m.Target!=_body&&m.Attacker!=_body)return;
+            _hitText.color=m.Target==_body?_hurt:_healthy;
+            _hitText.text=(m.Target==_body?"Otrzymano −":"Trafienie −")+m.Damage.ToString("0")+" HP"+(m.KnockedDown?" · przewrócenie":"");
+            _hitUntil=Time.time+_hitSeconds;
+        }
+        private void OnDied(CreatureDiedMessage m)
+        {
+            if(!_hitText||!_body)return;
+            if(m.Body!=_body&&m.Killer!=_body)return;
+            _hitText.text=m.Body==_body?"Zostałeś pokonany":"Przeciwnik pokonany · E: żerowanie";
+            _hitUntil=Time.time+3;
+        }
+        private void OnGUI()
+        {
+            if(!Playing||Event.current.type!=EventType.Repaint)return;
+            var camera=Camera.main;if(!camera)return;
+            _labelStyle??=new GUIStyle(GUI.skin.box){fontSize=12,alignment=TextAnchor.MiddleCenter};
+            foreach(var npc in _labels)
+            {
+                if(!npc)continue;var b=npc.GetComponent<CreatureBody>();if(!b)continue;
+                float distance=Vector3.Distance(_body.transform.position,npc.transform.position);
+                float range=_fighter.ScanActive?_body.Stats.SenseRadius*2:12;
+                if(distance>range)continue;
+                var world=npc.transform.position+Vector3.up*1.2f;
+                if(Physics.Linecast(camera.transform.position,world,1,QueryTriggerInteraction.Ignore))continue;
+                var p=camera.WorldToScreenPoint(world);if(p.z<=0||p.x<0||p.x>Screen.width||p.y<0||p.y>Screen.height)continue;
+                GUI.color=npc.IsPredator?new Color(1,0.65f,0.5f):npc.Disposition==NpcCreatureType.Territorial?
+                    new Color(1,0.85f,0.55f):new Color(0.7f,0.95f,0.8f);
+                string text=npc.SpeciesName+"\n"+(b.IsAlive?$"{b.Hp:0} / {b.MaxHp:0} HP":"Pokonany · E");
+                GUI.Box(new Rect(p.x-90,Screen.height-p.y-35,180,38),text,_labelStyle);
+            }
+            GUI.color=Color.white;
         }
     }
 }

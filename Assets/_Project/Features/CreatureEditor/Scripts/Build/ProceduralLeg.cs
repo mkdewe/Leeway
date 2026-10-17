@@ -86,6 +86,8 @@ namespace Leeway.CreatureEditor
 
         private Vector3 _footTarget;
         private bool _initialised;
+        public bool HasGroundContact { get; private set; }
+        public Vector3 GroundNormal { get; private set; } = Vector3.up;
 
         // The pose held in the air, in the hip's own space - see Hold.
         private bool _holding;
@@ -416,7 +418,13 @@ namespace Leeway.CreatureEditor
             Vector3 neutral = hip + Vector3.down * _spec.RideHeight;
             Vector3 desired = neutral + forward * offset.x;
 
-            desired = SnapToGround(desired, groundMask) + Vector3.up * offset.y;
+            HasGroundContact = TryGround(desired, groundMask, 0.25f, out RaycastHit support);
+            if (HasGroundContact)
+            {
+                GroundNormal = support.normal;
+                desired = support.point + Vector3.up * (offset.y + 0.015f);
+            }
+            else desired += Vector3.up * offset.y;
 
             // Pulling rather than jumping: on a change of pace or a turn the foot moves to its new place
             // smoothly instead of teleporting.
@@ -425,6 +433,9 @@ namespace Leeway.CreatureEditor
                 : desired;
 
             _initialised = true;
+            // Recheck the interpolated foot itself: smoothing across a rise must not drag it through the hill.
+            if (TryGround(_footTarget, groundMask, 0.25f, out var beneath))
+                _footTarget.y = Mathf.Max(_footTarget.y, beneath.point.y + 0.01f);
 
             // A hard reach limit. Without it the pull falls behind the turning carcass and the leg splays
             // out into a straight line pointing at the foot's old place.
@@ -488,14 +499,19 @@ namespace Leeway.CreatureEditor
             return offset.sqrMagnitude > max * max ? hip + offset.normalized * max : foot;
         }
 
-        private Vector3 SnapToGround(Vector3 position, LayerMask groundMask)
+        public bool HasGroundWithinReach(LayerMask mask, float margin)
         {
-            Vector3 origin = position + Vector3.up * _spec.Reach;
-            float distance = _spec.Reach * 2f;
-
-            return Physics.Raycast(origin, Vector3.down, out RaycastHit hit, distance, groundMask, QueryTriggerInteraction.Ignore)
-                ? hit.point
-                : position;
+            if (_hip == null) return false;
+            return TryGround(_hip.position, mask, margin, out _) ||
+                (_initialised && TryGround(_footTarget, mask, margin, out _));
+        }
+        private bool TryGround(Vector3 position, LayerMask mask, float margin, out RaycastHit hit)
+        {
+            // Start at the real hip, not at a neutral foot that may already be below an uphill step.
+            float lift = Mathf.Max(0.2f, _spec.Reach * 0.35f);
+            var origin = new Vector3(position.x, _hip.position.y + lift, position.z);
+            return Physics.Raycast(origin, Vector3.down, out hit, _spec.Reach + lift + margin,
+                mask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.25f;
         }
 
         /// <summary>

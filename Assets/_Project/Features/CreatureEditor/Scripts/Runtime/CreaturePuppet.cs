@@ -443,16 +443,24 @@ namespace Leeway.CreatureEditor
             _behaviour.SetState(BehaviourPuppet.State.Puppet);
         }
 
+        public void ReleaseBody() { Clear(); _built = null; _genome = null; }
+
+        private void OnDisable() => Clear();
+
         private void OnDestroy() => Clear();
 
         private void Clear()
         {
             Unsubscribe();
+            _legsPending = false;
 
             if (_puppetMaster != null)
             {
                 // The puppet holds the whole physical skeleton, so destroying its object is the whole
                 // teardown — the muscles are its children.
+                // Destroy is deferred; stop callbacks now, before the old target bones disappear.
+                _puppetMaster.enabled = false;
+                _puppetMaster.gameObject.SetActive(false);
                 Destroy(_puppetMaster.gameObject);
                 _puppetMaster = null;
             }

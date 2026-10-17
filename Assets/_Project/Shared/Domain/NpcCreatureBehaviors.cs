@@ -2,7 +2,7 @@ using UnityEngine;
 
 namespace Leeway.Creature.Domain
 {
-    public enum NpcCreatureType { Prey, Predator }
+    public enum NpcCreatureType { Prey, Predator, Territorial }
 
     /// <summary>
     /// A snapshot of an NPC creature's perception handed to a strategy — pure data context (no
