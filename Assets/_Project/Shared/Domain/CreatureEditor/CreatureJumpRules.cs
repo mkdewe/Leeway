@@ -18,14 +18,14 @@ namespace Leeway.Creature.Domain
     public static class CreatureJumpRules
     {
         /// <summary>Jump height per metre of leg reach, before the joint, leg-count and mass factors.</summary>
-        public const float HeightPerReach = 1.6f;
+        public const float HeightPerReach = 1.1f;
 
         /// <summary>How much each bend point adds to the push-off.</summary>
         public const float BendBonus = 0.18f;
 
         public const float MinMassFactor = 0.45f;
         public const float MaxMassFactor = 1.5f;
-        public const float MaxHeight = 3f;
+        public const float MaxHeight = 2.5f;
 
         /// <summary>Peak jump height in metres; 0 for a creature without legs.</summary>
         public static float JumpHeight(CreatureGenome genome, PartRuleSet rules, float mass, CreatureStatTuning tuning)

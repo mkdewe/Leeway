@@ -259,6 +259,10 @@ namespace Leeway.CreatureEditor
         {
             float delta = (float)TimeManager.TickDelta;
 
+            // Read before the suspension runs: it adds lift every tick that only the next physics step's
+            // ground contact cancels, so a creature standing still reads as rising after it.
+            float risingBefore = _rb.linearVelocity.y;
+
             // The body's real acceleration from the previous physics step. Measured from velocity rather
             // than derived from the commanded heading, because it is what actually acts on the
             // creature — see CheckRollover.
@@ -315,7 +319,7 @@ namespace Leeway.CreatureEditor
             if (grounded) ApplyTraction(direction * Stats.MoveSpeed, throttle, delta);
 
             // Only from the ground, and not again while still rising from the last push-off.
-            if (md.Jump && grounded && _rb.linearVelocity.y < 0.5f) Jump();
+            if (md.Jump && grounded && risingBefore < 0.5f) Jump();
 
             _rb.MoveRotation(targetRotation);
         }
