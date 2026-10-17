@@ -49,7 +49,13 @@ namespace Leeway.MainMenu.Editor
             var busyPrefab = BuildBusyOverlayPrefab();
             var dialogPrefab = BuildMessageDialogPrefab();
             BuildSceneContents(lobbyItem, memberItem, busyPrefab, dialogPrefab);
+
+            // The game's look (rounded teal panels, Baloo 2, orange accent) over the generated layout,
+            // so rebuilding the menu does not throw the theme away.
+            Leeway.UI.Editor.LeewayUiTheme.ApplyToScene(scene);
             EditorSceneManager.SaveScene(scene, ScenePath);
+            foreach (Object prefab in new Object[] { lobbyItem, memberItem, busyPrefab, dialogPrefab })
+                Leeway.UI.Editor.LeewayUiTheme.ApplyToPrefab(AssetDatabase.GetAssetPath(prefab));
             AddSceneToBuildFirst(ScenePath);
 
             AssetDatabase.SaveAssets();

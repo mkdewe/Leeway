@@ -10,7 +10,8 @@
         "VContainer",
         "Unity.InputSystem",
         "Unity.TextMeshPro",
-        "UnityEngine.UI"
+        "UnityEngine.UI",
+        "Leeway.UI.Editor"
     ],
     "includePlatforms": [
         "Editor"
