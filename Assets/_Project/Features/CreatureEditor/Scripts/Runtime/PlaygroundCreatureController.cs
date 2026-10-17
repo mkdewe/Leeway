@@ -87,6 +87,19 @@ namespace Leeway.CreatureEditor
                  "This is the reaction window: a gentler overload gives more time, a sharper one less.")]
         [SerializeField, Min(0.05f)] private float _tipSeconds = 0.5f;
 
+        [Header("Slopes")]
+        [Tooltip("The steepest slope the legs hold on (degrees). Beyond it the grip fades and the creature slides.")]
+        [SerializeField, Range(20f, 70f)] private float _maxWalkSlope = 42f;
+
+        [Tooltip("Slope (degrees) at which it cannot keep its footing for long.")]
+        [SerializeField, Range(30f, 85f)] private float _fallSlope = 58f;
+
+        [Tooltip("How much of gravity along the slope acts once the grip is gone. 1 = a frictionless slide.")]
+        [SerializeField, Min(0f)] private float _slideGravity = 1f;
+
+        [Tooltip("Seconds of sliding on a steep slope before it loses its balance and tumbles.")]
+        [SerializeField, Min(0.1f)] private float _tumbleSeconds = 1.3f;
+
         [Tooltip("How fast the creature recovers its balance once it eases off the turn.")]
         [SerializeField, Min(0.05f)] private float _tipRecoverySeconds = 0.35f;
 
@@ -113,6 +126,7 @@ namespace Leeway.CreatureEditor
 
         /// <summary>How far the loss of balance has gone. 1 = the creature goes over.</summary>
         private float _tipProgress;
+        private float _slideTime;
 
         /// <summary>Which way the lean is going. Fixed once, at the start of the loss of balance.</summary>
         private float _tipSign;
@@ -347,7 +361,15 @@ namespace Leeway.CreatureEditor
             IsSprinting = md.Sprint && grounded && !swimming && throttle > 0.01f &&
                 Genome != null && Genome.CountParts(PartCategory.Locomotion, Rules) > 0;
             float speed = CreatureSprintRules.Speed(Stats.MoveSpeed, IsSprinting, grounded, true, _sprintMultiplier);
-            if (grounded) ApplyTraction(direction * speed, throttle, delta);
+            if (grounded)
+            {
+                // The steeper the ground, the less the legs can hold: grip fades, the body slides downhill and,
+                // if it keeps sliding, loses its balance.
+                float steepness = Steepness(out Vector3 downhill, out float slope);
+                ApplyTraction(direction * (speed * (1f - 0.7f * steepness)), throttle, delta, 1f - steepness);
+                Slide(steepness, downhill, slope, delta);
+            }
+            else _slideTime = Mathf.Max(0f, _slideTime - delta);
             else if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
 
             // Only from the ground, and not again while still rising from the last push-off.
@@ -474,6 +496,47 @@ namespace Leeway.CreatureEditor
             }
         }
 
+        /// <summary>0 on ground the legs hold, up to 1 on ground too steep to stand on.</summary>
+        private float Steepness(out Vector3 downhill, out float slope)
+        {
+            downhill = Vector3.zero;
+            slope = 0f;
+            if (_suspension == null) return 0f;
+
+            Vector3 normal = _suspension.GroundNormal;
+            slope = Vector3.Angle(normal, Vector3.up);
+            downhill = Vector3.ProjectOnPlane(Vector3.down, normal);
+            downhill = downhill.sqrMagnitude > 1e-6f ? downhill.normalized : Vector3.zero;
+
+            return Mathf.InverseLerp(_maxWalkSlope, _maxWalkSlope + 12f, slope);
+        }
+
+        /// <summary>
+        /// Gravity along a slope the legs cannot hold, and the loss of balance that follows a long slide.
+        /// </summary>
+        private void Slide(float steepness, Vector3 downhill, float slope, float delta)
+        {
+            if (steepness <= 0f || downhill == Vector3.zero)
+            {
+                _slideTime = Mathf.Max(0f, _slideTime - delta * 2f);
+                return;
+            }
+
+            float along = -Physics.gravity.y * Mathf.Sin(slope * Mathf.Deg2Rad) * _slideGravity * steepness;
+            _rb.AddForce(downhill * along, ForceMode.Acceleration);
+
+            // Footing is lost on a very steep slope at once, and on a merely steep one once it is really sliding.
+            Vector3 flat = _rb.linearVelocity;
+            flat.y = 0f;
+            bool sliding = slope >= _fallSlope || Vector3.Dot(flat, downhill) > 3f;
+            _slideTime = sliding ? _slideTime + delta : Mathf.Max(0f, _slideTime - delta);
+
+            if (_slideTime < _tumbleSeconds || !IsServerInitialized) return;
+
+            float push = Mathf.Max(KnockdownImpulseThreshold * 1.2f, Stats.Mass * 1.5f);
+            if (Knockdown(downhill * push, MiddleBoneIndex())) _slideTime = 0f;
+        }
+
         /// <summary>
         /// Buoyancy: a damped spring pulling the root up to just above the water surface. Runs inside the
         /// replicated step (the water is static), so prediction and the server float the same way.
@@ -561,7 +624,7 @@ namespace Leeway.CreatureEditor
         /// slide after a collision plays out, and releasing the key gives friction braking rather than an
         /// instant stop.</para>
         /// </remarks>
-        private void ApplyTraction(Vector3 targetVelocity, float throttle, float delta)
+        private void ApplyTraction(Vector3 targetVelocity, float throttle, float delta, float gripScale = 1f)
         {
             Vector3 velocity = _rb.linearVelocity;
 
@@ -570,7 +633,7 @@ namespace Leeway.CreatureEditor
             Vector3 error = targetVelocity - horizontal;
 
             // A released key means braking, not an instant stop.
-            float grip = throttle > 0.01f ? _acceleration : _braking;
+            float grip = (throttle > 0.01f ? _acceleration : _braking) * Mathf.Clamp01(gripScale);
 
             Vector3 acceleration = Vector3.ClampMagnitude(error / Mathf.Max(delta, 1e-4f), grip);
             _rb.AddForce(acceleration, ForceMode.Acceleration);

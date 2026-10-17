@@ -44,6 +44,9 @@ namespace Leeway.CreatureEditor
         /// <summary>The distance to the ground measured on the last step.</summary>
         public float GroundDistance { get; private set; }
 
+        /// <summary>The slope's normal under the body on the last step. Up when there is no ground.</summary>
+        public Vector3 GroundNormal { get; private set; } = Vector3.up;
+
         /// <summary>
         /// How far the suspension is compressed. The tension in the legs — the visual layer presses the
         /// knees down by it, so a loaded leg bends visibly.
@@ -110,7 +113,8 @@ namespace Leeway.CreatureEditor
         /// </remarks>
         private float ProbeUnderLegs(float maxDistance)
         {
-            float closest = Probe(_rb.position, maxDistance);
+            float closest = Probe(_rb.position, maxDistance, out Vector3 normal);
+            GroundNormal = float.IsInfinity(closest) ? Vector3.up : Vector3.Slerp(GroundNormal, normal, 0.35f);
 
             if (_locomotion == null) return closest;
 
@@ -148,16 +152,21 @@ namespace Leeway.CreatureEditor
         }
 
         /// <summary>The distance straight down from the given point. Infinity when nothing was hit.</summary>
-        private float Probe(Vector3 from, float maxDistance)
+        private float Probe(Vector3 from, float maxDistance) => Probe(from, maxDistance, out _);
+
+        private float Probe(Vector3 from, float maxDistance, out Vector3 normal)
         {
+            normal = Vector3.up;
             // Start slightly above the point so the ray does not set off from inside our own capsule.
             const float lift = 0.05f;
 
             Vector3 origin = from + Vector3.up * lift;
 
-            return Physics.Raycast(origin, Vector3.down, out RaycastHit hit, maxDistance + lift, _groundMask, QueryTriggerInteraction.Ignore)
-                ? hit.distance - lift
-                : float.PositiveInfinity;
+            if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, maxDistance + lift, _groundMask, QueryTriggerInteraction.Ignore))
+                return float.PositiveInfinity;
+
+            normal = hit.normal;
+            return hit.distance - lift;
         }
     }
 }

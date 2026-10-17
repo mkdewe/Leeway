@@ -90,6 +90,8 @@ namespace Leeway.CreatureEditor
         private float _gaitWeight;
         private float _standHeight;
         private float _unsupportedSeconds;
+        private Vector2 _tilt;
+        private CreatureSuspension _suspension;
         private readonly List<ProceduralLeg> _order = new();
         public float GaitPhase => _phase;
 
@@ -115,7 +117,11 @@ namespace Leeway.CreatureEditor
             _lastYaw = transform.eulerAngles.y;
         }
 
-        private void OnEnable() => _body.BodyRebuilt += OnBodyRebuilt;
+        private void OnEnable()
+        {
+            _body.BodyRebuilt += OnBodyRebuilt;
+            TryGetComponent(out _suspension);
+        }
 
         private void OnDisable()
         {
@@ -199,7 +205,12 @@ namespace Leeway.CreatureEditor
             // The sign is inverted: a rotation about +Z tips the top towards negative X, and we want a
             // positive lean to mean "top towards the creature's right". Without this the body leaned the
             // opposite way from the one it was about to fall.
-            armature.localRotation = Quaternion.Euler(0f, 0f, -_lean);
+            // The body also follows the ground: nose up on the way up a slope, nose down on the way down, and
+            // banked along a side slope, so the legs reach the surface instead of dangling from a level torso.
+            Vector2 tilt = _suspended ? Vector2.zero : GroundTilt();
+            _tilt = Vector2.Lerp(_tilt, tilt, 1f - Mathf.Exp(-7f * Time.deltaTime));
+
+            armature.localRotation = Quaternion.Euler(_tilt.x, 0f, -_lean + _tilt.y);
         }
 
         /// <summary>
@@ -212,9 +223,33 @@ namespace Leeway.CreatureEditor
         public void ResetLean()
         {
             _lean = 0f;
+            _tilt = Vector2.zero;
 
             Transform armature = _body.Built?.Armature;
             if (armature != null) armature.localRotation = Quaternion.identity;
+        }
+
+        /// <summary>Pitch and roll (degrees) that lay the body along the ground its feet are on.</summary>
+        private Vector2 GroundTilt()
+        {
+            Vector3 sum = Vector3.zero;
+            int count = 0;
+            foreach (ProceduralLeg leg in _legs)
+            {
+                if (!leg.PlannerHasGround) continue;
+                sum += leg.GroundNormal;
+                count++;
+            }
+
+            Vector3 normal = count > 0 ? sum / count : Vector3.up;
+            if (_suspension != null) normal = (normal + _suspension.GroundNormal).normalized;
+            if (normal.y < 0.2f) return Vector2.zero;
+
+            Vector3 local = transform.InverseTransformDirection(normal);
+            float pitch = Mathf.Atan2(local.z, local.y) * Mathf.Rad2Deg;
+            float roll = Mathf.Asin(Mathf.Clamp(-local.x, -1f, 1f)) * Mathf.Rad2Deg;
+
+            return new Vector2(Mathf.Clamp(pitch * 0.85f, -35f, 35f), Mathf.Clamp(roll * 0.7f, -25f, 25f));
         }
 
         private void LateUpdate()
