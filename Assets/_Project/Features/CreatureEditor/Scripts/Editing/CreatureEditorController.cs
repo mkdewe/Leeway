@@ -16,6 +16,9 @@ namespace Leeway.CreatureEditor
     {
         [Header("Dependencies")]
         [SerializeField] private CreatureEditorInput _input;
+
+        [Tooltip("The sculpting orbit. The scroll wheel zooms it whenever it is not over the creature.")]
+        [SerializeField] private CreatureEditorOrbitInput _orbitZoom;
         [SerializeField] private CreatureEditorSession _session;
         [SerializeField] private CreatureBodyPreview _preview;
         [SerializeField] private VertebraHandleSet _handles;
@@ -1322,7 +1325,14 @@ namespace Leeway.CreatureEditor
             // The scroll grows the flesh around the vertebra under the cursor — regardless of what is
             // currently selected by a click for dragging.
             int index = _hoveredVertebra;
-            if (index < 0 || _session.Working == null) return;
+            if (index < 0 || _session.Working == null)
+            {
+                // Not over the creature: the wheel zooms the camera, unless it is scrolling a panel.
+                bool overUi = UnityEngine.EventSystems.EventSystem.current != null
+                              && UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject();
+                if (!overUi && _orbitZoom != null) _orbitZoom.Zoom(scroll);
+                return;
+            }
 
             float current = _session.Working.GetVertebra(index).Radius;
             _session.SetVertebraRadius(index, current + Mathf.Sign(scroll) * _radiusStep);

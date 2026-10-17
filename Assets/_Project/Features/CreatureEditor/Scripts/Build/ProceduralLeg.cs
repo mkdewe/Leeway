@@ -374,12 +374,14 @@ namespace Leeway.CreatureEditor
         /// <param name="stride">The stride length matched to the current speed.</param>
         /// <param name="groundMask">The layers the foot may stand on.</param>
         /// <param name="responsiveness">How fast the foot pulls towards its target.</param>
-        public void Tick(float phase, Vector3 forward, float stride, LayerMask groundMask, float responsiveness, float deltaTime)
+        public void Tick(float phase, Vector3 forward, float stride, LayerMask groundMask, float responsiveness, float deltaTime,
+            float gaitWeight = 1f)
         {
             if (_hip == null) return;
 
             Vector3 hip = _hip.position;
-            Vector2 offset = _gait.FootOffset(phase + _phaseOffset, stride);
+            // gaitWeight 0 = standing: the step offset (reach and lift) fades out and the foot comes down under the hip.
+            Vector2 offset = _gait.FootOffset(phase + _phaseOffset, stride) * Mathf.Clamp01(gaitWeight);
 
             // The foot's rest point: under the hip, at the leg's working height.
             Vector3 neutral = hip + Vector3.down * _spec.RideHeight;

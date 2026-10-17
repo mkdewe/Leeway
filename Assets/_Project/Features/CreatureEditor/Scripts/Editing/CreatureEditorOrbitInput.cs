@@ -36,7 +36,28 @@ namespace Leeway.CreatureEditor
         [Tooltip("Moving the mouse up raises the camera above the creature instead of lowering it.")]
         [SerializeField] private bool _invertVertical = true;
 
+        [Header("Zoom")]
+        [Tooltip("How close and how far the orbit can go, as a multiple of its radius.")]
+        [SerializeField] private Vector2 _zoomRange = new(0.4f, 2.5f);
+
+        [Tooltip("Zoom change per notch of the scroll wheel (fraction of the current distance).")]
+        [SerializeField, Range(0.02f, 0.5f)] private float _zoomStep = 0.12f;
+
         private void Reset() => _orbit = GetComponent<CinemachineOrbitalFollow>();
+
+        /// <summary>
+        /// Pulls the orbit in (positive scroll) or pushes it out. The controller calls this only when the
+        /// wheel is not over the creature - there it still grows a vertebra or bends a leg.
+        /// </summary>
+        public void Zoom(float scroll)
+        {
+            if (_orbit == null || Mathf.Approximately(scroll, 0f)) return;
+
+            // The radial axis scales the orbit radius, so the authored radius and the clearance logic stay untouched.
+            _orbit.RadialAxis.Range = _zoomRange;
+            float value = _orbit.RadialAxis.Value * (1f - Mathf.Sign(scroll) * _zoomStep);
+            _orbit.RadialAxis.Value = Mathf.Clamp(value, _zoomRange.x, _zoomRange.y);
+        }
 
         private void Update()
         {

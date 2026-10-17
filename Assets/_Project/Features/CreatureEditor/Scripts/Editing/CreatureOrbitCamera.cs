@@ -1,5 +1,6 @@
 using Unity.Cinemachine;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.InputSystem;
 
 namespace Leeway.CreatureEditor
@@ -40,9 +41,21 @@ namespace Leeway.CreatureEditor
         [Tooltip("Extra room between the creature's silhouette and the lens, so a leg in mid-step does not brush it.")]
         [SerializeField, Min(0f)] private float _clearanceMargin = 0.4f;
 
+        [Header("Zoom")]
+        [Tooltip("How far the scroll wheel can pull the shot in and push it out, as a multiple of the base offset.")]
+        [SerializeField] private Vector2 _zoomRange = new(0.45f, 3f);
+
+        [Tooltip("Zoom change per notch of the scroll wheel (fraction of the current distance).")]
+        [SerializeField, Range(0.02f, 0.5f)] private float _zoomStep = 0.12f;
+
+        [Tooltip("How fast the shot follows the requested zoom.")]
+        [SerializeField] private float _zoomDamping = 10f;
+
         private CinemachineFollow _follow;
         private float _yaw;
         private float _smoothedYaw;
+        private float _zoom = 1f;
+        private float _smoothedZoom = 1f;
 
         /// <summary>The camera's heading in degrees — the frame of reference for the player's input.</summary>
         public float Yaw => _smoothedYaw;
@@ -64,7 +77,16 @@ namespace Leeway.CreatureEditor
             // the input frame of reference, to the creature's heading.
             _smoothedYaw = Mathf.LerpAngle(_smoothedYaw, _yaw, 1f - Mathf.Exp(-_damping * Time.deltaTime));
 
-            _follow.FollowOffset = Clear(Quaternion.Euler(0f, _smoothedYaw, 0f) * _baseOffset);
+            // Over a panel the wheel belongs to the UI (scrolling a list), not to the camera.
+            float scroll = mouse != null ? mouse.scroll.ReadValue().y : 0f;
+            bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+            bool live = _playCamera != null && CinemachineCore.IsLive(_playCamera);
+            if (live && !Mathf.Approximately(scroll, 0f) && !overUi)
+                _zoom = Mathf.Clamp(_zoom * (1f - Mathf.Sign(scroll) * _zoomStep), _zoomRange.x, _zoomRange.y);
+
+            _smoothedZoom = Mathf.Lerp(_smoothedZoom, _zoom, 1f - Mathf.Exp(-_zoomDamping * Time.deltaTime));
+
+            _follow.FollowOffset = Clear(Quaternion.Euler(0f, _smoothedYaw, 0f) * _baseOffset * _smoothedZoom);
         }
 
         /// <summary>

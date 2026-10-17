@@ -22,6 +22,9 @@ namespace Leeway.CreatureEditor
         /// </summary>
         public float CameraYaw;
 
+        /// <summary>Space was pressed. Travels in the payload so a replay jumps on the same tick.</summary>
+        public bool Jump;
+
         private uint _tick;
         public void Dispose() { }
         public uint GetTick() => _tick;
@@ -81,6 +84,7 @@ namespace Leeway.CreatureEditor
         private CreatureShover _shover;
         private CreatureSuspension _suspension;
         private Vector2 _moveInput;
+        private bool _jumpQueued;
         private float _yaw;
 
         /// <summary>The lateral load in units of the creature's own limit, signed. 1 = on the edge.</summary>
@@ -170,6 +174,9 @@ namespace Leeway.CreatureEditor
             }
             _moveInput = new Vector2(strafe, forward);
 
+            // Latched until the next tick sends it - a press shorter than a tick must not be lost.
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) _jumpQueued = true;
+
             if (keyboard != null && keyboard.fKey.wasPressedThisFrame && _shover != null)
                 _shover.RequestShove();
         }
@@ -194,7 +201,9 @@ namespace Leeway.CreatureEditor
                     Forward = _moveInput.y,
                     Strafe = _moveInput.x,
                     CameraYaw = _orbitCamera != null ? _orbitCamera.Yaw : 0f,
+                    Jump = _jumpQueued,
                 });
+                _jumpQueued = false;
             }
             else if (IsServerInitialized)
             {
@@ -304,6 +313,9 @@ namespace Leeway.CreatureEditor
             // With no ground contact there is nothing to push off — in the air only momentum remains.
             bool grounded = _suspension == null || _suspension.IsGrounded;
             if (grounded) ApplyTraction(direction * Stats.MoveSpeed, throttle, delta);
+
+            // Only from the ground, and not again while still rising from the last push-off.
+            if (md.Jump && grounded && _rb.linearVelocity.y < 0.5f) Jump();
 
             _rb.MoveRotation(targetRotation);
         }
@@ -424,6 +436,24 @@ namespace Leeway.CreatureEditor
                 _tipProgress = 0f;
                 _bankLoad = 0f;
             }
+        }
+
+        /// <summary>How high this creature jumps, from its legs and mass (see <see cref="CreatureJumpRules"/>).</summary>
+        public float JumpHeight => CreatureJumpRules.JumpHeight(Genome, Rules, Stats.Mass, Tuning);
+
+        /// <summary>
+        /// The push-off: a vertical velocity change, so the peak height does not depend on the tick rate
+        /// or on the mass (the mass is already in <see cref="JumpHeight"/>). Runs inside the replicated
+        /// step, so prediction and the server agree on it.
+        /// </summary>
+        private void Jump()
+        {
+            float speed = CreatureJumpRules.TakeOffSpeed(JumpHeight, Tuning.Gravity);
+            if (speed <= 0f) return;
+
+            Vector3 velocity = _rb.linearVelocity;
+            velocity.y = Mathf.Max(velocity.y, speed);
+            _rb.linearVelocity = velocity;
         }
 
         /// <summary>Recovering balance: the lean returns to upright once the legs can cope again.</summary>

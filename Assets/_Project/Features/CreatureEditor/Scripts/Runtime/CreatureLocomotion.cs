@@ -41,6 +41,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("Below this speed the creature decides it is standing still and stops pacing its legs.")]
         [SerializeField] private float _idleSpeed = 0.05f;
 
+        [Tooltip("How fast the step fades in when setting off and out when stopping (per second). On stopping, a raised foot comes down instead of freezing in mid-air.")]
+        [SerializeField, Min(0.1f)] private float _gaitBlendSpeed = 5f;
+
         [Header("Lean")]
         [Tooltip("How many degrees per second the lean keeps up with the load. Lower = sluggish, higher = jerky.")]
         [SerializeField, Min(1f)] private float _leanResponsiveness = 220f;
@@ -81,6 +84,7 @@ namespace Leeway.CreatureEditor
         private Vector3 _lastPosition;
         private float _lastYaw;
         private float _phase;
+        private float _gaitWeight;
 
         /// <summary>Whether the gait is frozen for the duration of a ragdoll.</summary>
         private bool _suspended;
@@ -223,12 +227,17 @@ namespace Leeway.CreatureEditor
             float stride = Stride(speed);
 
             // One shared phase for the whole creature; the legs are spread out by their own offsets.
-            if (speed > _idleSpeed) _phase += stepDistance / stride;
+            bool moving = speed > _idleSpeed;
+            if (moving) _phase += stepDistance / stride;
+
+            // The phase only advances while travelling, so stopping mid-step used to freeze a foot in the
+            // air. The weight fades the step out instead: every foot settles on the ground under its hip.
+            _gaitWeight = Mathf.MoveTowards(_gaitWeight, moving ? 1f : 0f, _gaitBlendSpeed * Time.deltaTime);
 
             float responsiveness = Responsiveness(speed, stride);
 
             foreach (ProceduralLeg leg in _legs)
-                leg.Tick(_phase, forward, stride, _groundMask, responsiveness, Time.deltaTime);
+                leg.Tick(_phase, forward, stride, _groundMask, responsiveness, Time.deltaTime, _gaitWeight);
         }
 
         /// <summary>
