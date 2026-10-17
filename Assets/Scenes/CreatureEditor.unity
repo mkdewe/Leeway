@@ -2827,6 +2827,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureEditorController
   _input: {fileID: 141711432}
+  _orbitZoom: {fileID: 1202080809}
   _session: {fileID: 1569494245}
   _preview: {fileID: 1569494244}
   _handles: {fileID: 1569494243}
@@ -2935,6 +2936,9 @@ MonoBehaviour:
   _sensitivity: 0.22
   _damping: 14
   _clearanceMargin: 0.4
+  _zoomRange: {x: 0.45, y: 3}
+  _zoomStep: 0.12
+  _zoomDamping: 10
 --- !u!114 &141711437
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -25940,6 +25944,8 @@ MonoBehaviour:
   _horizontalSpeed: 0.2
   _verticalSpeed: 0.12
   _invertVertical: 1
+  _zoomRange: {x: 0.4, y: 2.5}
+  _zoomStep: 0.12
 --- !u!114 &1202080810
 MonoBehaviour:
   m_ObjectHideFlags: 0
