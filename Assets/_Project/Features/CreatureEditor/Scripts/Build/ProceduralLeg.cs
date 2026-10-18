@@ -596,9 +596,12 @@ namespace Leeway.CreatureEditor
                 StepNeed = horizontal + Mathf.Abs(drift.y) * 0.5f;
 
                 float stretch = (_plant - hip).magnitude / Mathf.Max(0.01f, _spec.Reach * MaxReachFactor);
-                bool overstretched = stretch > 0.97f;
+                // A leg that is merely near the end of its reach still waits for its turn - lifting both legs of a pair
+                // at once leaves the body with nothing under it. Only one past the limit steps regardless.
+                bool mustStep = stretch > 1.04f;
+                bool wantsStep = StepNeed > StepThreshold || stretch > 0.97f;
 
-                if (overstretched || (mayStep && StepNeed > StepThreshold))
+                if (mustStep || (mayStep && wantsStep))
                 {
                     _stepping = true;
                     _stepFrom = _plant;

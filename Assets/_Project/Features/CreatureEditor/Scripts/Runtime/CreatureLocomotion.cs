@@ -57,6 +57,9 @@ namespace Leeway.CreatureEditor
         [Tooltip("How much speeding up or braking pitches the body.")]
         [SerializeField, Range(0f, 1.5f)] private float _inertiaCoupling = 0.35f;
 
+        [Tooltip("How strongly the ground under the feet turns the body toward its slope (1/s^2). What pitches a creature with only one pair of legs.")]
+        [SerializeField, Min(0f)] private float _soleStiffness = 45f;
+
         [SerializeField, Range(10f, 60f)] private float _maxPitch = 38f;
         [SerializeField, Range(10f, 45f)] private float _maxRoll = 28f;
 
@@ -311,6 +314,27 @@ namespace Leeway.CreatureEditor
 
                 // Radians per second squared -> degrees.
                 acceleration = new Vector2(pitchAcceleration, rollAcceleration) * Mathf.Rad2Deg;
+            }
+
+            // The soles: a foot is a patch, not a point, so the ground under it turns the body toward its own
+            // slope. A creature whose legs all sit at one distance along its length (a single pair) has no lever
+            // arm for the springs above in that direction, and this is what pitches it on a slope.
+            Vector3 groundNormal = Vector3.zero;
+            int soles = 0;
+            foreach (ProceduralLeg leg in _legs)
+            {
+                if (leg.IsStepping || !leg.PlannerHasGround) continue;
+                groundNormal += leg.GroundNormal;
+                soles++;
+            }
+
+            if (soles > 0)
+            {
+                Vector3 local = transform.InverseTransformDirection(groundNormal.normalized);
+                float wantedPitch = -Mathf.Atan2(local.z, local.y) * Mathf.Rad2Deg;
+                float wantedRoll = Mathf.Asin(Mathf.Clamp(-local.x, -1f, 1f)) * Mathf.Rad2Deg;
+                acceleration.x += _soleStiffness * (Mathf.Clamp(wantedPitch, -_maxPitch, _maxPitch) - _tilt.x);
+                acceleration.y += _soleStiffness * (Mathf.Clamp(wantedRoll, -_maxRoll, _maxRoll) - _tilt.y);
             }
 
             // Accelerating pitches the body about its feet.

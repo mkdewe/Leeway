@@ -79,6 +79,10 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
+            // The legs stand perpendicular to the ground, so on a slope the same leg length puts the body higher
+            // above the point straight below it: 1 / cos(slope).
+            rideHeight /= Mathf.Clamp(GroundNormal.y, 0.6f, 1f);
+
             var spring = new Suspension(_stiffness, _dampingRatio, _maxDroop);
             float probe = rideHeight + _maxDroop;
 
@@ -148,7 +152,13 @@ namespace Leeway.CreatureEditor
             if (TryGetComponent(out CapsuleCollider capsule))
                 reach += capsule.direction == 1 ? capsule.radius : capsule.height * 0.5f;
 
-            return Probe(_rb.position + velocity.normalized * reach, maxDistance);
+            Vector3 direction = velocity.normalized;
+            float ahead = Probe(_rb.position + direction * reach, maxDistance);
+
+            // Ground that simply keeps rising along a slope is not a step: the legs follow it, the body does not
+            // need lifting for it. Only the part of the rise beyond what the slope under the body predicts counts.
+            float gradient = -(GroundNormal.x * direction.x + GroundNormal.z * direction.z) / Mathf.Max(0.2f, GroundNormal.y);
+            return ahead + Mathf.Clamp(gradient, 0f, 1.7f) * reach;
         }
 
         /// <summary>The distance straight down from the given point. Infinity when nothing was hit.</summary>
