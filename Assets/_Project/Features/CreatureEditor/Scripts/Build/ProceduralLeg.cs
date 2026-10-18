@@ -511,6 +511,9 @@ namespace Leeway.CreatureEditor
         // the legs react, whatever caused it.
 
         private Vector3 _plant;
+        private Vector3 _landing;
+        private float _plantedFor;
+        private const float MinPlantSeconds = 0.18f;
         private Vector3 _stepFrom;
         private bool _planted;
         private bool _stepping;
@@ -566,7 +569,7 @@ namespace Leeway.CreatureEditor
             // follows the speed at a calm cadence, so a faster creature takes longer steps rather than quicker ones.
             float cadence = Mathf.Max(0.3f, _gait.TargetCadence * 0.6f);
             float cycle = moving ? Mathf.Clamp(speed / cadence, stride * 0.6f, Mathf.Max(stride * 1.3f, stride * 0.6f)) : 0f;
-            float ahead = cycle * 0.3f;
+            float ahead = cycle * 0.5f;
             Vector3 direction = moving ? flat / speed : Vector3.zero;
             Vector3 aim = hip + direction * ahead + (turned - offset);
 
@@ -587,7 +590,9 @@ namespace Leeway.CreatureEditor
                 _initialised = true;
             }
 
-            StepThreshold = moving ? Mathf.Max(0.08f, cycle * 0.6f) : Mathf.Max(0.05f, stride * 0.7f);
+            StepThreshold = moving ? Mathf.Max(0.1f, cycle) : Mathf.Max(0.05f, stride * 0.7f);
+
+            _plantedFor += deltaTime;
 
             if (!_stepping)
             {
@@ -598,16 +603,24 @@ namespace Leeway.CreatureEditor
                 float stretch = (_plant - hip).magnitude / Mathf.Max(0.01f, _spec.Reach * MaxReachFactor);
                 // A leg that is merely near the end of its reach still waits for its turn - lifting both legs of a pair
                 // at once leaves the body with nothing under it. Only one past the limit steps regardless.
-                bool mustStep = stretch > 1.04f;
+                bool mustStep = stretch > 1.04f && _plantedFor >= 0.08f;
                 bool wantsStep = StepNeed > StepThreshold || stretch > 0.97f;
 
-                if (mustStep || (mayStep && wantsStep))
+                // A foot that has only just landed stays down for a moment, however the body jitters over rough ground:
+                // without this the same leg could be seen to step twice in the blink of an eye.
+                bool rested = _plantedFor >= MinPlantSeconds;
+
+                if (mustStep || (mayStep && wantsStep && rested))
                 {
                     _stepping = true;
                     _stepFrom = _plant;
+                    _landing = ideal;
                     _stepProgress = 0f;
                     float travel = Mathf.Max(StepNeed, 0.05f);
-                    _stepDuration = Mathf.Clamp(0.55f / Mathf.Max(0.3f, _gait.TargetCadence), 0.16f, 0.45f);
+                    // The swing takes about 40% of the time between this leg's steps, so the legs of a pair are never both in the
+                    // air for long: slow steps at a walk, quick ones when the creature has to hurry.
+                    float period = StepThreshold / Mathf.Max(0.3f, speed);
+                    _stepDuration = Mathf.Clamp(period * 0.4f, 0.09f, 0.45f);
                     _stepHeight = Mathf.Clamp(_gait.StepHeight * Mathf.Clamp(0.6f + travel / stride, 0.8f, 1.5f), 0.04f, _gait.StepHeight * 1.6f + 0.04f);
                 }
             }
@@ -618,12 +631,16 @@ namespace Leeway.CreatureEditor
                 _stepProgress += deltaTime / _stepDuration;
                 float t = Mathf.Clamp01(_stepProgress);
                 float eased = t * t * (3f - 2f * t);
-                target = Vector3.Lerp(_stepFrom, ideal, eased) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * _stepHeight);
+                // The landing spot is smoothed: on broken ground the raw sample jumps between facets.
+                _landing = Vector3.Lerp(_landing, ideal, 1f - Mathf.Exp(-22f * deltaTime));
+                target = Vector3.Lerp(_stepFrom, _landing, eased) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * _stepHeight);
 
                 if (_stepProgress >= 1f)
                 {
                     _stepping = false;
-                    _plant = ideal;
+                    // A foot cannot be left planted beyond the leg's reach - it would only have to step again at once.
+                    _plant = ClampToReach(hip, _landing);
+                    _plantedFor = 0f;
                     target = _plant;
                 }
             }
