@@ -39,7 +39,13 @@ namespace Leeway.Planet
         [Header("Planet camera")]
         [SerializeField, Range(20f, 60f)] private float _fieldOfView = 35f;
         [Tooltip("Seconds the camera takes to fly between the island and the planet.")]
-        [SerializeField, Min(0.5f)] private float _flightSeconds = 3.6f;
+        [SerializeField, Min(0.5f)] private float _flightSeconds = 2.8f;
+        [Tooltip("Degrees the camera banks into the swing round to the orbit.")]
+        [SerializeField, Range(0f, 12f)] private float _leanDegrees = 5f;
+        [Tooltip("Degrees of slow sway while climbing.")]
+        [SerializeField, Range(0f, 2f)] private float _swayDegrees = 0.5f;
+        [Tooltip("Degrees the field of view opens at the fastest part of the flight.")]
+        [SerializeField, Range(0f, 25f)] private float _fieldKick = 9f;
         [Tooltip("Closest the planet camera gets to the surface, as a multiple of the radius.")]
         [SerializeField, Min(1.05f)] private float _nearFactor = 1.35f;
         [Tooltip("Farthest the planet camera backs off, as a multiple of the distance at which the planet just fits.")]
@@ -391,7 +397,12 @@ namespace Leeway.Planet
                 return;
             }
 
-            float s = Mathf.SmoothStep(0f, 1f, _flight);
+            float f = _flight;
+            // Up is quick and starts at once; the swing round to the orbit comes late, when the planet already fills
+            // the view. A climb that moves sideways from the first metre is what made the camera skate over the surface.
+            float rise = Mathf.Lerp(Mathf.SmoothStep(0f, 1f, f), 1f - (1f - f) * (1f - f), 0.65f);
+            float swing = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, f));
+            float turn = Mathf.SmoothStep(0f, 1f, f);
             OrbitPose(out Vector3 orbitPosition, out Quaternion orbitRotation);
 
             CameraState from = _ground.State;
@@ -402,19 +413,36 @@ namespace Leeway.Planet
             Vector3 a = groundPosition - centre, b = orbitPosition - centre;
             float surface = _planet.Radius + _planet.SurfaceGap;
             float altitudeA = Mathf.Max(a.magnitude - surface, 30f), altitudeB = Mathf.Max(b.magnitude - surface, 30f);
-            Vector3 direction = Vector3.Slerp(a.normalized, b.normalized, s);
-            float distance = surface + Mathf.Exp(Mathf.Lerp(Mathf.Log(altitudeA), Mathf.Log(altitudeB), s));
+            Vector3 direction = Vector3.Slerp(a.normalized, b.normalized, swing);
+            float distance = surface + Mathf.Exp(Mathf.Lerp(Mathf.Log(altitudeA), Mathf.Log(altitudeB), rise));
+            Vector3 position = centre + direction * distance;
+
+            // The gaze: first the ground camera's own, then turning to look down at the island it is leaving, then
+            // - once high - on to the framing of the orbit. The heading of the ground camera keeps "up" in the picture
+            // meaningful when the view is straight down.
+            Vector3 heading = Vector3.ProjectOnPlane(groundRotation * Vector3.forward, direction);
+            if (heading.sqrMagnitude < 1e-4f) heading = Vector3.ProjectOnPlane(Vector3.forward, direction);
+            Quaternion lookDown = Quaternion.LookRotation(centre - position, heading.normalized);
+            Quaternion gaze = Quaternion.Slerp(groundRotation, lookDown, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.55f, f)));
+            gaze = Quaternion.Slerp(gaze, orbitRotation, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, f)));
+
+            // Alive, not on rails: the camera leans into the swing, the field of view opens with the speed and
+            // closes again on arrival, and a faint sway comes and goes with the effort of the climb.
+            float effort = Mathf.Sin(f * Mathf.PI);
+            float side = Mathf.Sign(Vector3.Dot(Vector3.Cross(a.normalized, b.normalized), Vector3.up) + 1e-4f);
+            float lean = _leanDegrees * Mathf.Sin(swing * Mathf.PI) * side;
+            float sway = (Mathf.PerlinNoise(Time.unscaledTime * 1.7f, 3.1f) - 0.5f) * 2f * _swayDegrees * effort;
+            Quaternion alive = Quaternion.AngleAxis(lean + sway, Vector3.forward);
 
             Transform eye = _planetCamera.transform;
-            eye.position = centre + direction * distance;
-            eye.rotation = Quaternion.Slerp(groundRotation, orbitRotation, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.05f, 0.85f, _flight)));
-            _eye = eye.position;
+            eye.SetPositionAndRotation(position, gaze * alive);
+            _eye = position;
             _hasEye = true;
 
             LensSettings lens = _planetCamera.Lens;
-            lens.FieldOfView = Mathf.Lerp(from.Lens.FieldOfView, _fieldOfView, s);
-            lens.NearClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.NearClipPlane, 0.01f)), Mathf.Log(PlanetNear), s));
-            lens.FarClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.FarClipPlane, 10f)), Mathf.Log(PlanetFar), s));
+            lens.FieldOfView = Mathf.Lerp(from.Lens.FieldOfView, _fieldOfView, turn) + _fieldKick * effort;
+            lens.NearClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.NearClipPlane, 0.01f)), Mathf.Log(PlanetNear), rise));
+            lens.FarClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.FarClipPlane, 10f)), Mathf.Log(PlanetFar), rise));
             _planetCamera.Lens = lens;
         }
 

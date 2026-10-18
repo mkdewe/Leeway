@@ -66,6 +66,43 @@ Shader "Leeway/Toon"
             half _RimPower;
         CBUFFER_END
 
+        // GPU Resident Drawer i GPU occlusion culling (Unity 6): obiekty tego shadera rysuje wtedy GPU z wlasnym cullingiem.
+        // Wlasciwosci materialu musza byc zadeklarowane takze dla DOTS instancing.
+        #ifdef UNITY_DOTS_INSTANCING_ENABLED
+        UNITY_DOTS_INSTANCING_START(MaterialPropertyMetadata)
+            UNITY_DOTS_INSTANCED_PROP(float4, _BaseMap_ST)
+            UNITY_DOTS_INSTANCED_PROP(float4, _BaseColor)
+            UNITY_DOTS_INSTANCED_PROP(float, _BumpScale)
+            UNITY_DOTS_INSTANCED_PROP(float, _Decay)
+            UNITY_DOTS_INSTANCED_PROP(float4, _DecayColor)
+            UNITY_DOTS_INSTANCED_PROP(float, _FogAmount)
+            UNITY_DOTS_INSTANCED_PROP(float4, _EmissionColor)
+            UNITY_DOTS_INSTANCED_PROP(float, _Bands)
+            UNITY_DOTS_INSTANCED_PROP(float, _BandSoftness)
+            UNITY_DOTS_INSTANCED_PROP(float4, _ShadowTint)
+            UNITY_DOTS_INSTANCED_PROP(float, _ShadowStrength)
+            UNITY_DOTS_INSTANCED_PROP(float, _AmbientStrength)
+            UNITY_DOTS_INSTANCED_PROP(float4, _RimColor)
+            UNITY_DOTS_INSTANCED_PROP(float, _RimStrength)
+            UNITY_DOTS_INSTANCED_PROP(float, _RimPower)
+        UNITY_DOTS_INSTANCING_END(MaterialPropertyMetadata)
+        #define _BaseMap_ST UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _BaseMap_ST)
+        #define _BaseColor UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _BaseColor)
+        #define _BumpScale UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _BumpScale)
+        #define _Decay UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _Decay)
+        #define _DecayColor UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _DecayColor)
+        #define _FogAmount UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _FogAmount)
+        #define _EmissionColor UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _EmissionColor)
+        #define _Bands UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _Bands)
+        #define _BandSoftness UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _BandSoftness)
+        #define _ShadowTint UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _ShadowTint)
+        #define _ShadowStrength UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _ShadowStrength)
+        #define _AmbientStrength UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _AmbientStrength)
+        #define _RimColor UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float4, _RimColor)
+        #define _RimStrength UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _RimStrength)
+        #define _RimPower UNITY_ACCESS_DOTS_INSTANCED_PROP_WITH_DEFAULT(float, _RimPower)
+        #endif
+
         // Wyrastanie propow wyspy (IslandGenerator): uv2 = (pivot.xyz, opoznienie + 2).
         // w < 2 to zwykly obiekt - dziala jak dotad (brakujacy kanal UV2 bywa czytany jako (0,0,0,1)). Globalne, bo propy sa
         // scalone w meshe chunkow i nie maja wlasnych transformow do skalowania.
@@ -109,7 +146,7 @@ Shader "Leeway/Toon"
             Cull [_Cull]
 
             HLSLPROGRAM
-            #pragma target 3.0
+            #pragma target 4.5
             #pragma vertex Vert
             #pragma fragment Frag
             #pragma shader_feature_local _VERTEX_COLOR
@@ -124,6 +161,7 @@ Shader "Leeway/Toon"
             #pragma multi_compile_fragment _ _SHADOWS_SOFT_LOW _SHADOWS_SOFT_MEDIUM _SHADOWS_SOFT_HIGH
             #pragma multi_compile_fragment _ _SCREEN_SPACE_OCCLUSION
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
             #include_with_pragmas "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Fog.hlsl"
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Lighting.hlsl"
@@ -250,10 +288,11 @@ Shader "Leeway/Toon"
             ZWrite On ZTest LEqual ColorMask 0 Cull [_Cull]
 
             HLSLPROGRAM
-            #pragma target 3.0
+            #pragma target 4.5
             #pragma vertex ShadowVert
             #pragma fragment ShadowFrag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
             #pragma multi_compile_vertex _ _CASTING_PUNCTUAL_LIGHT_SHADOW
 
             #include "Packages/com.unity.render-pipelines.universal/ShaderLibrary/Shadows.hlsl"
@@ -295,10 +334,11 @@ Shader "Leeway/Toon"
             ZWrite On ColorMask R Cull [_Cull]
 
             HLSLPROGRAM
-            #pragma target 3.0
+            #pragma target 4.5
             #pragma vertex DepthVert
             #pragma fragment DepthFrag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
 
             struct Attributes
             {
@@ -326,10 +366,11 @@ Shader "Leeway/Toon"
             ZWrite On Cull [_Cull]
 
             HLSLPROGRAM
-            #pragma target 3.0
+            #pragma target 4.5
             #pragma vertex NormalsVert
             #pragma fragment NormalsFrag
             #pragma multi_compile_instancing
+            #pragma multi_compile _ DOTS_INSTANCING_ON
 
             struct Attributes
             {

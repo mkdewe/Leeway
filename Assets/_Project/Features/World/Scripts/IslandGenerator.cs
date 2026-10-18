@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using Leeway.Rendering;
 using Leeway.World.Domain;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -309,6 +310,7 @@ namespace Leeway.World
             if (!combine)
             {
                 GameObject full = Instantiate(prefab, parent);
+                LodConvention.Ensure(full);
                 SetLocal(full.transform, rootLocal);
                 return;
             }
@@ -318,7 +320,7 @@ namespace Leeway.World
             int chunk = ChunkOf(pivot);
             float growDelay = GrowDelay(pivot);
             foreach (PrefabParts.Part part in parts.Parts)
-                batches.Add(chunk, part.Material, part.CastShadows, new PropBatches.Instance
+                batches.Add(chunk, part.Lod, part.Material, part.CastShadows, new PropBatches.Instance
                 {
                     Mesh = part.Mesh,
                     SubMesh = part.SubMesh,
@@ -339,6 +341,8 @@ namespace Leeway.World
         private void BuildBatches(PropBatches batches)
         {
             Transform parent = Group("PropMeshes");
+            var chunkParents = new Dictionary<int, Transform>();
+            var chunkRenderers = new Dictionary<int, List<(Renderer Renderer, int Lod)>>();
             var sources = new Dictionary<(Mesh, int), SubMeshSource>();
             var vertices = new List<Vector3>();
             var normals = new List<Vector3>();
@@ -389,13 +393,51 @@ namespace Leeway.World
                 padded.Expand(4f); // Include the maximum visual sway in culling bounds.
                 mesh.bounds = padded;
 
+                // Each chunk is one object, so that its levels of detail can be switched together.
+                if (!chunkParents.TryGetValue(batch.Key.Chunk, out Transform chunkParent))
+                {
+                    chunkParent = new GameObject("Chunk " + batch.Key.Chunk).transform;
+                    chunkParent.SetParent(parent, false);
+                    chunkParents[batch.Key.Chunk] = chunkParent;
+                    chunkRenderers[batch.Key.Chunk] = new List<(Renderer, int)>();
+                }
+
                 var go = new GameObject(mesh.name);
-                go.transform.SetParent(parent, false);
+                go.transform.SetParent(chunkParent, false);
                 go.AddComponent<MeshFilter>().sharedMesh = Own(mesh);
                 var renderer = go.AddComponent<MeshRenderer>();
                 renderer.sharedMaterial = batch.Key.Material;
                 renderer.shadowCastingMode = batch.Key.CastShadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
+                chunkRenderers[batch.Key.Chunk].Add((renderer, batch.Key.Lod));
             }
+
+            foreach (KeyValuePair<int, List<(Renderer Renderer, int Lod)>> chunk in chunkRenderers)
+                GroupLevels(chunkParents[chunk.Key], chunk.Value);
+        }
+
+        // The merged meshes of a chunk are one LODGroup when the models in it come with levels of detail: far from the
+        // camera the chunk shows the simpler meshes of all of them at once. Models with no levels are in every level.
+        private static void GroupLevels(Transform chunk, List<(Renderer Renderer, int Lod)> renderers)
+        {
+            var levels = new SortedSet<int>();
+            foreach ((Renderer _, int lod) in renderers) if (lod != LodConvention.Shared) levels.Add(lod);
+            if (levels.Count < 2) return;
+
+            var order = new List<int>(levels);
+            LodProfile profile = LodProfile.Current;
+            var lods = new LOD[order.Count];
+            for (int i = 0; i < order.Count; i++)
+            {
+                var members = new List<Renderer>();
+                foreach ((Renderer renderer, int lod) in renderers)
+                    if (lod == order[i] || lod == LodConvention.Shared) members.Add(renderer);
+                lods[i] = new LOD(i < order.Count - 1 ? profile.TransitionAfter(i) : 0f, members.ToArray());
+            }
+
+            var group = chunk.gameObject.AddComponent<LODGroup>();
+            group.SetLODs(lods);
+            group.fadeMode = LODFadeMode.None;
+            group.RecalculateBounds();
         }
 
         private PrefabParts PartsOf(GameObject prefab)
@@ -404,6 +446,7 @@ namespace Leeway.World
 
             var parts = new PrefabParts();
             Matrix4x4 rootInverse = prefab.transform.worldToLocalMatrix;
+            Dictionary<Renderer, int> levels = LodConvention.LevelsOf(prefab);
             foreach (MeshFilter filter in prefab.GetComponentsInChildren<MeshFilter>(true))
             {
                 if (filter.sharedMesh == null || !filter.TryGetComponent(out MeshRenderer renderer)) continue;
@@ -418,6 +461,7 @@ namespace Leeway.World
                         Material = materials[sub],
                         CastShadows = renderer.shadowCastingMode != ShadowCastingMode.Off,
                         LocalToPrefab = rootInverse * filter.transform.localToWorldMatrix,
+                        Lod = levels.TryGetValue(renderer, out int level) ? level : LodConvention.Shared,
                     });
                 }
             }
@@ -431,6 +475,7 @@ namespace Leeway.World
                 proxy.SetActive(false);
                 foreach (MeshRenderer r in proxy.GetComponentsInChildren<MeshRenderer>(true)) DestroyImmediate(r);
                 foreach (MeshFilter f in proxy.GetComponentsInChildren<MeshFilter>(true)) DestroyImmediate(f);
+                foreach (LODGroup g in proxy.GetComponentsInChildren<LODGroup>(true)) DestroyImmediate(g);
                 parts.Proxy = proxy;
             }
 
@@ -510,6 +555,8 @@ namespace Leeway.World
                 public Material Material;
                 public bool CastShadows;
                 public Matrix4x4 LocalToPrefab;
+                /// <summary>Level of detail it belongs to (see LodConvention), or LodConvention.Shared.</summary>
+                public int Lod;
             }
 
             public readonly List<Part> Parts = new();
@@ -521,19 +568,21 @@ namespace Leeway.World
             public readonly struct Key : IEquatable<Key>
             {
                 public readonly int Chunk;
+                public readonly int Lod;
                 public readonly Material Material;
                 public readonly bool CastShadows;
 
-                public Key(int chunk, Material material, bool castShadows)
+                public Key(int chunk, int lod, Material material, bool castShadows)
                 {
                     Chunk = chunk;
+                    Lod = lod;
                     Material = material;
                     CastShadows = castShadows;
                 }
 
-                public bool Equals(Key other) => Chunk == other.Chunk && Material == other.Material && CastShadows == other.CastShadows;
+                public bool Equals(Key other) => Chunk == other.Chunk && Lod == other.Lod && Material == other.Material && CastShadows == other.CastShadows;
                 public override bool Equals(object obj) => obj is Key other && Equals(other);
-                public override int GetHashCode() => HashCode.Combine(Chunk, Material.GetHashCode(), CastShadows);
+                public override int GetHashCode() => HashCode.Combine(Chunk, Lod, Material.GetHashCode(), CastShadows);
             }
 
             public struct Instance
@@ -548,9 +597,9 @@ namespace Leeway.World
 
             public readonly Dictionary<Key, List<Instance>> All = new();
 
-            public void Add(int chunk, Material material, bool castShadows, Instance instance)
+            public void Add(int chunk, int lod, Material material, bool castShadows, Instance instance)
             {
-                var key = new Key(chunk, material, castShadows);
+                var key = new Key(chunk, lod, material, castShadows);
                 if (!All.TryGetValue(key, out List<Instance> list)) All[key] = list = new List<Instance>();
                 list.Add(instance);
             }

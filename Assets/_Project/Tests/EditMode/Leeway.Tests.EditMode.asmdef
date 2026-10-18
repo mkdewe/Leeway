@@ -10,7 +10,8 @@
     "Leeway.CreatureEditor.Editor",
     "Leeway.World",
     "Leeway.Combat",
-    "Leeway.Planet"
+    "Leeway.Planet",
+    "Leeway.Rendering"
   ],
   "includePlatforms": [
     "Editor"

@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
+using Leeway.Rendering;
 using Leeway.World.Domain;
 using UnityEngine;
 
@@ -122,6 +123,9 @@ namespace Leeway.World
                     BornAt = Time.time + (world - generator.IslandCenter).magnitude * 0.012f,
                 };
 
+                // Its levels of detail are measured at the size it will have, not the nothing it starts as.
+                instance.transform.localScale = plant.FullScale;
+                LodConvention.Ensure(instance);
                 instance.transform.localScale = Vector3.zero;
                 _plants.Add(plant);
             }
