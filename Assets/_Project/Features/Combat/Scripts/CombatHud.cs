@@ -58,7 +58,7 @@ namespace Leeway.Combat
                 if(secondary!=primary)line+="    R: "+BodyAbilityRules.Name(secondary);
                 if(BodyAbilityRules.Has(g,r,CreatureAbility.Scan))line+="\nQ: czujność"+(_fighter.ScanCooldown>0?$" ({_fighter.ScanCooldown:0}s)":"");
                 if(BodyAbilityRules.Has(g,r,CreatureAbility.Forage))line+="    E: pomoc / żerowanie";
-                line+="\nShift: sprint    Spacja: skok    F: odepchnięcie    1 / 2 / 3: paszcza / ramiona / róg";
+                line+="\nShift: sprint    Spacja: skok    F: odepchnięcie    1 / 2 / 3 / 4: paszcza / ramiona / róg / kopnięcie";
                 _abilityText.text=!_body.IsAlive?"Odrodzenie w obozie za chwilę.":_body.IsInEditorPad?"Strefa edytora — wyjdź poza krąg, aby walczyć.":line;
             }
             if(Time.time>=_nextLabels){_nextLabels=Time.time+0.5f;_labels=FindObjectsByType<NpcCreatureAgent>(FindObjectsSortMode.None);}

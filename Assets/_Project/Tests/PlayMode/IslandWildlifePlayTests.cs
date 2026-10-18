@@ -48,7 +48,7 @@ namespace Leeway.Tests
             }
             yield break;
         }
-        private IEnumerator Arrange(IslandSpecies species)
+        private IEnumerator Arrange(IslandSpecies species,float gap=1.1f)
         {
             var agents=UnityEngine.Object.FindObjectsByType<NpcCreatureAgent>(FindObjectsSortMode.None);
             var a=agents.First(x=>x.Species==species);
@@ -65,7 +65,7 @@ namespace Leeway.Tests
                 typeof(PlaygroundCreatureController).GetField("_yaw",BindingFlags.Instance|BindingFlags.NonPublic).SetValue(controller,0f);
                 var rb=actor.GetComponent<Rigidbody>();rb.interpolation=RigidbodyInterpolation.None;rb.constraints=RigidbodyConstraints.FreezeAll;
                 rb.position=start;actor.transform.position=start;rb.rotation=Quaternion.identity;actor.transform.rotation=Quaternion.identity;
-                rb.linearVelocity=Vector3.zero;start.z+=2;
+                rb.linearVelocity=Vector3.zero;start.z+=gap;
                 actor.GetComponent<CreaturePuppet>()?.Teleport(); // the physical body does not follow a teleport by itself
             }
             Physics.SyncTransforms();yield return new WaitForFixedUpdate();yield return null;
@@ -83,6 +83,20 @@ namespace Leeway.Tests
             Assert.That(_victim.Hp,Is.EqualTo(before-damage).Within(0.01f),"The telegraphed strike must hit a target in front.");
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.False);
         }
+        [UnityTest] public IEnumerator TargetOutsideTheStrikeAreaIsNotHurt()
+        {
+            yield return Arrange(IslandSpecies.Rockhorn);
+            float before=_victim.Hp;
+            var rb=_victim.GetComponent<Rigidbody>();var far=_attacker.transform.position+Vector3.forward*3.6f;
+            rb.position=far;_victim.transform.position=far;_victim.GetComponent<CreaturePuppet>()?.Teleport();
+            Physics.SyncTransforms();yield return new WaitForFixedUpdate();
+            Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
+            var phases=new System.Collections.Generic.List<AttackPhase>();
+            var life=_attacker.GetComponent<CreatureLife>();life.AttackPhaseChanged+=(a,p)=>phases.Add(p);
+            yield return Wait(()=>!_combat.IsWindingUp,"Attack impact");yield return new WaitForSeconds(0.6f);
+            Assert.That(_victim.Hp,Is.EqualTo(before),"Nothing stood in the jaw's area while the window was open.");
+            Assert.That(phases,Does.Contain(AttackPhase.Active),"The hit window event frame was reached.");
+        }
         [UnityTest] public IEnumerator KnockdownCancelsPendingHornStrike()
         {
             yield return Arrange(IslandSpecies.Rockhorn);
@@ -94,7 +108,7 @@ namespace Leeway.Tests
         }
         [UnityTest] public IEnumerator ScanHasCooldownAndCorpseCanBeConsumedOnce()
         {
-            yield return Arrange(IslandSpecies.BrookGatherer);
+            yield return Arrange(IslandSpecies.BrookGatherer,2f);
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Scan),Is.True);
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Scan),Is.False);
             _attacker.TakeDamage(35);float before=_attacker.Hp;_victim.TakeDamage(99999);
@@ -119,9 +133,9 @@ namespace Leeway.Tests
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
             yield return Wait(()=>!_combat.IsWindingUp,"Rear strike");yield return new WaitForSeconds(0.6f);Assert.That(_victim.Hp,Is.EqualTo(before));
             yield return Wait(()=>_combat.CooldownRemaining<=0,"Cooldown");
-            var front=_attacker.transform.position+Vector3.forward*2;rb.position=front;_victim.transform.position=front;
+            var front=_attacker.transform.position+Vector3.forward*1.1f;rb.position=front;_victim.transform.position=front;
             var wall=GameObject.CreatePrimitive(PrimitiveType.Cube);wall.name="Combat LOS test wall";
-            wall.transform.position=_attacker.transform.position+Vector3.forward;wall.transform.localScale=new Vector3(3,3,0.25f);
+            wall.transform.position=_attacker.transform.position+Vector3.forward*0.55f;wall.transform.localScale=new Vector3(3,3,0.25f);
             Physics.SyncTransforms();yield return new WaitForFixedUpdate();
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Bite),Is.True);
             yield return Wait(()=>!_combat.IsWindingUp,"Blocked strike");yield return new WaitForSeconds(0.6f);UnityEngine.Object.Destroy(wall);
@@ -129,7 +143,7 @@ namespace Leeway.Tests
         }
         [UnityTest] public IEnumerator ArmsAssistAllyAndPlayerRespawnsWithSameGenome()
         {
-            yield return Arrange(IslandSpecies.BrookGatherer);
+            yield return Arrange(IslandSpecies.BrookGatherer,2f);
             _victim.GetComponent<CreatureCombatant>().ConfigureTeam(_combat.Team);
             Assert.That(_victim.Knockdown(Vector3.forward*30,0),Is.True);
             Assert.That(_combat.ServerUseAbility(CreatureAbility.Forage),Is.True);

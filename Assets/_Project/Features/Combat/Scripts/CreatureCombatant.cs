@@ -26,9 +26,8 @@ namespace Leeway.Combat
         private readonly System.Collections.Generic.List<CreatureLife.Tip> _tips=new();
         private readonly System.Collections.Generic.List<Vector3> _prevTips=new();
         private bool _striking;
-        private float _strikeEnd,_strikeRadius;
+        private float _strikeEnd;
         private CreatureAbility _strikeAbility;
-        private const float StrikeSeconds=0.2f;
         private float _scanUntil,_noticeUntil;
         private string _notice;
         public AttackSpec Spec=>_spec;
@@ -56,7 +55,7 @@ namespace Leeway.Combat
         {
             if(!IsOwner||!_body.IsAlive||_body.IsKnockedDown||_body.IsInEditorPad)return;
             if(!BodyAbilityRules.Has(_body.Genome,_body.Rules,ability))return;
-            if(ability<=CreatureAbility.Horn&&CooldownRemaining>0)return;
+            if(ability<=CreatureAbility.Kick&&CooldownRemaining>0)return;
             if(ability==CreatureAbility.Scan&&ScanCooldown>0||ability==CreatureAbility.Forage&&ForageCooldown>0)return;
             CmdAbility(ability);
         }
@@ -87,55 +86,46 @@ namespace Leeway.Combat
             }
             if(_striking)TickStrike();
         }
-        /// <summary>Every machine plays the same pose from the same synced timing, so the blow can be seen coming.</summary>
+        /// <summary>
+        /// Every machine plays the same animation from the same synced start time, so the blow can be seen
+        /// coming and the marked frames (hit window open / closed) land together everywhere.
+        /// </summary>
         private void PoseBody()
         {
             if(!_life&&!TryGetComponent(out _life))return;
-            float since=Now-_impactAt.Value;
-            if(_winding.Value)_life.PoseAttack(_action.Value,WindupProgress,since);
-            else if(_impactAt.Value>0&&since<0.8f)_life.PoseAttack(_action.Value,1,since);
+            if(_impactAt.Value<=0)return;
+            var timeline=AttackTimeline.For(_action.Value);
+            float sinceStart=Now-(_impactAt.Value-timeline.Windup);
+            if(sinceStart<timeline.Total+0.05f)_life.PoseAttack(_action.Value,sinceStart);
         }
         /// <summary>
-        /// The moment of impact. From here the blow is the body part itself moving: the server sweeps the
-        /// tip of the jaw, hand or horn through the world for a fraction of a second and hits what it
-        /// touches - not what happened to be standing within reach when the clock ran out.
+        /// The hit window opens - the marked frame of the animation. From here until it closes the area of
+        /// the striking part (jaw, hand, foot, horn) hurts whatever stands in it, once. Outside the window
+        /// nothing does, however close it stands.
         /// </summary>
         private void BeginStrike()
         {
             _strikeAbility=_action.Value;
-            _strikeRadius=0;
             if(!_life&&!TryGetComponent(out _life)){ResolveAttack();return;}
             _life.GetTips(_strikeAbility,_tips);
+            // A body with nothing to strike with just shoves: the old reach-and-arc check, at the marked frame.
             if(_tips.Count==0){ResolveAttack();return;}
             _prevTips.Clear();foreach(var t in _tips)_prevTips.Add(t.Position);
-            _strikeEnd=Now+StrikeSeconds;_striking=true;
+            _strikeEnd=Now+AttackTimeline.For(_strikeAbility).Active;_striking=true;
         }
         private void TickStrike()
         {
             if(!_body.IsAlive||_body.IsKnockedDown){_striking=false;RpcStruck(null,0,transform.position,false);return;}
             _life.GetTips(_strikeAbility,_tips);
-            // The creature throws its weight behind the blow: the tip is carried forward until the blow's
-            // full reach, so how far it can hurt stays what the build says, while where it hurts is the tip.
-            float progress=1-Mathf.Clamp01((_strikeEnd-Now)/StrikeSeconds);
-            float lunge=Mathf.Clamp01(progress/0.6f);
-            Vector3 heading=transform.forward;heading.y=0;heading.Normalize();
             for(int i=0;i<_tips.Count&&i<_prevTips.Count;i++)
             {
-                Vector3 tip=_tips[i].Position;
-                // A physical body that has not caught up with its capsule (just teleported, just respawned) says
-                // nothing about where the blow is: fall back on the front of the capsule.
-                if((tip-transform.position).sqrMagnitude>Mathf.Pow(_pendingSpec.Reach+2.5f,2))tip=transform.position+heading*0.6f+Vector3.up*0.5f;
-                Vector3 flat=tip-transform.position;flat.y=0;
-                float extra=Mathf.Max(0,_pendingSpec.Reach+_forgiveness-Vector3.Dot(flat,heading));
-                Vector3 to=tip+heading*extra*lunge;
-                Vector3 from=_prevTips[i];
+                Vector3 to=_tips[i].Position,from=_prevTips[i];
                 Vector3 velocity=(to-from)/Mathf.Max(Time.deltaTime,1e-3f);
-                if(TryHitAlong(from,to,Mathf.Max(0.25f,_tips[i].Radius),velocity)){_striking=false;return;}
+                if(TryHitAlong(from,to,_tips[i].Radius,velocity)){_striking=false;return;}
                 _prevTips[i]=to;
             }
-            // The swing is over without the tip touching anything. Whatever is still inside the blow's reach and
-            // arc is caught by it all the same - a glancing contact the sampling stepped over.
-            if(Now>=_strikeEnd){_striking=false;ResolveAttack();}
+            // The window has closed and nothing was in the area: a miss.
+            if(Now>=_strikeEnd){_striking=false;RpcStruck(null,0,transform.position,false);}
         }
         private bool TryHitAlong(Vector3 from,Vector3 to,float radius,Vector3 velocity)
         {

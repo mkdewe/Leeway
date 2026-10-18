@@ -55,9 +55,6 @@ namespace Leeway.CreatureEditor
         [Tooltip("How far the jaw opens at full gape (degrees).")]
         [SerializeField, Range(10f, 70f)] private float _maxJawDegrees = 42f;
 
-        private const float StrikeSeconds = 0.2f;
-        private const float RecoverSeconds = 0.35f;
-
         private CreatureBody _body;
         private CreatureLocomotion _locomotion;
         private BuiltCreatureBody _builtFor;
@@ -70,6 +67,7 @@ namespace Leeway.CreatureEditor
         private LookAtIK _lookIk;
         private Transform _lookTarget;
         private readonly List<LegRef> _arms = new();
+        private readonly List<LegRef> _kicks = new();
 
         private Vector3 _glancePoint;
         private float _nextGlance;
@@ -141,6 +139,7 @@ namespace Leeway.CreatureEditor
             _breathBones = null;
             _lookIk = null;
             _arms.Clear();
+            _kicks.Clear();
         }
 
         /// <summary>Finds the mouth, the eyes, the horn and the arms of the freshly built body and rigs them.</summary>
@@ -212,6 +211,8 @@ namespace Leeway.CreatureEditor
 
             // The puppet's own mapping writes these bones; the solver must not reset them to a stored pose first.
             _lookIk.fixTransforms = true;
+            // After the solver has turned the head, the head is thrown forward for a bite or a thrust.
+            _lookIk.solver.OnPostUpdate += ApplyHeadLunge;
             _lookIk.solver.target = _lookTarget;
             _lookIk.solver.IKPositionWeight = 0f;
         }
@@ -219,30 +220,52 @@ namespace Leeway.CreatureEditor
         // --- Attack poses ---------------------------------------------------------------------------
 
         /// <summary>
-        /// Poses the body for a blow. A pure function of time: call it every frame with the attack's
-        /// synced timing and every machine shows the same movement.
+        /// Raised on every machine when an attack passes from one phase to the next: the wind-up begins, the
+        /// hit window opens (the marked event frame), the hit window closes, the move is done. Sounds and
+        /// effects hang off it; the server's damage is applied inside the open window.
         /// </summary>
-        /// <param name="windup">How far through the wind-up the blow is, 0 to 1. Above 1 it has been struck.</param>
-        /// <param name="sinceImpact">Seconds since the moment of impact, negative before it.</param>
-        public void PoseAttack(CreatureAbility ability, float windup, float sinceImpact)
+        public event System.Action<CreatureAbility, AttackPhase> AttackPhaseChanged;
+
+        private AttackPhase _phaseSeen = AttackPhase.Done;
+        private float _headLunge;
+
+        /// <summary>
+        /// Poses the body for a blow. A pure function of time: call it every frame with the attack's
+        /// synced timing and every machine shows the same movement, and reaches the same event frames.
+        /// </summary>
+        /// <param name="sinceStart">Seconds since the attack began (the start of the wind-up).</param>
+        public void PoseAttack(CreatureAbility ability, float sinceStart)
         {
-            float strike = Mathf.Clamp01(sinceImpact / StrikeSeconds);
-            float recover = Mathf.Clamp01((sinceImpact - StrikeSeconds) / RecoverSeconds);
-            bool active = sinceImpact < StrikeSeconds + RecoverSeconds;
+            AttackTimeline timeline = AttackTimeline.For(ability);
+            AttackPhase phase = timeline.PhaseAt(sinceStart);
+
+            if (phase != _phaseSeen)
+            {
+                _phaseSeen = phase;
+                AttackPhaseChanged?.Invoke(ability, phase);
+            }
 
             _attackJaw = -1f;
             _headDip = 0f;
+            _headLunge = 0f;
 
-            if (!active)
+            if (phase == AttackPhase.Done)
             {
                 ClearArms();
                 SetHorn(0f);
                 return;
             }
 
+            float since = sinceStart - timeline.Windup;
+            float strike = Mathf.Clamp01(since / timeline.Active);
+            float recover = Mathf.Clamp01((since - timeline.Active) / timeline.Recover);
+
             // 0 = rest, 1 = fully drawn back, -1 = fully extended - one number all abilities share.
-            float draw = sinceImpact < 0f ? Ease(windup) : 1f - Mathf.Min(1f, strike * 1.25f) * 2f;
+            float draw = since < 0f ? Ease(sinceStart / timeline.Windup) : 1f - Mathf.Min(1f, strike * 1.25f) * 2f;
             draw = Mathf.Lerp(draw, 0f, recover);
+
+            // How far the blow has been thrown, 0 to 1 at the peak: the striking part is carried forward by it.
+            float lunge = AttackTimeline.Lunge(ability) * Mathf.Clamp01(-draw);
 
             switch (ability)
             {
@@ -250,20 +273,28 @@ namespace Leeway.CreatureEditor
                     // The jaw opens wide while the creature draws breath, then snaps shut: open 0..1, shut below.
                     _attackJaw = draw > 0f ? draw : Mathf.Max(-0.12f, draw * 0.12f);
                     _headDip = draw > 0f ? -draw * 8f : -draw * 10f;
+                    _headLunge = lunge;
                     break;
 
                 case CreatureAbility.Claw:
-                    PoseArms(draw);
+                    PoseLimbs(_arms, draw, 0.25f, 0.1f);
                     _headDip = draw * 4f;
+                    break;
+
+                case CreatureAbility.Kick:
+                    PoseLimbs(_kicks, draw, 0f, 0.2f);
+                    _headDip = draw * 2f;
                     break;
 
                 case CreatureAbility.Horn:
                     SetHorn(draw);
                     _headDip = draw > 0f ? draw * 6f : -draw * 12f;
+                    _headLunge = lunge * 0.7f;
                     break;
 
                 default:
                     _headDip = draw > 0f ? -draw * 5f : -draw * 8f;
+                    _headLunge = lunge;
                     break;
             }
         }
@@ -273,8 +304,20 @@ namespace Leeway.CreatureEditor
         {
             _attackJaw = -1f;
             _headDip = 0f;
+            _headLunge = 0f;
+            _phaseSeen = AttackPhase.Done;
             ClearArms();
             SetHorn(0f);
+        }
+
+        private void ApplyHeadLunge()
+        {
+            Transform[] bones = _body.Built?.Bones;
+            if (_headLunge <= 0.001f || bones == null || bones.Length == 0 || bones[0] == null) return;
+
+            Vector3 heading = transform.forward;
+            heading.y = 0f;
+            bones[0].position += heading.normalized * _headLunge;
         }
 
         private static float Ease(float t) { t = Mathf.Clamp01(t); return t * t * (3f - 2f * t); }
@@ -288,54 +331,68 @@ namespace Leeway.CreatureEditor
             _horn.localPosition = _hornRest + Vector3.forward * reach;
         }
 
-        private void PoseArms(float draw)
+        private void PoseLimbs(List<LegRef> limbs, float draw, float sideways, float lift)
         {
             if (_locomotion == null) return;
 
-            if (_arms.Count == 0) CollectArms();
+            if (limbs.Count == 0) CollectLimbs(limbs, ReferenceEquals(limbs, _kicks));
 
-            foreach (LegRef arm in _arms)
+            foreach (LegRef limb in limbs)
             {
-                ProceduralLeg leg = arm.Leg;
+                ProceduralLeg leg = limb.Leg;
                 Transform hip = leg.Hip;
                 if (hip == null) continue;
 
                 Vector3 forward = transform.forward;
-                Vector3 side = transform.right * arm.Side;
+                Vector3 side = transform.right * limb.Side;
                 float reach = leg.Spec.Reach;
 
                 // Drawn back and up, then swung across the front in an arc.
-                Vector3 back = hip.position - forward * reach * 0.35f + Vector3.up * reach * 0.55f + side * reach * 0.45f;
-                Vector3 front = hip.position + forward * reach * 0.95f + Vector3.up * reach * 0.1f - side * reach * 0.25f;
+                Vector3 rest = hip.position + forward * reach * 0.3f - Vector3.up * reach * 0.4f;
+                Vector3 back = hip.position - forward * reach * 0.35f + Vector3.up * reach * (0.25f + lift * 2f) + side * reach * sideways * 1.8f;
+                Vector3 front = hip.position + forward * reach * 0.95f + Vector3.up * reach * lift - side * reach * sideways;
 
-                Vector3 target = draw > 0f
-                    ? Vector3.Lerp(hip.position + forward * reach * 0.3f - Vector3.up * reach * 0.4f, back, draw)
-                    : Vector3.Lerp(front, hip.position + forward * reach * 0.3f - Vector3.up * reach * 0.4f, 1f + draw);
-
-                leg.SetStrike(target, 1f);
+                limb.Leg.SetStrike(draw > 0f ? Vector3.Lerp(rest, back, draw) : Vector3.Lerp(front, rest, 1f + draw), 1f);
             }
         }
 
-        private void CollectArms()
+        private void CollectArms() => CollectLimbs(_arms, false);
+
+        /// <summary>
+        /// The limbs that deliver a blow: the grasping arms, or - for a kick - the locomotion legs that
+        /// stand furthest forward (a creature kicks with the front of its body, and keeps the rest down).
+        /// </summary>
+        private void CollectLimbs(List<LegRef> into, bool kick)
         {
-            _arms.Clear();
+            into.Clear();
             CreatureGenome genome = _body.Genome;
             PartRuleSet rules = _body.Rules;
-            if (genome == null) return;
+            if (genome == null || _locomotion == null) return;
 
+            float frontMost = float.NegativeInfinity;
             foreach (ProceduralLeg leg in _locomotion.Legs)
             {
                 if (leg.GeneIndex < 0 || leg.GeneIndex >= genome.PartCount) continue;
-                if (!rules.TryGetRule(genome.GetPart(leg.GeneIndex).PartId, out PartRule rule) || rule.Category != PartCategory.Grasper) continue;
+                if (!rules.TryGetRule(genome.GetPart(leg.GeneIndex).PartId, out PartRule rule)) continue;
+                if (kick ? rule.Category != PartCategory.Locomotion : rule.Category != PartCategory.Grasper) continue;
+
+                if (kick) frontMost = Mathf.Max(frontMost, Vector3.Dot(leg.HipPosition - transform.position, transform.forward));
 
                 float lateral = Vector3.Dot(leg.HipPosition - transform.position, transform.right);
-                _arms.Add(new LegRef { Leg = leg, Side = lateral >= 0f ? 1 : -1 });
+                into.Add(new LegRef { Leg = leg, Side = lateral >= 0f ? 1 : -1 });
             }
+
+            if (!kick) return;
+
+            // Keep only the front pair.
+            for (int i = into.Count - 1; i >= 0; i--)
+                if (Vector3.Dot(into[i].Leg.HipPosition - transform.position, transform.forward) < frontMost - 0.15f) into.RemoveAt(i);
         }
 
         private void ClearArms()
         {
             foreach (LegRef arm in _arms) arm.Leg.SetStrike(Vector3.zero, 0f);
+            foreach (LegRef kick in _kicks) kick.Leg.SetStrike(Vector3.zero, 0f);
         }
 
         /// <summary>
@@ -350,16 +407,21 @@ namespace Leeway.CreatureEditor
             switch (ability)
             {
                 case CreatureAbility.Bite:
-                    if (_jaw != null) tips.Add(new Tip { Position = _jaw.Mouth(), Radius = 0.2f });
+                    if (_jaw != null) tips.Add(new Tip { Position = _jaw.Mouth(), Radius = AttackTimeline.AreaRadius(ability) });
                     break;
 
                 case CreatureAbility.Claw:
                     if (_arms.Count == 0) CollectArms();
-                    foreach (LegRef arm in _arms) tips.Add(new Tip { Position = arm.Leg.FootPosition, Radius = 0.22f * scale });
+                    foreach (LegRef arm in _arms) tips.Add(new Tip { Position = arm.Leg.FootPosition, Radius = AttackTimeline.AreaRadius(ability) * scale });
+                    break;
+
+                case CreatureAbility.Kick:
+                    if (_kicks.Count == 0) CollectLimbs(_kicks, true);
+                    foreach (LegRef kick in _kicks) tips.Add(new Tip { Position = kick.Leg.FootPosition, Radius = AttackTimeline.AreaRadius(ability) * scale });
                     break;
 
                 case CreatureAbility.Horn:
-                    if (_horn != null) tips.Add(new Tip { Position = _horn.position + _horn.forward * 0.25f, Radius = 0.22f });
+                    if (_horn != null) tips.Add(new Tip { Position = _horn.position + _horn.forward * 0.25f, Radius = AttackTimeline.AreaRadius(ability) });
                     break;
             }
         }

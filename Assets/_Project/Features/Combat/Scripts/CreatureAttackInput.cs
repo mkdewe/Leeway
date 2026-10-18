@@ -30,6 +30,7 @@ namespace Leeway.Combat
             if(k.digit1Key.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Bite);
             if(k.digit2Key.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Claw);
             if(k.digit3Key.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Horn);
+            if(k.digit4Key.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Kick);
             if(k.rKey.wasPressedThisFrame)_combatant.RequestAbility(BodyAbilityRules.Secondary(_body.Genome,_body.Rules));
             if(k.qKey.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Scan);
             if(k.eKey.wasPressedThisFrame)_combatant.RequestAbility(CreatureAbility.Forage);
