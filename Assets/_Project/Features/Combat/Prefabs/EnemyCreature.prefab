@@ -26,6 +26,7 @@ GameObject:
   - component: {fileID: 6948382055312876540}
   - component: {fileID: 8234730104389478615}
   - component: {fileID: 1343756021983587808}
+  - component: {fileID: 2498962263133133799}
   m_Layer: 9
   m_Name: EnemyCreature
   m_TagString: Untagged
@@ -196,9 +197,10 @@ MonoBehaviour:
   _puppet: {fileID: 5418282619768888697}
   _skinCanvas: {fileID: 4075836457445021666}
   _knockdownSeconds: 2
-  _maxKnockdownSeconds: 12
+  _giveUpSeconds: 5
   _knockdownImpulseThreshold: 4
   _requireEditorPad: 1
+  _airControl: 0.55
   _acceleration: 6
   _braking: 14
   _sprintMultiplier: 1.45
@@ -211,6 +213,10 @@ MonoBehaviour:
   _buoyancyDamping: 0.9
   _swimSpeedFactor: 0.6
   _tipSeconds: 0.5
+  _maxWalkSlope: 42
+  _fallSlope: 58
+  _slideGravity: 1
+  _tumbleSeconds: 1.3
   _tipRecoverySeconds: 0.35
   _maxBankDegrees: 12
   _tipDegrees: 38
@@ -272,6 +278,12 @@ MonoBehaviour:
   _idleSpeed: 0.05
   _gaitBlendSpeed: 5
   _airborneMargin: 0.2
+  _tiltStiffness: 70
+  _tiltDamping: 0.65
+  _inertiaCoupling: 0.35
+  _soleStiffness: 45
+  _maxPitch: 38
+  _maxRoll: 28
   _leanResponsiveness: 220
 --- !u!114 &7773527015602067390
 MonoBehaviour:
@@ -478,6 +490,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: df43c2290138aa44eabfd4758909fe53, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureLife
+  _activityInterval: {x: 3.5, y: 8}
+  _walkSwayDegrees: 6
+  _idleSwayDegrees: 1.4
+  _footfallBob: 0.06
   _breathRate: 0.32
   _breathDepth: 0.014
   _noticeDistance: 14
@@ -485,5 +501,19 @@ MonoBehaviour:
   _headYawLimit: 55
   _blinkInterval: {x: 2.2, y: 6}
   _pupilSize: 0.46
-  _pupilColor: {r: 0.05, g: 0.04, b: 0.06, a: 1}
   _maxJawDegrees: 42
+--- !u!114 &2498962263133133799
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 2973926895447517286}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: f9b6c5d18a622e34d9f801c6a2de2a9e, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreatureRemains
+  _boneMaterial: {fileID: 2100000, guid: 614bcc4c26fbcde4698311386e14085b, type: 2}
+  _decaySeconds: 40
+  _boneSeconds: 300

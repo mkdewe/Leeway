@@ -16,6 +16,10 @@ Shader "Leeway/Toon"
         [Toggle(_VERTEX_COLOR)] _UseVertexColor ("Multiply By Vertex Color", Float) = 0
         [Enum(UnityEngine.Rendering.CullMode)] _Cull ("Cull", Float) = 2
 
+        // Rozklad ciala zmarlego stworzenia: skora rozsypuje sie w kostki i brunatnieje (CreatureRemains).
+        _Decay ("Decay", Range(0, 1)) = 0
+        _DecayColor ("Decay Tint", Color) = (0.3, 0.33, 0.18, 1)
+
         [Header(Bands)]
         [IntRange] _Bands ("Light Bands", Range(1, 6)) = 3
         _BandSoftness ("Band Softness", Range(0.001, 0.5)) = 0.05
@@ -45,6 +49,8 @@ Shader "Leeway/Toon"
             float4 _BaseMap_ST;
             half4 _BaseColor;
             half _BumpScale;
+            half _Decay;
+            half4 _DecayColor;
             half4 _EmissionColor;
             half _Bands;
             half _BandSoftness;
@@ -185,6 +191,14 @@ Shader "Leeway/Toon"
                 #if defined(_VERTEX_COLOR)
                     albedo *= input.color.rgb;
                 #endif
+                // A dead body crumbles away piece by piece, in noise cells that stay put in the world.
+                if (_Decay > 0.001)
+                {
+                    float3 cell = floor(input.positionWS * 14.0);
+                    float n = frac(sin(dot(cell, float3(12.9898, 78.233, 37.719))) * 43758.5453);
+                    clip(n - _Decay * 1.05 + 0.02);
+                    albedo = lerp(albedo, _DecayColor.rgb, saturate(_Decay * 1.7));
+                }
                 // Cull Off (trawa, liscie): tyl trojkata oswietlany jak przod.
                 half3 normalWS = normalize(input.normalWS) * IS_FRONT_VFACE(face, 1.0, -1.0);
                 #if defined(_NORMALMAP)
