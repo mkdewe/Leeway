@@ -20,6 +20,9 @@ Shader "Leeway/Toon"
         _Decay ("Decay", Range(0, 1)) = 0
         _DecayColor ("Decay Tint", Color) = (0.3, 0.33, 0.18, 1)
 
+        // 0 = bez mgly: planeta ogladana z kilku kilometrow inaczej cala tonie w kolorze mgly wyspy.
+        _FogAmount ("Fog Amount", Range(0, 1)) = 1
+
         [Header(Bands)]
         [IntRange] _Bands ("Light Bands", Range(1, 6)) = 3
         _BandSoftness ("Band Softness", Range(0.001, 0.5)) = 0.05
@@ -51,6 +54,7 @@ Shader "Leeway/Toon"
             half _BumpScale;
             half _Decay;
             half4 _DecayColor;
+            half _FogAmount;
             half4 _EmissionColor;
             half _Bands;
             half _BandSoftness;
@@ -233,7 +237,7 @@ Shader "Leeway/Toon"
                 color += _RimColor.rgb * rim * _RimStrength * (0.4 + 0.6 * mainLight.shadowAttenuation) * lerp(1.0, lerp(0.12, 1.0, _LeewayDaylight), _LeewayDayNightEnabled);
 
                 color += _EmissionColor.rgb;
-                color = MixFog(color, input.fogFactor);
+                color = lerp(color, MixFog(color, input.fogFactor), _FogAmount);
                 return half4(color, 1.0);
             }
             ENDHLSL

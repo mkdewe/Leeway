@@ -9,7 +9,8 @@
     "FishNet.Runtime",
     "Leeway.CreatureEditor.Editor",
     "Leeway.World",
-    "Leeway.Combat"
+    "Leeway.Combat",
+    "Leeway.Planet"
   ],
   "includePlatforms": [
     "Editor"
@@ -26,4 +27,4 @@
   ],
   "versionDefines": [],
   "noEngineReferences": false
-}
+}

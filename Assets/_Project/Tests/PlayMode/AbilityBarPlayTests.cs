@@ -18,6 +18,7 @@ namespace Leeway.Tests
         private NetworkManager _network;
         private PlaygroundCreatureController _player;
         private Transform _row;
+        private Vector3 _padStart;
 
         [UnitySetUp]
         public IEnumerator SetUp()
@@ -37,11 +38,16 @@ namespace Leeway.Tests
             var bar = Object.FindFirstObjectByType<AbilityBarHud>();
             Assert.That(bar, Is.Not.Null, "The scene has the ability bar.");
             _row = bar.transform.Find("AbilityCanvas/Row");
+            _padStart = Object.FindFirstObjectByType<EditorPad>().transform.position;
         }
 
         [UnityTearDown]
         public IEnumerator TearDown()
         {
+            // The scene is shared with other tests: the pad goes back where it was.
+            var pad = Object.FindFirstObjectByType<EditorPad>();
+            if (pad) pad.transform.position = _padStart;
+
             if (_network)
             {
                 _network.ClientManager.StopConnection();

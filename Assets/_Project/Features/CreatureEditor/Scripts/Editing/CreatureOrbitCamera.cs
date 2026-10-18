@@ -69,6 +69,12 @@ namespace Leeway.CreatureEditor
         /// <summary>The camera's heading in degrees — the frame of reference for the player's input.</summary>
         public float Yaw => _smoothedYaw;
 
+        /// <summary>True when the shot is pulled out as far as this camera goes - the next step out leaves it.</summary>
+        public bool AtFarLimit => _zoom >= _zoomRange.y * 0.98f;
+
+        /// <summary>Set while another camera has the view: the mouse then belongs to that camera.</summary>
+        public bool Suspended { get; set; }
+
         private void Awake()
         {
             if (_playCamera != null) _playCamera.TryGetComponent(out _follow);
@@ -82,7 +88,7 @@ namespace Leeway.CreatureEditor
             // The authored offset sets the starting tilt; from there the mouse moves it within the range.
             if (_pitch < 0f) _smoothedPitch = _pitch = Mathf.Clamp(BasePitch, _pitchRange.x, _pitchRange.y);
 
-            if (mouse != null && mouse.rightButton.isPressed)
+            if (mouse != null && mouse.rightButton.isPressed && !Suspended)
             {
                 _yaw += mouse.delta.x.ReadValue() * _sensitivity;
                 // Mouse up tilts the shot up toward the horizon, as in any third-person camera.
@@ -97,7 +103,7 @@ namespace Leeway.CreatureEditor
             // Over a panel the wheel belongs to the UI (scrolling a list), not to the camera.
             float scroll = mouse != null ? mouse.scroll.ReadValue().y : 0f;
             bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
-            bool live = _playCamera != null && CinemachineCore.IsLive(_playCamera);
+            bool live = _playCamera != null && CinemachineCore.IsLive(_playCamera) && !Suspended;
             if (live && !Mathf.Approximately(scroll, 0f) && !overUi)
                 _zoom = Mathf.Clamp(_zoom * (1f - Mathf.Sign(scroll) * _zoomStep), _zoomRange.x, _zoomRange.y);
 

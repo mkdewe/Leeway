@@ -138,7 +138,7 @@ namespace Leeway.Combat
             panel.SetParent(canvasObject.transform, false);
             panel.anchorMin = panel.anchorMax = new Vector2(0f, 0f);
             panel.pivot = new Vector2(0f, 0f);
-            panel.anchoredPosition = new Vector2(48f, 48f);
+            panel.anchoredPosition = new Vector2(48f, 120f);
             panel.sizeDelta = new Vector2(360f, 128f);
 
             var background = panel.gameObject.AddComponent<Image>();
