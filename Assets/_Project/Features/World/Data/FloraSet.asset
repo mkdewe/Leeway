@@ -1,0 +1,20 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 93c04afaa35b85d49846127fdb56b7ab, type: 3}
+  m_Name: FloraSet
+  m_EditorClassIdentifier: Leeway.World::Leeway.World.FloraSet
+  _prefabs:
+  - {fileID: 4344948192646160728, guid: 84176920274fa0a4492b0738450cf7d8, type: 3}
+  - {fileID: 5660599664584391005, guid: 22f39b8e2d0389b44ace8835ae382cd8, type: 3}
+  - {fileID: 1827861504523468582, guid: bff96bffbafc1e241a06e28aafae1868, type: 3}
+  - {fileID: 8996095155883095068, guid: 757ec518d2bf41c4aa39fbde540d432c, type: 3}
+  - {fileID: 2272612924149771383, guid: da0bdda37e9a609419ff92f228847f26, type: 3}

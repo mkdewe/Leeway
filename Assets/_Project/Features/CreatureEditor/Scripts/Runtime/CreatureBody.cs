@@ -84,6 +84,11 @@ namespace Leeway.CreatureEditor
             new SyncTypeSettings(WritePermission.ServerOnly, ReadPermission.Observers, 0f, Channel.Reliable));
 
         private readonly SyncVar<float> _hp = new SyncVar<float>();
+
+        /// <summary>How well fed the creature is, 0 to <see cref="MaxSatiety"/>. Falls with time; eating restores it.</summary>
+        private readonly SyncVar<float> _satiety = new SyncVar<float>();
+        private float _hungerClock;
+        private float _starveClock;
         private readonly SyncVar<bool> _isAlive = new SyncVar<bool>();
 
         private uint _builtGenomeHash;
@@ -104,6 +109,12 @@ namespace Leeway.CreatureEditor
 
         public float Hp => _hp.Value;
         public float MaxHp => _stats.MaxHp;
+
+        public const float MaxSatiety = 100f;
+        /// <summary>Satiety lost per second by a creature somebody is playing.</summary>
+        public const float SatietyDecayPerSecond = 0.35f;
+        public float Satiety => _satiety.Value;
+        public bool IsStarving => _satiety.Value <= 0.01f;
         public bool IsAlive => _isAlive.Value;
         public CreatureStats Stats => _stats;
         public BuiltCreatureBody Built => _built;
@@ -219,6 +230,7 @@ namespace Leeway.CreatureEditor
             RebuildBody(payload);
 
             _hp.Value = _hp.Value <= 0f ? _stats.MaxHp : Mathf.Min(_hp.Value, _stats.MaxHp);
+            if (_satiety.Value <= 0f) _satiety.Value = MaxSatiety * 0.8f;
 
             error = GenomeError.None;
             return true;
@@ -441,6 +453,8 @@ namespace Leeway.CreatureEditor
         /// </remarks>
         private void OnServerTick()
         {
+            ServerHunger();
+
             if (!_knockdown.Value.IsDown) return;
 
             uint elapsed = TimeManager.Tick - _knockdown.Value.StartTick;
@@ -598,6 +612,45 @@ namespace Leeway.CreatureEditor
         }
 
         [Server]
+        /// <summary>
+        /// Hunger, for a creature somebody plays: it grows with time, and an empty stomach costs hit points.
+        /// Wild animals do not starve - nothing in the world feeds them, so there would be nothing to see.
+        /// </summary>
+        private void ServerHunger()
+        {
+            if (!_isAlive.Value || !Owner.IsValid) return;
+
+            float dt = (float)TimeManager.TickDelta;
+            _hungerClock += dt;
+
+            // Written to the SyncVar twice a second, not every tick.
+            if (_hungerClock >= 0.5f)
+            {
+                _satiety.Value = Mathf.Max(0f, _satiety.Value - SatietyDecayPerSecond * _hungerClock);
+                _hungerClock = 0f;
+            }
+
+            if (_satiety.Value > 0.01f) { _starveClock = 0f; return; }
+
+            _starveClock += dt;
+            if (_starveClock >= 1f)
+            {
+                _starveClock = 0f;
+                TakeDamage(1.5f);
+            }
+        }
+
+        /// <summary>Feeds the creature. Satiety is clamped to its range; a negative figure is a poison.</summary>
+        [Server]
+        public void ServerNourish(float satiety, float health)
+        {
+            if (!_isAlive.Value) return;
+
+            _satiety.Value = Mathf.Clamp(_satiety.Value + satiety, 0f, MaxSatiety);
+            if (health > 0f) Heal(health);
+            else if (health < 0f) TakeDamage(-health);
+        }
+
         public void Heal(float amount)
         {
             if (!_isAlive.Value || float.IsNaN(amount) || float.IsInfinity(amount) || amount <= 0) return;

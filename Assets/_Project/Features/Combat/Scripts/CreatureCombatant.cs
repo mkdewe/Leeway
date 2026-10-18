@@ -2,6 +2,7 @@ using FishNet.Object;
 using FishNet.Object.Synchronizing;
 using Leeway.Creature.Domain;
 using Leeway.CreatureEditor;
+using Leeway.World;
 using MessagePipe;
 using UnityEngine;
 namespace Leeway.Combat
@@ -23,6 +24,7 @@ namespace Leeway.Combat
         private Vector3 _attackHeading;
         private bool _harvested;
         private CreatureLife _life;
+        private IslandFlora _flora;
         private readonly System.Collections.Generic.List<CreatureLife.Tip> _tips=new();
         private readonly System.Collections.Generic.List<Vector3> _prevTips=new();
         private bool _striking;
@@ -212,7 +214,19 @@ namespace Leeway.Combat
                 float d=(b.transform.position-transform.position).sqrMagnitude;
                 if(!(help||eat)||d>=nearest)continue;nearest=d;best=b;assist=help;
             }
-            if(!best){_forageReady.Value=Now+0.6f;RpcUtility(CreatureAbility.Forage,0);return false;}
+            if(!best)
+            {
+                // Nobody to help and nothing to harvest from a body: a plant with fruit within reach.
+                if(!_flora)_flora=FindAnyObjectByType<IslandFlora>();
+                if(_flora&&_flora.ServerHarvest(transform.position,out var plant))
+                {
+                    _forageReady.Value=Now+1.2f;
+                    _body.ServerNourish(plant.Satiety,plant.Health);
+                    RpcPlantEaten(plant.Name,plant.Fruit,plant.Satiety,plant.Health);
+                    return true;
+                }
+                _forageReady.Value=Now+0.6f;RpcUtility(CreatureAbility.Forage,0);return false;
+            }
             _forageReady.Value=Now+6;
             if(assist){best.Recover();RpcUtility(CreatureAbility.Forage,-1);return true;}
             var corpse=best.GetComponent<CreatureCombatant>();corpse._harvested=true;
@@ -237,11 +251,18 @@ namespace Leeway.Combat
         }
         [ObserversRpc(RunLocally=true)] private void RpcDied(CreatureBody target)
         {if(GlobalMessagePipe.IsInitialized&&target)GlobalMessagePipe.GetPublisher<CreatureDiedMessage>().Publish(new CreatureDiedMessage(target,_body));}
+        [ObserversRpc(RunLocally=true)]
+        private void RpcPlantEaten(string plant,string fruit,float satiety,float health)
+        {
+            if(!IsOwner)return;
+            _noticeUntil=Time.time+3;
+            _notice=health<0?$"Trucizna! {plant}: {health:0} HP":$"Zjedzono {fruit}: sytość +{satiety:0}"+(health>0?$", HP +{health:0}":"");
+        }
         [ObserversRpc(RunLocally=true)] private void RpcUtility(CreatureAbility ability,float result)
         {
             if(!IsOwner)return;_noticeUntil=Time.time+3;
             if(ability==CreatureAbility.Scan){_scanUntil=Time.time+5;_notice="Wykryto stworzeń: "+result.ToString("0");}
-            else _notice=result<0?"Pomoc: sojusznik podniesiony":result>0?"Żerowanie: +"+result.ToString("0")+" HP":"Podejdź do rannego sojusznika lub pokonanego zwierzęcia.";
+            else _notice=result<0?"Pomoc: sojusznik podniesiony":result>0?"Żerowanie: +"+result.ToString("0")+" HP":"Podejdź do rannego sojusznika, pokonanego zwierzęcia albo rośliny z owocami.";
         }
     }
 }
