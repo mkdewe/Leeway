@@ -4,6 +4,7 @@
     "references": [
         "Leeway.Domain",
         "Leeway.World",
+        "Leeway.Rendering",
         "Leeway.CreatureEditor",
         "FishNet.Runtime",
         "Unity.Cinemachine",

@@ -43,6 +43,7 @@ namespace Leeway.Tests
         {
             // The scene is shared with other tests: the camera comes back down and the island is drawn again.
             if (_director) _director.ExitPlanetView();
+            if (_director) yield return Until(() => !_director.IsAway, "camera back on the ground");
 
             if (_network)
             {
@@ -64,7 +65,8 @@ namespace Leeway.Tests
 
             _director.EnterPlanetView();
             Assert.That(_director.InPlanetView, Is.True);
-            Assert.That(_planet.IsBuilt && _planet.IsVisible, Is.True);
+            Assert.That(_planet.IsVisible, Is.True);
+            yield return Until(() => _planet.IsBuilt, "planet built in the background");
 
             var planetCamera = _director.GetComponentInChildren<CinemachineCamera>();
             yield return Until(() => CinemachineCore.IsLive(planetCamera), "planet camera live");
@@ -75,7 +77,8 @@ namespace Leeway.Tests
             Assert.That(distance, Is.GreaterThan(_planet.Radius), "outside the planet");
 
             _director.ExitPlanetView();
-            Assert.That(FlatWorldShown(), Is.True, "The island is shown again as the camera heads back.");
+            yield return Until(() => FlatWorldShown(), "the island to be shown again as the camera heads back");
+            yield return Until(() => !_director.IsAway, "the camera back on the ground");
             yield return Until(() => !_planet.IsVisible, "planet hidden after the descent");
             Assert.That(_director.InPlanetView, Is.False);
         }
@@ -96,6 +99,43 @@ namespace Leeway.Tests
             _planet.Apply(999999f, 2f, 500);
             Assert.That(_planet.Current().Radius, Is.EqualTo(Leeway.World.Domain.PlanetSettings.MaxRadius));
             Assert.That(_planet.Current().IslandCount, Is.EqualTo(Leeway.World.Domain.PlanetSettings.MaxIslands));
+        }
+
+        [UnityTest]
+        public IEnumerator LeavingTheAirShowsTheStarSystemAndComingBackHidesIt()
+        {
+            var backdrop = Object.FindFirstObjectByType<SpaceBackdrop>();
+            Assert.That(backdrop, Is.Not.Null, "The scene has the star system.");
+            yield return Until(() => backdrop.Model != null, "the star system");
+            Transform system = backdrop.transform.Find("StarSystem");
+            Assert.That(system.gameObject.activeSelf, Is.False, "Nothing of space is drawn from the ground.");
+            Assert.That(_director.Space, Is.EqualTo(0f).Within(0.01f));
+
+            _director.EnterPlanetView();
+            yield return Until(() => _director.Space >= 0.99f, "the camera to be out of the air");
+            yield return Until(() => system.gameObject.activeSelf, "the star system to be drawn");
+            Assert.That(Shader.GetGlobalFloat("_LeewaySpace"), Is.EqualTo(1f).Within(0.02f), "The sky goes to stars.");
+
+            _director.ExitPlanetView();
+            yield return Until(() => !_director.IsAway, "the camera back on the ground");
+            yield return null;
+            Assert.That(_director.Space, Is.EqualTo(0f).Within(0.01f));
+            Assert.That(system.gameObject.activeSelf, Is.False);
+            Assert.That(Shader.GetGlobalFloat("_LeewaySpace"), Is.EqualTo(0f).Within(0.01f), "The air is back.");
+        }
+
+        [UnityTest]
+        public IEnumerator TheHostCanChangeTheStarSystem()
+        {
+            var backdrop = Object.FindFirstObjectByType<SpaceBackdrop>();
+            yield return Until(() => backdrop.Model != null, "the star system");
+
+            Assert.That(_planet.ApplySystem(7, 3), Is.True);
+            yield return Until(() => backdrop.Model.Planets.Count == 7 && backdrop.Model.Moons.Count == 3, "the system to be rebuilt");
+
+            _planet.ApplySystem(999, 999);
+            Assert.That(_planet.Current().PlanetCount, Is.EqualTo(Leeway.World.Domain.PlanetSettings.MaxPlanets));
+            Assert.That(_planet.Current().MoonCount, Is.EqualTo(Leeway.World.Domain.PlanetSettings.MaxMoons));
         }
 
         private static IEnumerator Until(System.Func<bool> condition, string what, float timeout = 25f)

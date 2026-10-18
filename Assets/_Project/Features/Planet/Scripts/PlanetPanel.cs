@@ -7,8 +7,8 @@ using UnityEngine.UI;
 namespace Leeway.Planet
 {
     /// <summary>
-    /// The panel that appears with the planet view: sliders for the planet's size, the share of sea and the
-    /// number of islands, a button to shuffle the islands and one to go back down to the ground.
+    /// The panel that appears with the planet view: sliders for the planet's size, the share of sea, the
+    /// number of islands and the planets and moons of its star system, a button to shuffle the islands and one to go back down to the ground.
     /// </summary>
     /// <remarks>
     /// <para>Like the other overlays it is built from code under its own canvas. The sliders show the
@@ -26,8 +26,8 @@ namespace Leeway.Planet
         [SerializeField] private Color _accent = new(0.55f, 0.85f, 0.5f, 1f);
 
         private GameObject _root;
-        private Slider _radius, _water, _islands;
-        private TextMeshProUGUI _radiusLabel, _waterLabel, _islandsLabel, _status;
+        private Slider _radius, _water, _islands, _planets, _moons;
+        private TextMeshProUGUI _radiusLabel, _waterLabel, _islandsLabel, _planetsLabel, _moonsLabel, _status;
         private Button _reroll;
         private float _applyAt = -1f;
 
@@ -59,12 +59,13 @@ namespace Leeway.Planet
             if (!_root.activeSelf || _planet == null) return;
 
             bool editable = _planet.CanEdit;
-            _radius.interactable = _water.interactable = _islands.interactable = _reroll.interactable = editable;
+            _radius.interactable = _water.interactable = _islands.interactable = _planets.interactable = _moons.interactable = _reroll.interactable = editable;
 
             if (_applyAt >= 0f && Time.unscaledTime >= _applyAt)
             {
                 _applyAt = -1f;
                 _planet.Apply(_radius.value, _water.value, Mathf.RoundToInt(_islands.value));
+                _planet.ApplySystem(Mathf.RoundToInt(_planets.value), Mathf.RoundToInt(_moons.value));
             }
             else if (_applyAt < 0f)
             {
@@ -85,6 +86,8 @@ namespace Leeway.Planet
             _radius.SetValueWithoutNotify(now.Radius);
             _water.SetValueWithoutNotify(now.WaterCoverage);
             _islands.SetValueWithoutNotify(now.IslandCount);
+            _planets.SetValueWithoutNotify(now.PlanetCount);
+            _moons.SetValueWithoutNotify(now.MoonCount);
             Labels();
         }
 
@@ -93,6 +96,8 @@ namespace Leeway.Planet
             _radiusLabel.text = $"Rozmiar planety: {_radius.value:0} m";
             _waterLabel.text = $"Pokrycie wodą: {_water.value * 100f:0}%";
             _islandsLabel.text = $"Liczba wysp: {Mathf.RoundToInt(_islands.value)}";
+            _planetsLabel.text = $"Planet w układzie: {Mathf.RoundToInt(_planets.value)}";
+            _moonsLabel.text = $"Księżyce planety: {Mathf.RoundToInt(_moons.value)}";
         }
 
         private void OnSlider(float _)
@@ -124,7 +129,7 @@ namespace Leeway.Planet
             panel.anchorMin = panel.anchorMax = new Vector2(0.5f, 1f);
             panel.pivot = new Vector2(0.5f, 1f);
             panel.anchoredPosition = new Vector2(0f, -32f);
-            panel.sizeDelta = new Vector2(1180f, 176f);
+            panel.sizeDelta = new Vector2(1180f, 236f);
             panel.gameObject.AddComponent<Image>().color = _panel;
 
             Text(panel, "Planeta", 32f, FontStyles.Bold, 24f, -10f, 200f, 44f);
@@ -137,7 +142,12 @@ namespace Leeway.Planet
             _islandsLabel = Text(panel, string.Empty, 21f, FontStyles.Normal, 736f, -58f, 280f, 28f);
             _islands = MakeSlider(panel, PlanetSettings.MinIslands, PlanetSettings.MaxIslands, true, 736f, -88f, 280f);
 
-            _status = Text(panel, string.Empty, 18f, FontStyles.Italic, 24f, -124f, 900f, 44f);
+            _planetsLabel = Text(panel, string.Empty, 21f, FontStyles.Normal, 24f, -122f, 320f, 28f);
+            _planets = MakeSlider(panel, PlanetSettings.MinPlanets, PlanetSettings.MaxPlanets, true, 24f, -152f, 320f);
+            _moonsLabel = Text(panel, string.Empty, 21f, FontStyles.Normal, 380f, -122f, 320f, 28f);
+            _moons = MakeSlider(panel, PlanetSettings.MinMoons, PlanetSettings.MaxMoons, true, 380f, -152f, 320f);
+
+            _status = Text(panel, string.Empty, 18f, FontStyles.Italic, 24f, -186f, 900f, 44f);
             _status.color = _accent;
 
             _reroll = MakeButton(panel, "Przetasuj wyspy", 1040f, -14f, 120f, 70f, () => _planet?.Reroll());

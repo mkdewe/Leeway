@@ -48,6 +48,8 @@ namespace Leeway.Rendering
         public int ChangeIndex=>_state.ChangeIndex;
         public double SecondsUntilChange=>System.Math.Max(0,_state.NextChangeTime-Elapsed);
         public Vector2 CloudOffset=>_state.CloudOffset;
+        /// <summary>Off while the camera is outside the air: the streaks that are in flight finish, no new ones start.</summary>
+        public bool StreaksEnabled{get;set;}=true;
         public float WeatherTime=>(float)Elapsed;
         private double Elapsed
         {
@@ -171,7 +173,7 @@ namespace Leeway.Rendering
             if(!Application.isPlaying||!_streakMaterial)return;
             if(_streaks[0]==null)CreateStreaks();
             Camera camera=Camera.main;if(!camera)return;
-            if(_effectiveStrength>0.1f&&Time.time>=_nextStreak)
+            if(StreaksEnabled&&_effectiveStrength>0.1f&&Time.time>=_nextStreak)
             {
                 bool spawned=false;
                 foreach(var s in _streaks)if(s!=null&&!s.Active&&TrySpawn(camera,s)){spawned=true;break;}

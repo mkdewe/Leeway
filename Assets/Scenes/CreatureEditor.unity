@@ -26589,6 +26589,7 @@ GameObject:
   - component: {fileID: 1198995115}
   - component: {fileID: 1198995114}
   - component: {fileID: 1198995113}
+  - component: {fileID: 1198995118}
   m_Layer: 0
   m_Name: Planet
   m_TagString: Untagged
@@ -26629,6 +26630,7 @@ MonoBehaviour:
   _planet: {fileID: 1198995115}
   _playCamera: {fileID: 1509741790}
   _orbit: {fileID: 141711436}
+  _backdrop: {fileID: 1198995118}
   _fieldOfView: 35
   _blendSeconds: 2.4
   _nearFactor: 1.35
@@ -26655,6 +26657,8 @@ MonoBehaviour:
     _radius: 3500
     _waterCoverage: 0.7
     _islandCount: 9
+    _planetCount: 5
+    _moonCount: 1
     _seedOffset: 0
   _islandSeed: {fileID: 875426371}
   _material: {fileID: 2100000, guid: 76c1c466cd927bb48ae5bcdbef8cfb58, type: 2}
@@ -26732,6 +26736,25 @@ Transform:
   m_Children: []
   m_Father: {fileID: 0}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
+--- !u!114 &1198995118
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1198995112}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 3462d5d8b2f9f084d8dba87e861b00ad, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Leeway.Planet::Leeway.Planet.SpaceBackdrop
+  _planet: {fileID: 1198995115}
+  _bodyMaterial: {fileID: 2100000, guid: 70785c405ee7f08499d6de93f23e4a76, type: 2}
+  _glowMaterial: {fileID: 2100000, guid: 41acfa0ce53315b4ebeaa609928e4683, type: 2}
+  _planetAngle: 0.035
+  _starAngles: {x: 0.016, y: 0.07}
+  _starColour: {r: 1, g: 0.84, b: 0.55, a: 1}
+  _minFar: 15000
 --- !u!1 &1202080803
 GameObject:
   m_ObjectHideFlags: 0

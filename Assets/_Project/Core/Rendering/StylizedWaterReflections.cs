@@ -34,6 +34,12 @@ namespace Leeway.Rendering
         private bool _rendering;
         private double _nextScan;
         private int _meshSignature;
+        // Where the planes were last worked out for a given set of water meshes: switching the sea off and on again
+        // (as the planet view does) must not cost a pass over every vertex of it each time.
+        private readonly Dictionary<int, List<Plane>> _planeCache = new();
+
+        /// <summary>While true no reflections are drawn: the camera is too far from the water for them to matter.</summary>
+        public bool Suspended { get; set; }
         private static readonly int CountId = Shader.PropertyToID("_LeewayReflectionCount");
         private void OnEnable() { _meshSignature = 0; _nextScan = 0; RenderPipelineManager.beginCameraRendering += Render; }
         private void OnDisable()
@@ -68,6 +74,7 @@ namespace Leeway.Rendering
             if (signature == _meshSignature) return;
             _meshSignature = signature;
             _planes.Clear();
+            if (_planeCache.TryGetValue(signature, out var cached)) { _planes.AddRange(cached); return; }
             var levels = new Dictionary<int, Plane>();
             foreach (var f in filters)
             {
@@ -92,6 +99,8 @@ namespace Leeway.Rendering
             }
             foreach (var p in levels.Values.OrderByDescending(p => p.Area).Take(_maxPlanes))
             { p.Bounds.Expand(new Vector3(1,1,1)); _planes.Add(p); }
+            if (_planeCache.Count > 8) _planeCache.Clear();
+            _planeCache[signature] = new List<Plane>(_planes);
         }
 
         private void UpdateEnvironment(Camera source)
@@ -140,6 +149,7 @@ namespace Leeway.Rendering
                 source.GetUniversalAdditionalCameraData().renderType == CameraRenderType.Overlay) return;
             Scan();
             Shader.SetGlobalFloat(CountId, 0);
+            if (Suspended) return;
             if (_planes.Count == 0) return;
             UpdateEnvironment(source);
             var frustum = GeometryUtility.CalculateFrustumPlanes(source);

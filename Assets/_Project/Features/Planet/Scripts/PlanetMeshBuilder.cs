@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Runtime.InteropServices;
 using Leeway.World.Domain;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -11,8 +12,12 @@ namespace Leeway.Planet
     /// rock and snow.
     /// </summary>
     /// <remarks>
-    /// The facets are not shared between neighbours, so each has its own normal and its own colour: the
-    /// low-poly look of the rest of the game, and no gradients smearing a coast across a facet.
+    /// <para>The facets are not shared between neighbours, so each has its own normal and its own colour: the
+    /// low-poly look of the rest of the game, and no gradients smearing a coast across a facet.</para>
+    ///
+    /// <para>The work is in two halves so that the slow one can run off the main thread:
+    /// <see cref="Compute"/> touches nothing of Unity's but plain numbers and can be run anywhere;
+    /// <see cref="Upload"/> hands the finished arrays to a <see cref="Mesh"/> in one go.</para>
     /// </remarks>
     public static class PlanetMeshBuilder
     {
@@ -33,7 +38,31 @@ namespace Leeway.Planet
             public int[] Triangles;
         }
 
+        [StructLayout(LayoutKind.Sequential)]
+        public struct Vertex
+        {
+            public Vector3 Position;
+            public Vector3 Normal;
+            public Color32 Colour;
+        }
+
+        /// <summary>The finished arrays of a planet mesh, ready to be handed to a <see cref="Mesh"/>.</summary>
+        public sealed class Data
+        {
+            public Vertex[] Vertices;
+            public uint[] Indices;
+            public float Extent;
+        }
+
         public static Mesh Build(PlanetModel model, int detail, Mesh reuse = null)
+        {
+            Mesh mesh = reuse != null ? reuse : new Mesh { name = "Planet" };
+            Upload(Compute(model, detail), mesh);
+            return mesh;
+        }
+
+        /// <summary>Samples the planet and lays out its facets. Safe to call from any thread.</summary>
+        public static Data Compute(PlanetModel model, int detail)
         {
             Icosphere sphere = Get(Mathf.Clamp(detail, 2, 7));
 
@@ -46,10 +75,8 @@ namespace Leeway.Planet
             }
 
             int faces = sphere.Triangles.Length / 3;
-            var vertices = new Vector3[faces * 3];
-            var normals = new Vector3[faces * 3];
-            var colors = new Color32[faces * 3];
-            var indices = new int[faces * 3];
+            var vertices = new Vertex[faces * 3];
+            var indices = new uint[faces * 3];
 
             for (int f = 0; f < faces; f++)
             {
@@ -68,24 +95,33 @@ namespace Leeway.Planet
 
                 Color32 colour = FacetColour(model, centre.normalized);
                 int v = f * 3;
-                vertices[v] = a; vertices[v + 1] = b; vertices[v + 2] = c;
-                normals[v] = normals[v + 1] = normals[v + 2] = normal;
-                colors[v] = colors[v + 1] = colors[v + 2] = colour;
-                indices[v] = v; indices[v + 1] = v + 1; indices[v + 2] = v + 2;
+                vertices[v] = new Vertex { Position = a, Normal = normal, Colour = colour };
+                vertices[v + 1] = new Vertex { Position = b, Normal = normal, Colour = colour };
+                vertices[v + 2] = new Vertex { Position = c, Normal = normal, Colour = colour };
+                indices[v] = (uint)v; indices[v + 1] = (uint)(v + 1); indices[v + 2] = (uint)(v + 2);
             }
 
-            Mesh mesh = reuse != null ? reuse : new Mesh { name = "Planet" };
+            // The planet is round: its bounds are known without a pass over every vertex.
+            return new Data { Vertices = vertices, Indices = indices, Extent = (model.Radius + model.MaxHeight) * 2.05f };
+        }
+
+        /// <summary>Writes the arrays into the mesh with one upload for the vertices and one for the indices.</summary>
+        public static void Upload(Data data, Mesh mesh)
+        {
             mesh.Clear();
             mesh.indexFormat = IndexFormat.UInt32;
-            mesh.vertices = vertices;
-            mesh.normals = normals;
-            mesh.colors32 = colors;
-            mesh.SetIndices(indices, MeshTopology.Triangles, 0);
+            mesh.SetVertexBufferParams(data.Vertices.Length,
+                new VertexAttributeDescriptor(VertexAttribute.Position, VertexAttributeFormat.Float32, 3),
+                new VertexAttributeDescriptor(VertexAttribute.Normal, VertexAttributeFormat.Float32, 3),
+                new VertexAttributeDescriptor(VertexAttribute.Color, VertexAttributeFormat.UNorm8, 4));
+            mesh.SetVertexBufferData(data.Vertices, 0, 0, data.Vertices.Length, 0, MeshUpdateFlags.DontRecalculateBounds);
+            mesh.SetIndexBufferParams(data.Indices.Length, IndexFormat.UInt32);
+            mesh.SetIndexBufferData(data.Indices, 0, 0, data.Indices.Length, MeshUpdateFlags.DontRecalculateBounds);
 
-            // Bounds by hand: the planet is round and the automatic ones would need a pass over every vertex.
-            float extent = (model.Radius + model.MaxHeight) * 2.05f;
-            mesh.bounds = new Bounds(Vector3.zero, new Vector3(extent, extent, extent));
-            return mesh;
+            var bounds = new Bounds(Vector3.zero, new Vector3(data.Extent, data.Extent, data.Extent));
+            mesh.subMeshCount = 1;
+            mesh.SetSubMesh(0, new SubMeshDescriptor(0, data.Indices.Length) { bounds = bounds }, MeshUpdateFlags.DontRecalculateBounds);
+            mesh.bounds = bounds;
         }
 
         private static Color FacetColour(PlanetModel model, Vector3 direction)
@@ -109,6 +145,11 @@ namespace Leeway.Planet
         // ---------------------------------------------------------------- icosphere
 
         private static Icosphere Get(int level)
+        {
+            lock (Cache) return GetLocked(level);
+        }
+
+        private static Icosphere GetLocked(int level)
         {
             if (Cache.TryGetValue(level, out Icosphere cached)) return cached;
 
