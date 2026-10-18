@@ -21,11 +21,11 @@ namespace Leeway.CreatureEditor
     /// muscles chase the animated bones, so the physical body turns its head too.</para>
     ///
     /// <para>The mouth and the eyes are made of whole-mesh part models, so the jaw is a vertex bend of a
-    /// copy of the mouth mesh about a hinge at its rear, and the pupils are small spheres sliding over the
-    /// eyeballs. Nothing is added to the catalog's models.</para>
+    /// copy of the mouth mesh about a hinge at its rear, and the eyes are painted by their own shader. Nothing is
+    /// added to the catalog's models.</para>
     /// </remarks>
     [RequireComponent(typeof(CreatureBody))]
-    public sealed class CreatureLife : MonoBehaviour
+    public sealed partial class CreatureLife : MonoBehaviour
     {
         [Header("Breathing")]
         [Tooltip("Breaths per second at rest. Heavier creatures breathe slower.")]
@@ -48,8 +48,8 @@ namespace Leeway.CreatureEditor
         [Tooltip("Seconds between blinks.")]
         [SerializeField] private Vector2 _blinkInterval = new(2.2f, 6f);
 
-        [SerializeField, Range(0.2f, 0.7f)] private float _pupilSize = 0.46f;
-        [SerializeField] private Color _pupilColor = new(0.05f, 0.04f, 0.06f, 1f);
+        [Tooltip("Pupil radius at rest, as a share of the iris (the painted eye in Leeway/CreatureEye).")]
+        [SerializeField, Range(0.2f, 0.8f)] private float _pupilSize = 0.42f;
 
         [Header("Mouth")]
         [Tooltip("How far the jaw opens at full gape (degrees).")]
@@ -75,13 +75,14 @@ namespace Leeway.CreatureEditor
         private float _nextGlance;
         private float _nextBlink;
         private float _blink;
+        private float _lidDroop;
+        private float _pupilDilation = 1f;
         private float _breathPhase;
         private float _attackJaw = -1f;
         private float _headDip;
         private float _lookWeight;
         private CreatureBody _interest;
         private float _nextScan;
-        private static Mesh _sphere;
 
         private struct LegRef
         {
@@ -162,7 +163,7 @@ namespace Leeway.CreatureEditor
                 PartGene gene = genome.GetPart(instance.GeneIndex);
                 if (!rules.TryGetRule(gene.PartId, out PartRule rule)) continue;
 
-                if (rule.Category == PartCategory.Sense) _eyes.Add(new EyeRig(instance.Object.transform, _pupilSize, _pupilColor, GetSphere()));
+                if (rule.Category == PartCategory.Sense) _eyes.Add(new EyeRig(instance.Object.transform, genome, _pupilSize));
                 else if (rule.Category == PartCategory.Mouth && _jaw == null) _jaw = JawRig.TryCreate(instance.Object.transform);
                 else if (gene.PartId == hornId && _horn == null)
                 {
@@ -180,6 +181,9 @@ namespace Leeway.CreatureEditor
                 var list = new List<Transform>();
                 for (int i = first; i <= last; i++) if (bones[i] != null) list.Add(bones[i]);
                 _breathBones = list.ToArray();
+
+                _boneRest = new Quaternion[bones.Length];
+                for (int i = 0; i < bones.Length; i++) _boneRest[i] = bones[i] != null ? bones[i].localRotation : Quaternion.identity;
 
                 BuildLookIk(built, bones);
             }
@@ -210,40 +214,6 @@ namespace Leeway.CreatureEditor
             _lookIk.fixTransforms = true;
             _lookIk.solver.target = _lookTarget;
             _lookIk.solver.IKPositionWeight = 0f;
-        }
-
-        private static Mesh GetSphere()
-        {
-            if (_sphere != null) return _sphere;
-
-            const int rings = 8, segments = 12;
-            var vertices = new List<Vector3>();
-            var triangles = new List<int>();
-
-            for (int y = 0; y <= rings; y++)
-            {
-                float v = y / (float)rings;
-                float polar = v * Mathf.PI;
-                for (int x = 0; x <= segments; x++)
-                {
-                    float azimuth = x / (float)segments * Mathf.PI * 2f;
-                    vertices.Add(new Vector3(Mathf.Sin(polar) * Mathf.Cos(azimuth), Mathf.Cos(polar), Mathf.Sin(polar) * Mathf.Sin(azimuth)) * 0.5f);
-                }
-            }
-
-            for (int y = 0; y < rings; y++)
-            for (int x = 0; x < segments; x++)
-            {
-                int a = y * (segments + 1) + x, b = a + segments + 1;
-                triangles.AddRange(new[] { a, b, a + 1, a + 1, b, b + 1 });
-            }
-
-            _sphere = new Mesh { name = "PupilSphere", hideFlags = HideFlags.HideAndDontSave };
-            _sphere.SetVertices(vertices);
-            _sphere.SetTriangles(triangles, 0);
-            _sphere.RecalculateNormals();
-            _sphere.RecalculateBounds();
-            return _sphere;
         }
 
         // --- Attack poses ---------------------------------------------------------------------------
@@ -408,12 +378,16 @@ namespace Leeway.CreatureEditor
             bool alive = _body.IsAlive;
             bool down = _body.IsKnockedDown;
 
+            UpdateActivities(dt, alive, down);
+            UpdateBodyMotion(dt, alive, down);
             UpdateBreathing(dt, alive);
             UpdateLook(dt, alive && !down);
             UpdateEyes(dt, alive);
             UpdateJaw(dt, alive);
 
             if (!alive || down) ClearAttackPose();
+
+            _locomotion?.SetBodyPose(down || !alive ? Vector3.zero : _poseOut, _offsetOut);
         }
 
         private void UpdateBreathing(float dt, bool alive)
@@ -426,7 +400,7 @@ namespace Leeway.CreatureEditor
             if (_body.IsKnockedDown) effort = Mathf.Max(effort, 1.6f);
 
             _breathPhase += dt * _breathRate * effort * Mathf.PI * 2f;
-            float swell = alive ? Mathf.Sin(_breathPhase) * _breathDepth : 0f;
+            float swell = alive ? Mathf.Sin(_breathPhase) * _breathDepth * _actBreath : 0f;
 
             for (int i = 0; i < _breathBones.Length; i++)
             {
@@ -437,8 +411,8 @@ namespace Leeway.CreatureEditor
                 float weight = Mathf.Sin(u * Mathf.PI);
                 if (_breathBones.Length == 1) weight = 1f;
 
-                float s = 1f + swell * Mathf.Max(0.35f, weight);
-                _breathBones[i].localScale = new Vector3(s, s, 1f + swell * 0.3f);
+                float s = 1f + swell * Mathf.Max(0.35f, weight) + _squash * 0.5f * weight;
+                _breathBones[i].localScale = new Vector3(s, s, 1f + swell * 0.3f - _squash * 0.35f * weight);
             }
         }
 
@@ -466,6 +440,12 @@ namespace Leeway.CreatureEditor
             {
                 strength = 1f;
                 return Attention.Value;
+            }
+
+            if (_actLook.HasValue)
+            {
+                strength = 1f;
+                return _actLook.Value;
             }
 
             if (Time.time >= _nextScan)
@@ -528,7 +508,8 @@ namespace Leeway.CreatureEditor
             float closed = alive ? Mathf.Sin(_blink * Mathf.PI) : 1f; // a dead creature's eyes are shut
 
             Vector3 gaze = _lookTarget != null ? _lookTarget.position : transform.position + transform.forward * 8f;
-            foreach (EyeRig eye in _eyes) eye.Update(gaze, closed, dt);
+            float lid = Mathf.Max(closed, _lidDroop);
+            foreach (EyeRig eye in _eyes) eye.Update(gaze, lid, _pupilDilation, dt);
         }
 
         private void UpdateJaw(float dt, bool alive)
@@ -541,114 +522,96 @@ namespace Leeway.CreatureEditor
             {
                 // At rest the mouth moves a little with the breath, and parts now and then.
                 float slack = 0.05f + Mathf.Max(0f, Mathf.Sin(_breathPhase - 0.6f)) * 0.07f;
-                open = alive ? slack : 0.03f;
+                open = alive ? slack + _actJaw : 0.03f;
             }
 
-            _jaw.Set(open * _maxJawDegrees);
+            if (!float.IsNaN(open)) _jaw.Set(open * _maxJawDegrees);
         }
 
         // --- Rigs -----------------------------------------------------------------------------------
 
         /// <summary>
-        /// An eye: a pupil that slides across the face of the eyeball toward what the creature looks at,
-        /// and a blink. The eye model is a short cylinder, so the pupil lies on its flat face - found from
-        /// the mesh itself (the thinnest axis) rather than assumed from how the part was authored.
+        /// An eye. The eyeball's material (<c>Leeway/CreatureEye</c>) paints the sclera, iris, pupil, highlight
+        /// and lid itself from the direction a pixel lies in, so looking around is a number handed to the
+        /// shader - nothing is added to the model. The model is a short cylinder; its flat face is found
+        /// from the mesh (the thinnest axis) and the face is the side away from the body.
         /// </summary>
         private sealed class EyeRig
         {
-            private readonly Transform _part;
-            private readonly Transform _ball;
-            private readonly Transform _pupil;
-            private readonly Vector3 _ballScale;
+            private static readonly int CenterId = Shader.PropertyToID("_EyeCenter");
+            private static readonly int GazeId = Shader.PropertyToID("_EyeGaze");
+            private static readonly int LidId = Shader.PropertyToID("_EyeLid");
+            private static readonly int IrisId = Shader.PropertyToID("_EyeIrisColor");
+            private static readonly int LidColorId = Shader.PropertyToID("_EyeLidColor");
+            private static readonly int PupilId = Shader.PropertyToID("_EyePupilSize");
+
+            private readonly Renderer _ball;
+            private readonly MaterialPropertyBlock _block = new();
             private readonly Vector3 _centre;
-            private readonly Vector3 _normal;
-            private readonly Vector3 _u;
-            private readonly Vector3 _v;
-            private readonly float _faceRadius;
-            private Vector2 _gaze;
+            private readonly Vector3 _forward;
+            private readonly Color _iris;
+            private readonly Color _lidColor;
+            private readonly float _pupil;
+            private Vector3 _gaze;
 
-            public EyeRig(Transform part, float pupilSize, Color color, Mesh sphere)
+            public EyeRig(Transform part, CreatureGenome genome, float pupil)
             {
-                _part = part;
-
                 MeshRenderer ball = part.GetComponentInChildren<MeshRenderer>();
                 MeshFilter filter = ball != null ? ball.GetComponent<MeshFilter>() : null;
                 if (filter == null || filter.sharedMesh == null) return;
 
-                _ball = ball.transform;
-                _ballScale = _ball.localScale;
+                // Without the eye shader there is nothing to paint with: the plain model stays.
+                if (ball.sharedMaterial == null || ball.sharedMaterial.shader == null || ball.sharedMaterial.shader.name != "Leeway/CreatureEye") return;
+
+                _ball = ball;
+                _pupil = pupil;
 
                 Bounds bounds = filter.sharedMesh.bounds;
-                Vector3 lossy = _ball.lossyScale;
-                Vector3 half = Vector3.Scale(bounds.extents, lossy);
-
+                Vector3 half = Vector3.Scale(bounds.extents, ball.transform.lossyScale);
                 int thin = half.x <= half.y && half.x <= half.z ? 0 : half.y <= half.z ? 1 : 2;
                 Vector3[] axes = { Vector3.right, Vector3.up, Vector3.forward };
-                Vector3 n = part.InverseTransformDirection(_ball.TransformDirection(axes[thin])).normalized;
-                Vector3 u = part.InverseTransformDirection(_ball.TransformDirection(axes[(thin + 1) % 3])).normalized;
-                Vector3 v = Vector3.Cross(n, u);
 
-                _centre = part.InverseTransformPoint(_ball.TransformPoint(bounds.center));
+                _centre = bounds.center;
+                Vector3 n = axes[thin];
 
-                // The face looks away from the body: the side of the model the bone is not on.
-                Vector3 towardsBody = part.InverseTransformPoint(part.parent != null ? part.parent.position : part.position);
-                if (Vector3.Dot(n, towardsBody - _centre) > 0f) n = -n;
+                // The face looks away from the body.
+                Vector3 towardsBody = ball.transform.InverseTransformPoint(part.parent != null ? part.parent.position : part.position) - _centre;
+                if (Vector3.Dot(n, towardsBody) > 0f) n = -n;
+                _forward = n;
+                _gaze = n;
 
-                _normal = n;
-                _u = u;
-                _v = Vector3.Cross(n, u);
-                float faceHalf = Mathf.Max(half[(thin + 1) % 3], half[(thin + 2) % 3]);
-                _faceRadius = faceHalf / Mathf.Max(1e-4f, part.lossyScale.x);
-                float thickness = half[thin] / Mathf.Max(1e-4f, part.lossyScale.x);
-                _centre += _normal * (thickness + 0.004f);
-
-                var go = new GameObject("Pupil");
-                go.transform.SetParent(part, false);
-                go.layer = part.gameObject.layer;
-                go.AddComponent<MeshFilter>().sharedMesh = sphere;
-
-                var renderer = go.AddComponent<MeshRenderer>();
-                renderer.sharedMaterial = ball.sharedMaterial;
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-
-                var block = new MaterialPropertyBlock();
-                block.SetColor("_BaseColor", color);
-                block.SetColor("_Color", color);
-                block.SetColor("_EmissionColor", Color.black);
-                renderer.SetPropertyBlock(block);
-
-                _pupil = go.transform;
-                float diameter = _faceRadius * 2f * pupilSize;
-                _pupil.localScale = new Vector3(diameter, diameter, diameter * 0.35f);
-                _pupil.localRotation = Quaternion.LookRotation(_normal, _u);
-                Place(Vector2.zero);
+                // A hue the creature's own colours suggest, so each one looks out of eyes of its own.
+                Color.RGBToHSV(genome != null ? (Color)genome.PrimaryColor : Color.gray, out float hue, out _, out _);
+                _iris = Color.HSVToRGB(Mathf.Repeat(hue + 0.42f, 1f), 0.62f, 0.9f);
+                Color skin = genome != null ? (Color)genome.PrimaryColor : new Color(0.8f, 0.5f, 0.45f);
+                _lidColor = Color.Lerp(skin, Color.black, 0.08f);
             }
 
-            public void Update(Vector3 gazePoint, float closed, float dt)
+            public void Update(Vector3 gazePoint, float lid, float dilation, float dt)
             {
-                if (_pupil == null || _ball == null || _part == null) return;
+                if (_ball == null) return;
 
-                Vector3 local = _part.InverseTransformPoint(gazePoint) - _centre;
-                float depth = Mathf.Max(0.05f, Vector3.Dot(local, _normal));
-                Vector2 wanted = new Vector2(Vector3.Dot(local, _u), Vector3.Dot(local, _v)) / depth;
-                wanted = Vector2.ClampMagnitude(wanted * 0.5f, 0.55f);
+                Vector3 toPoint = _ball.transform.InverseTransformPoint(gazePoint) - _centre;
+                Vector3 want = toPoint.sqrMagnitude > 1e-8f ? toPoint.normalized : _forward;
 
-                _gaze = Vector2.Lerp(_gaze, wanted, 1f - Mathf.Exp(-14f * dt));
-                Place(_gaze);
+                // The eye cannot turn all the way round in its socket.
+                float angle = Vector3.Angle(_forward, want);
+                const float limit = 38f;
+                if (angle > limit) want = Vector3.Slerp(_forward, want, limit / angle);
 
-                // Closing the eye squashes the ball along its face and hides the pupil.
-                float squash = Mathf.Lerp(1f, 0.1f, closed);
-                _ball.localScale = new Vector3(_ballScale.x, _ballScale.y * squash, _ballScale.z);
-                _pupil.gameObject.SetActive(closed < 0.6f);
+                _gaze = Vector3.Slerp(_gaze, want, 1f - Mathf.Exp(-16f * dt)).normalized;
+
+                _ball.GetPropertyBlock(_block);
+                _block.SetVector(CenterId, _centre);
+                _block.SetVector(GazeId, new Vector4(_gaze.x, _gaze.y, _gaze.z, dilation));
+                _block.SetFloat(LidId, lid);
+                _block.SetColor(IrisId, _iris);
+                _block.SetColor(LidColorId, _lidColor);
+                _block.SetFloat(PupilId, _pupil * 0.7f);
+                _ball.SetPropertyBlock(_block);
             }
 
-            private void Place(Vector2 gaze)
-                => _pupil.localPosition = _centre + (_u * gaze.x + _v * gaze.y) * _faceRadius;
-
-            public void Dispose()
-            {
-                if (_pupil != null) UnityEngine.Object.Destroy(_pupil.gameObject);
-            }
+            public void Dispose() { }
         }
 
         /// <summary>

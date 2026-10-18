@@ -108,11 +108,25 @@ namespace Leeway.CreatureEditor
         private float _unsupportedSeconds;
         private Vector2 _tilt;
         private Vector2 _tiltRate;
+        private Vector3 _bodyPose;
+        private Vector3 _bodyOffset;
+        private Transform _armatureBaseFor;
+        private Vector3 _armatureBase;
         private Vector3 _tiltLastPosition;
         private Vector3 _tiltLastVelocity;
         private readonly List<Vector3> _supportBuffer = new();
         private readonly List<ProceduralLeg> _order = new();
         public float GaitPhase => _phase;
+
+        /// <summary>
+        /// Extra pitch, yaw and roll (degrees) and a shift (metres) laid over the body's own pose. The creature's
+        /// idle life uses it; it is zero when nothing is going on.
+        /// </summary>
+        public void SetBodyPose(Vector3 eulerDegrees, Vector3 offset)
+        {
+            _bodyPose = eulerDegrees;
+            _bodyOffset = offset;
+        }
 
         /// <summary>Whether the body was travelling horizontally on the last frame.</summary>
         public bool IsMoving { get; private set; }
@@ -224,7 +238,15 @@ namespace Leeway.CreatureEditor
             // banked along a side slope, so the legs reach the surface instead of dangling from a level torso.
             StepTilt(Time.deltaTime);
 
-            armature.localRotation = Quaternion.Euler(-_tilt.x, 0f, -_lean + _tilt.y);
+            // Whatever the creature's own life adds on top (a shudder, a stretch, the bob of a footfall) rides along.
+            if (_armatureBaseFor != armature)
+            {
+                _armatureBaseFor = armature;
+                _armatureBase = armature.localPosition;
+            }
+
+            armature.localPosition = _armatureBase + _bodyOffset;
+            armature.localRotation = Quaternion.Euler(-_tilt.x + _bodyPose.x, _bodyPose.y, -_lean + _tilt.y + _bodyPose.z);
         }
 
         /// <summary>
