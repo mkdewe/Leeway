@@ -38,10 +38,7 @@ namespace Leeway.Planet
         [SerializeField] private Material _material;
 
         [Tooltip("How far under the sea floor of the home island the planet's surface lies at the pole, in metres.")]
-        [SerializeField, Min(0f)] private float _surfaceGap = 40f;
-
-        [Tooltip("Subdivision of the planet's mesh. Each step makes four times the facets.")]
-        [SerializeField, Range(3, 7)] private int _detail = 6;
+        [SerializeField, Min(0f)] private float _surfaceGap = 3f;
 
         private readonly SyncVar<float> _radius = new();
         private readonly SyncVar<float> _water = new();
@@ -51,9 +48,13 @@ namespace Leeway.Planet
         private readonly SyncVar<int> _seedOffset = new();
 
         private GameObject _surface;
-        private MeshFilter _filter;
-        private MeshRenderer _renderer;
-        private MaterialPropertyBlock _block;
+        private Material _runtimeMaterial;
+        private PlanetTerrain _terrain;
+        private PlanetTerrain _next;
+        private PlanetModel _nextModel;
+        private PlanetSettings _nextSettings;
+        private int _nextSeed;
+        private bool _prefetch;
         private PlanetModel _model;
         private PlanetSettings _built;
         private int _builtSeed;
@@ -61,15 +62,9 @@ namespace Leeway.Planet
         private readonly PlanetSettings _live = new();
 
         // The build on the worker thread, and what it was asked to build.
-        private Task<Prepared> _job;
+        private Task<PlanetModel> _job;
         private PlanetSettings _jobSettings;
         private int _jobSeed;
-
-        private sealed class Prepared
-        {
-            public PlanetModel Model;
-            public PlanetMeshBuilder.Data Mesh;
-        }
 
         /// <summary>Raised after the planet has been rebuilt.</summary>
         public event Action Rebuilt;
@@ -77,6 +72,10 @@ namespace Leeway.Planet
         public PlanetModel Model => _model;
         public bool IsBuilt => _model != null;
         public bool IsVisible => _visible;
+
+        /// <summary>How many tiles of ground are drawn, and how many are made, for the planet as it is now.</summary>
+        public int ShownTiles => _terrain != null ? _terrain.ShownTiles : 0;
+        public int ResidentTiles => _terrain != null ? _terrain.ResidentTiles : 0;
         public float Radius => Current().Radius;
 
         /// <summary>The seed the sky and the planet are made from.</summary>
@@ -133,18 +132,14 @@ namespace Leeway.Planet
         {
             _surface = new GameObject("PlanetSurface");
             _surface.transform.SetParent(transform, false);
-            _filter = _surface.AddComponent<MeshFilter>();
-            _renderer = _surface.AddComponent<MeshRenderer>();
-            _renderer.sharedMaterial = _material;
-            _renderer.shadowCastingMode = ShadowCastingMode.Off;
-            _renderer.receiveShadows = false;
-            _renderer.enabled = false;
-            _block = new MaterialPropertyBlock();
+            _runtimeMaterial = new Material(_material);
         }
 
         private void OnDestroy()
         {
-            if (_filter != null && _filter.sharedMesh != null) Destroy(_filter.sharedMesh);
+            _terrain?.Dispose();
+            _next?.Dispose();
+            if (_runtimeMaterial != null) Destroy(_runtimeMaterial);
         }
 
         /// <summary>Changes the planet. Only the host (or a game with no network) may.</summary>
@@ -207,16 +202,17 @@ namespace Leeway.Planet
 
         public void SetVisible(bool visible)
         {
+            if (_visible && !visible) _terrain?.Hide();
             _visible = visible;
-            _renderer.enabled = visible && IsBuilt;
         }
+
+        /// <summary>Asks for the fine tiles of the planet before they are needed: the camera is about to leave.</summary>
+        public void Prefetch(bool wanted) => _prefetch = wanted;
 
         /// <summary>How much of the planet is lost in the air's haze: 1 hides it completely, 0 shows its colours.</summary>
         public void SetHaze(float amount)
         {
-            _renderer.GetPropertyBlock(_block);
-            _block.SetFloat(FogAmountId, Mathf.Clamp01(amount));
-            _renderer.SetPropertyBlock(_block);
+            _runtimeMaterial.SetFloat(FogAmountId, Mathf.Clamp01(amount));
         }
 
         /// <summary>
@@ -230,7 +226,8 @@ namespace Leeway.Planet
 
             PlanetSettings settings = Current();
             bool upToDate = _model != null && seed == _builtSeed && settings.SameAs(_built);
-            bool inProgress = _job != null && seed == _jobSeed && settings.SameAs(_jobSettings);
+            bool inProgress = (_job != null && seed == _jobSeed && settings.SameAs(_jobSettings))
+                || (_next != null && seed == _nextSeed && settings.SameAs(_nextSettings));
 
             // One build at a time: a newer request waits for the one that is running.
             if (!upToDate && !inProgress && _job == null) Start(seed, settings);
@@ -245,32 +242,65 @@ namespace Leeway.Planet
             IslandGenerator generator = _islandSeed != null ? _islandSeed.Generator : null;
             if (generator != null && generator.IsGenerated) EnsureBuilt();
 
-            if (_visible && _model != null) _renderer.enabled = true;
             if (_model != null) _surface.transform.position = Center;
+
+            UnityEngine.Camera camera = UnityEngine.Camera.main;
+            if (camera == null) return;
+
+            // A new planet is made ready behind the one on show and swapped in when it is whole.
+            if (_next != null)
+            {
+                _next.LimitLevel = PlanetTerrain.MinLevel;
+                _next.Update(camera, false);
+                if (_next.CoarseReady) SwapIn();
+            }
+
+            if (_terrain != null && (_visible || _prefetch))
+            {
+                _terrain.LimitLevel = PlanetTerrain.MaxLevel;
+                _terrain.Update(camera, _visible);
+            }
+        }
+
+        private void SwapIn()
+        {
+            _terrain?.Dispose();
+            _terrain = _next;
+            _next = null;
+
+            _model = _nextModel;
+            _built = _nextSettings;
+            _builtSeed = _nextSeed;
+            _surface.transform.position = Center;
+            Rebuilt?.Invoke();
         }
 
         private void Start(int seed, PlanetSettings settings)
         {
             float homeRadius = HomeIslandRadius();
             PlanetSettings snapshot = settings.Clone();
-            int detail = _detail;
             int modelSeed = unchecked(seed + snapshot.SeedOffset * 7919);
+
+            // The real ground of the home island, so that from above it is the island the creature walks on.
+            IslandGenerator generator = _islandSeed != null ? _islandSeed.Generator : null;
+            IslandHeightField field = generator != null ? generator.Field : null;
 
             _jobSeed = seed;
             _jobSettings = snapshot;
             _job = Task.Run(() =>
             {
                 var model = new PlanetModel(snapshot.Radius, snapshot.WaterCoverage, snapshot.IslandCount, modelSeed, homeRadius);
-                return new Prepared { Model = model, Mesh = PlanetMeshBuilder.Compute(model, detail) };
+                if (field != null) model.SetHome((x, z) => field.SampleHeight(x, z) - field.Settings.SeaLevel, field.Settings.HalfSize * 0.95f);
+                return model;
             });
         }
 
-        // Takes the finished build off the worker thread.
+        // Takes the finished model off the worker thread and starts making its ground.
         private void Collect()
         {
             if (_job == null || !_job.IsCompleted) return;
 
-            Task<Prepared> job = _job;
+            Task<PlanetModel> job = _job;
             _job = null;
 
             if (job.IsFaulted)
@@ -279,20 +309,14 @@ namespace Leeway.Planet
                 return;
             }
 
-            // The numbers may have moved on while it was building; then it is not shown, and the next one starts.
+            // The numbers may have moved on while it was building; then it is not used, and the next one starts.
             if (!_jobSettings.SameAs(Current()) || _jobSeed != (_islandSeed != null ? _islandSeed.Seed : 0)) return;
 
-            Mesh mesh = _filter.sharedMesh != null ? _filter.sharedMesh : new Mesh { name = "Planet" };
-            PlanetMeshBuilder.Upload(job.Result.Mesh, mesh);
-            // Sent to the graphics card now, while nobody is looking, and not on the first frame the planet is drawn.
-            mesh.UploadMeshData(false);
-            _filter.sharedMesh = mesh;
-
-            _model = job.Result.Model;
-            _built = _jobSettings;
-            _builtSeed = _jobSeed;
-            _surface.transform.position = Center;
-            Rebuilt?.Invoke();
+            _next?.Dispose();
+            _nextModel = job.Result;
+            _nextSettings = _jobSettings;
+            _nextSeed = _jobSeed;
+            _next = new PlanetTerrain(_nextModel, _surface.transform, _runtimeMaterial);
         }
 
         // The playable island's real reach, so the planet's home island matches what the player stands on.

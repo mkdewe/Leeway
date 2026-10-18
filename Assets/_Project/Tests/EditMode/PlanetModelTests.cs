@@ -101,19 +101,70 @@ namespace Leeway.Tests
         }
 
         [Test]
-        public void TheMeshHasAFacetPerTriangleAndStaysOnTheSphere()
+        public void ATileStaysOnTheSphereAndFacesOut()
         {
             PlanetModel model = Make();
-            Mesh mesh = PlanetMeshBuilder.Build(model, 4);
-            Assert.That(mesh.vertexCount, Is.EqualTo(20 * 256 * 3), "20 faces, 4 splits, 3 corners each");
-            foreach (Vector3 v in mesh.vertices)
-                Assert.That(v.magnitude, Is.InRange(model.Radius - 0.01f, model.Radius + model.MaxHeight + 0.01f));
+            PlanetTerrain.Data tile = PlanetTerrain.Build(model, 2, 3, 2, 5);
 
-            // Every facet faces out.
-            Vector3[] vertices = mesh.vertices, normals = mesh.normals;
-            for (int i = 0; i < vertices.Length; i += 3 * 40)
-                Assert.That(Vector3.Dot(normals[i], vertices[i]), Is.GreaterThan(0f));
-            Object.DestroyImmediate(mesh);
+            int side = PlanetTerrain.Grid + 1;
+            Assert.That(tile.Vertices.Length, Is.EqualTo(side * side + 4 * side), "the grid and four skirts");
+            for (int i = 0; i < side * side; i++)
+            {
+                Vector3 world = tile.Vertices[i].Position + tile.Origin;
+                Assert.That(world.magnitude, Is.InRange(model.Radius - 0.01f, model.Radius + model.MaxHeight + 0.01f));
+                Assert.That(Vector3.Dot(tile.Vertices[i].Normal, world.normalized), Is.GreaterThan(0.2f), "the ground faces out");
+            }
+
+            // The skirt hangs below the edge it belongs to.
+            for (int i = side * side; i < tile.Vertices.Length; i++)
+                Assert.That((tile.Vertices[i].Position + tile.Origin).magnitude, Is.LessThan(model.Radius + model.MaxHeight));
+        }
+
+        [Test]
+        public void NeighbouringTilesMeetOnTheirSharedEdge()
+        {
+            PlanetModel model = Make();
+            PlanetTerrain.Data left = PlanetTerrain.Build(model, 4, 3, 3, 4);
+            PlanetTerrain.Data right = PlanetTerrain.Build(model, 4, 3, 4, 4);
+
+            int side = PlanetTerrain.Grid + 1;
+            for (int t = 0; t < side; t++)
+            {
+                Vector3 a = left.Vertices[t * side + PlanetTerrain.Grid].Position + left.Origin;
+                Vector3 b = right.Vertices[t * side].Position + right.Origin;
+                Assert.That((a - b).magnitude, Is.LessThan(0.01f), "no crack between tiles of one level");
+                Assert.That(Vector3.Dot(left.Vertices[t * side + PlanetTerrain.Grid].Normal, right.Vertices[t * side].Normal), Is.GreaterThan(0.999f), "no seam in the lighting");
+            }
+        }
+
+        [Test]
+        public void TheTrianglesOfATileFaceOutwards()
+        {
+            PlanetModel model = Make();
+            PlanetTerrain.Data tile = PlanetTerrain.Build(model, 0, 3, 1, 1);
+            ushort[] indices = PlanetTerrain.Indices();
+
+            int grid = PlanetTerrain.Grid * PlanetTerrain.Grid * 6;
+            for (int i = 0; i < grid; i += 3 * 17)
+            {
+                Vector3 a = tile.Vertices[indices[i]].Position, b = tile.Vertices[indices[i + 1]].Position, c = tile.Vertices[indices[i + 2]].Position;
+                Assert.That(Vector3.Dot(Vector3.Cross(b - a, c - a), a + tile.Origin), Is.GreaterThan(0f), "winding at index " + i);
+            }
+        }
+
+        [Test]
+        public void TheRealHomeIslandReplacesThePlanetsOwnNearThePole()
+        {
+            PlanetModel model = Make();
+            model.SetHome((x, z) => 12f, 400f);
+
+            Assert.That(model.Sample(Vector3.up).Height, Is.EqualTo(12f).Within(0.01f));
+            Assert.That(model.Sample(Vector3.up).IsLand, Is.True);
+
+            // Far from the pole nothing has changed.
+            Vector3 far = new Vector3(0.7f, 0.3f, 0.65f).normalized;
+            PlanetModel plain = Make();
+            Assert.That(model.Sample(far).Height, Is.EqualTo(plain.Sample(far).Height).Within(1e-4f));
         }
     }
 }

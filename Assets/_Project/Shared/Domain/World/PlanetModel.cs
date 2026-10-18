@@ -65,6 +65,8 @@ namespace Leeway.World.Domain
         private readonly Vector3 _offsetA, _offsetB, _offsetC, _offsetD;
         private readonly int _noiseSeed;
         private float _scale;
+        private Func<float, float, float> _home;
+        private float _homeReach;
 
         public float Radius { get; }
         public float MaxHeight => Radius * 0.022f;
@@ -100,12 +102,42 @@ namespace Leeway.World.Domain
             SolveScale(1f - Mathf.Clamp(waterCoverage, 0f, 1f));
         }
 
+        /// <summary>
+        /// Lets the real ground of the home island replace the planet's own near the pole, so that the island the creature
+        /// stands on is the same island seen from above. <paramref name="height"/> gives the height in metres over sea level
+        /// at a point of the island, east and north of its centre, in metres; it must be safe to call from any thread.
+        /// </summary>
+        public void SetHome(Func<float, float, float> height, float reachMetres)
+        {
+            _home = height;
+            _homeReach = reachMetres;
+        }
+
         public Island GetIsland(int index) => new(_centers[index], IslandRadius(index), index == 0);
 
         /// <summary>The surface in the given direction.</summary>
         public Point Sample(Vector3 direction)
         {
             direction.Normalize();
+            Point own = SampleOwn(direction);
+            if (_home == null || _homeReach <= 0f) return own;
+
+            float metres = Angle(direction, Vector3.up) * Radius;
+            if (metres >= _homeReach) return own;
+
+            // The real island where it is, melting into the planet's own sea over the last part of its reach.
+            float weight = 1f - Smooth01((metres - _homeReach * 0.82f) / (_homeReach * 0.18f));
+            var flat = new Vector2(direction.x, direction.z);
+            Vector2 at = flat.sqrMagnitude > 1e-12f ? flat.normalized * metres : Vector2.zero;
+            float h = _home(at.x, at.y);
+
+            float land = h > 0f ? 0.05f + 0.45f * Smooth01(h / 8f) : -Smooth01(-h / 30f) - 1e-4f;
+            float depth = h > 0f ? 0f : Smooth01(-h / 25f);
+            return new Point(Mathf.Lerp(own.Land, land, weight), Mathf.Lerp(own.Height, Mathf.Max(h, 0f), weight), Mathf.Lerp(own.Depth, depth, weight));
+        }
+
+        private Point SampleOwn(Vector3 direction)
+        {
             float wobble = 1f + CoastWobble * Wobble(direction);
 
             float land = float.NegativeInfinity;
@@ -122,7 +154,10 @@ namespace Leeway.World.Domain
             // Rises from the shore, then rolls: a plain slope would make every island a cone.
             float rise = Smooth01(land / 0.45f);
             float hills = 0.5f + 0.5f * (0.65f * Noise(direction * 14f + _offsetC) + 0.35f * Noise(direction * 31f + _offsetD));
-            return new Point(land, MaxHeight * rise * (0.22f + 0.78f * hills), 0f);
+            // Finer and finer grain on top, for the eye that comes close: ridges of some hundreds of metres down to knolls of tens.
+            float grain = 0.5f * Noise(direction * 70f + _offsetA) + 0.3f * Noise(direction * 150f + _offsetB) + 0.2f * Noise(direction * 330f + _offsetC);
+            float height = MaxHeight * rise * (0.22f + 0.78f * hills) + MaxHeight * 0.16f * rise * grain;
+            return new Point(land, Mathf.Max(0f, height), 0f);
         }
 
         // ---------------------------------------------------------------- building the layout
@@ -206,7 +241,7 @@ namespace Leeway.World.Domain
 
         // The wobble of the coast, in [-1, 1]: wide bays and headlands with a finer grain over them.
         private float Wobble(Vector3 dir) =>
-            0.6f * Noise(dir * 5f + _offsetA) + 0.4f * Noise(dir * 11f + _offsetB);
+            0.55f * Noise(dir * 5f + _offsetA) + 0.35f * Noise(dir * 11f + _offsetB) + 0.1f * Noise(dir * 26f + _offsetC);
 
         /// <summary>Smooth value noise in [-1, 1] over three dimensions.</summary>
         private float Noise(Vector3 p)

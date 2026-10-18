@@ -26633,6 +26633,9 @@ MonoBehaviour:
   _backdrop: {fileID: 1198995118}
   _fieldOfView: 35
   _flightSeconds: 2.8
+  _leanDegrees: 5
+  _swayDegrees: 0.5
+  _fieldKick: 9
   _nearFactor: 1.35
   _farFactor: 1.7
   _screenLift: 4.5
@@ -26663,7 +26666,7 @@ MonoBehaviour:
     _seedOffset: 0
   _islandSeed: {fileID: 875426371}
   _material: {fileID: 2100000, guid: 76c1c466cd927bb48ae5bcdbef8cfb58, type: 2}
-  _surfaceGap: 40
+  _surfaceGap: 3
   _detail: 6
 --- !u!114 &1198995116
 MonoBehaviour:

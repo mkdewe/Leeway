@@ -125,6 +125,29 @@ namespace Leeway.Tests
         }
 
         [UnityTest]
+        public IEnumerator TheClimbRisesStraightUpBeforeItSwingsRoundAndTheGroundGetsFinerAsItIsApproached()
+        {
+            yield return Until(() => _planet.IsBuilt, "the planet");
+            _director.EnterPlanetView();
+
+            float widest = 0f;
+            int tilesAtStart = 0;
+            float end = Time.realtimeSinceStartup + 10f;
+            while (_director.Space < 0.2f && Time.realtimeSinceStartup < end)
+            {
+                Vector3 above = Camera.main.transform.position - _planet.Anchor;
+                if (above.y > 100f) widest = Mathf.Max(widest, new Vector2(above.x, above.z).magnitude / above.y);
+                tilesAtStart = Mathf.Max(tilesAtStart, _planet.ShownTiles);
+                yield return null;
+            }
+            Assert.That(_director.Space, Is.GreaterThanOrEqualTo(0.2f), "The camera left the ground.");
+            Assert.That(widest, Is.LessThan(0.15f), "Through the lower air the camera goes up, not along.");
+
+            yield return Until(() => _planet.ShownTiles > 100, "the fine tiles of the planet");
+            Assert.That(_planet.ResidentTiles, Is.GreaterThan(96), "Tiles finer than the coarsest are made as the camera comes near.");
+        }
+
+        [UnityTest]
         public IEnumerator TheHostCanChangeTheStarSystem()
         {
             var backdrop = Object.FindFirstObjectByType<SpaceBackdrop>();

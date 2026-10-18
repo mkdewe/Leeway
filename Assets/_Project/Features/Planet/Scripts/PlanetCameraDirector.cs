@@ -41,7 +41,7 @@ namespace Leeway.Planet
         [Tooltip("Seconds the camera takes to fly between the island and the planet.")]
         [SerializeField, Min(0.5f)] private float _flightSeconds = 2.8f;
         [Tooltip("Degrees the camera banks into the swing round to the orbit.")]
-        [SerializeField, Range(0f, 12f)] private float _leanDegrees = 5f;
+        [SerializeField, Range(0f, 12f)] private float _leanDegrees = 3f;
         [Tooltip("Degrees of slow sway while climbing.")]
         [SerializeField, Range(0f, 2f)] private float _swayDegrees = 0.5f;
         [Tooltip("Degrees the field of view opens at the fastest part of the flight.")]
@@ -157,6 +157,8 @@ namespace Leeway.Planet
             if (_view == View.Surface) UpdateSurface();
             else UpdatePlanet();
 
+            // At the far end of the island camera the planet is likely next: its fine tiles are asked for in good time.
+            _planet.Prefetch(_view == View.Surface && _orbit != null && _orbit.AtFarLimit);
             StepFlight();
             UpdateAtmosphere();
             SettleBlend();
@@ -186,12 +188,12 @@ namespace Leeway.Planet
             Shader.SetGlobalFloat(PlanetViewId, _space);
 
             // The flat world goes when the haze has swallowed it and returns before the haze lifts again.
-            _flatWanted = _flatWanted ? _space < 0.35f : _space < 0.3f;
+            _flatWanted = _flatWanted ? _space < 0.5f : _space < 0.45f;
             StepFlatWorld();
 
             bool flatGone = _flat == Flat.Hidden;
             // Until the flat world is gone the planet is all haze, the same colour as the sea and the sky's foot; then it clears.
-            _planet.SetHaze(flatGone ? 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.4f, 0.85f, _space)) : 1f);
+            _planet.SetHaze(flatGone ? 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1f, _space)) : 1f);
 
             bool flatShown = _flat == Flat.Shown;
             bool wanted = _view == View.Planet || _space > 0.01f || !flatShown;
@@ -401,7 +403,7 @@ namespace Leeway.Planet
             // Up is quick and starts at once; the swing round to the orbit comes late, when the planet already fills
             // the view. A climb that moves sideways from the first metre is what made the camera skate over the surface.
             float rise = Mathf.Lerp(Mathf.SmoothStep(0f, 1f, f), 1f - (1f - f) * (1f - f), 0.65f);
-            float swing = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.3f, 1f, f));
+            float swing = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, f));
             float turn = Mathf.SmoothStep(0f, 1f, f);
             OrbitPose(out Vector3 orbitPosition, out Quaternion orbitRotation);
 
@@ -423,8 +425,8 @@ namespace Leeway.Planet
             Vector3 heading = Vector3.ProjectOnPlane(groundRotation * Vector3.forward, direction);
             if (heading.sqrMagnitude < 1e-4f) heading = Vector3.ProjectOnPlane(Vector3.forward, direction);
             Quaternion lookDown = Quaternion.LookRotation(centre - position, heading.normalized);
-            Quaternion gaze = Quaternion.Slerp(groundRotation, lookDown, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.55f, f)));
-            gaze = Quaternion.Slerp(gaze, orbitRotation, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, f)));
+            Quaternion gaze = Quaternion.Slerp(groundRotation, lookDown, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.3f, f)));
+            gaze = Quaternion.Slerp(gaze, orbitRotation, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1f, f)));
 
             // Alive, not on rails: the camera leans into the swing, the field of view opens with the speed and
             // closes again on arrival, and a faint sway comes and goes with the effort of the climb.
