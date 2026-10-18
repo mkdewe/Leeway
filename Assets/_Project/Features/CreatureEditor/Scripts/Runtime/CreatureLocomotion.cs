@@ -47,6 +47,19 @@ namespace Leeway.CreatureEditor
         [Tooltip("How far beyond the legs' reach the ground may drop before the creature counts as airborne (m). In the air the legs hold their pose instead of stepping.")]
         [SerializeField, Min(0f)] private float _airborneMargin = 0.2f;
 
+        [Header("Body tilt")]
+        [Tooltip("How hard the legs push the body level with the ground they stand on (1/s^2). Higher = stiffer, lower = floppier.")]
+        [SerializeField, Min(5f)] private float _tiltStiffness = 70f;
+
+        [Tooltip("1 = settles without overshoot, below it the body sways before it settles.")]
+        [SerializeField, Range(0.2f, 1.5f)] private float _tiltDamping = 0.65f;
+
+        [Tooltip("How much speeding up or braking pitches the body.")]
+        [SerializeField, Range(0f, 1.5f)] private float _inertiaCoupling = 0.35f;
+
+        [SerializeField, Range(10f, 60f)] private float _maxPitch = 38f;
+        [SerializeField, Range(10f, 45f)] private float _maxRoll = 28f;
+
         [Header("Lean")]
         [Tooltip("How many degrees per second the lean keeps up with the load. Lower = sluggish, higher = jerky.")]
         [SerializeField, Min(1f)] private float _leanResponsiveness = 220f;
@@ -91,7 +104,10 @@ namespace Leeway.CreatureEditor
         private float _standHeight;
         private float _unsupportedSeconds;
         private Vector2 _tilt;
-        private CreatureSuspension _suspension;
+        private Vector2 _tiltRate;
+        private Vector3 _tiltLastPosition;
+        private Vector3 _tiltLastVelocity;
+        private readonly List<Vector3> _supportBuffer = new();
         private readonly List<ProceduralLeg> _order = new();
         public float GaitPhase => _phase;
 
@@ -117,11 +133,7 @@ namespace Leeway.CreatureEditor
             _lastYaw = transform.eulerAngles.y;
         }
 
-        private void OnEnable()
-        {
-            _body.BodyRebuilt += OnBodyRebuilt;
-            TryGetComponent(out _suspension);
-        }
+        private void OnEnable() => _body.BodyRebuilt += OnBodyRebuilt;
 
         private void OnDisable()
         {
@@ -207,10 +219,9 @@ namespace Leeway.CreatureEditor
             // opposite way from the one it was about to fall.
             // The body also follows the ground: nose up on the way up a slope, nose down on the way down, and
             // banked along a side slope, so the legs reach the surface instead of dangling from a level torso.
-            Vector2 tilt = _suspended ? Vector2.zero : GroundTilt();
-            _tilt = Vector2.Lerp(_tilt, tilt, 1f - Mathf.Exp(-7f * Time.deltaTime));
+            StepTilt(Time.deltaTime);
 
-            armature.localRotation = Quaternion.Euler(_tilt.x, 0f, -_lean + _tilt.y);
+            armature.localRotation = Quaternion.Euler(-_tilt.x, 0f, -_lean + _tilt.y);
         }
 
         /// <summary>
@@ -224,33 +235,113 @@ namespace Leeway.CreatureEditor
         {
             _lean = 0f;
             _tilt = Vector2.zero;
+            _tiltRate = Vector2.zero;
 
             Transform armature = _body.Built?.Armature;
             if (armature != null) armature.localRotation = Quaternion.identity;
         }
 
-        /// <summary>Pitch and roll (degrees) that lay the body along the ground its feet are on.</summary>
-        private Vector2 GroundTilt()
+        /// <summary>
+        /// Rotates the torso the way a body on springy legs rotates.
+        /// </summary>
+        /// <remarks>
+        /// <para>Each planted leg is a spring between its hip and the ground under its foot. The more it is
+        /// squeezed beyond what the others are, the harder it pushes that corner of the body up. Those
+        /// pushes act at the hips, so unequal ones make a torque about the body's centre; the body then
+        /// turns under it as a rigid body does, with its own inertia and damping, and settles when every
+        /// leg is squeezed the same - which is exactly when the torso lies parallel to the ground the
+        /// feet stand on. Nothing here says "tilt to the slope": a slope, a step under one foot or a leg
+        /// swinging over a hollow all just change the compressions and the body reacts.</para>
+        ///
+        /// <para>A body accelerating also pitches: the legs push at the feet while the mass is higher up,
+        /// so speeding up lifts the nose and braking dips it.</para>
+        ///
+        /// <para>Pitch is positive nose up, roll positive right side up, both in degrees.</para>
+        /// </remarks>
+        private void StepTilt(float deltaTime)
         {
-            Vector3 sum = Vector3.zero;
-            int count = 0;
-            foreach (ProceduralLeg leg in _legs)
+            if (_suspended || _legs.Count == 0)
             {
-                if (!leg.PlannerHasGround) continue;
-                sum += leg.GroundNormal;
-                count++;
+                _tilt = Vector2.zero;
+                _tiltRate = Vector2.zero;
+                return;
             }
 
-            Vector3 normal = count > 0 ? sum / count : Vector3.up;
-            if (_suspension != null) normal = (normal + _suspension.GroundNormal).normalized;
-            if (normal.y < 0.2f) return Vector2.zero;
+            deltaTime = Mathf.Min(deltaTime, 1f / 30f);
+            if (deltaTime <= 0f) return;
 
-            Vector3 local = transform.InverseTransformDirection(normal);
-            float pitch = Mathf.Atan2(local.z, local.y) * Mathf.Rad2Deg;
-            float roll = Mathf.Asin(Mathf.Clamp(-local.x, -1f, 1f)) * Mathf.Rad2Deg;
+            // Compression of every planted leg, and where its hip sits relative to the body's centre.
+            float meanCompression = 0f;
+            int supporting = 0;
+            _supportBuffer.Clear();
 
-            return new Vector2(Mathf.Clamp(pitch * 0.85f, -35f, 35f), Mathf.Clamp(roll * 0.7f, -25f, 25f));
+            foreach (ProceduralLeg leg in _legs)
+            {
+                if (leg.IsStepping || !leg.HasGroundContact) continue;
+
+                Vector3 local = transform.InverseTransformPoint(leg.HipPosition);
+                float height = leg.HipPosition.y - leg.FootPosition.y;
+                float compression = Mathf.Clamp(leg.Spec.RideHeight - height, -0.5f, 0.5f);
+
+                _supportBuffer.Add(new Vector3(local.x, local.z, compression));
+                meanCompression += compression;
+                supporting++;
+            }
+
+            Vector2 acceleration = Vector2.zero;
+
+            if (supporting > 0)
+            {
+                meanCompression /= supporting;
+
+                float sumX = 0f, sumZ = 0f, torqueRoll = 0f, torquePitch = 0f;
+                foreach (Vector3 support in _supportBuffer)
+                {
+                    float push = support.z - meanCompression; // the share beyond what the legs carry on average
+                    torqueRoll += push * support.x;
+                    torquePitch += push * support.y;
+                    sumX += support.x * support.x;
+                    sumZ += support.y * support.y;
+                }
+
+                // Normalised by the lever arms, so the natural frequency is the same for any number of legs.
+                float stiffness = _tiltStiffness;
+                float pitchAcceleration = stiffness * torquePitch / Mathf.Max(0.04f, sumZ);
+                float rollAcceleration = stiffness * torqueRoll / Mathf.Max(0.04f, sumX);
+
+                // Radians per second squared -> degrees.
+                acceleration = new Vector2(pitchAcceleration, rollAcceleration) * Mathf.Rad2Deg;
+            }
+
+            // Accelerating pitches the body about its feet.
+            Vector3 position = transform.position;
+            Vector3 velocity = (position - _tiltLastPosition) / deltaTime;
+            Vector3 bodyAcceleration = (velocity - _tiltLastVelocity) / deltaTime;
+            _tiltLastPosition = position;
+            _tiltLastVelocity = velocity;
+
+            Vector3 localAcceleration = transform.InverseTransformDirection(bodyAcceleration);
+            localAcceleration.y = 0f;
+            float lever = Mathf.Max(0.2f, _standHeight) * _inertiaCoupling;
+            acceleration.x += Mathf.Clamp(localAcceleration.z, -15f, 15f) * lever * Mathf.Rad2Deg;
+            acceleration.y += Mathf.Clamp(-localAcceleration.x, -15f, 15f) * lever * Mathf.Rad2Deg;
+
+            // Damping and a soft limit, so a freak contact cannot spin the body over.
+            float omega = Mathf.Sqrt(_tiltStiffness);
+            float damping = 2f * _tiltDamping * omega;
+            acceleration -= _tiltRate * damping;
+            acceleration.x -= SoftLimit(_tilt.x, _maxPitch) * _tiltStiffness * Mathf.Rad2Deg * 0.1f;
+            acceleration.y -= SoftLimit(_tilt.y, _maxRoll) * _tiltStiffness * Mathf.Rad2Deg * 0.1f;
+
+            _tiltRate += acceleration * deltaTime;
+            _tilt += _tiltRate * deltaTime;
+            _tilt.x = Mathf.Clamp(_tilt.x, -_maxPitch * 1.3f, _maxPitch * 1.3f);
+            _tilt.y = Mathf.Clamp(_tilt.y, -_maxRoll * 1.3f, _maxRoll * 1.3f);
         }
+
+        /// <summary>How far an angle is past its limit, in radians, 0 inside it.</summary>
+        private static float SoftLimit(float degrees, float limit)
+            => Mathf.Sign(degrees) * Mathf.Max(0f, Mathf.Abs(degrees) - limit) * Mathf.Deg2Rad;
 
         private void LateUpdate()
         {
