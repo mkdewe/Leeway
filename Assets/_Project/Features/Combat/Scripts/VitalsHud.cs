@@ -45,9 +45,14 @@ namespace Leeway.Combat
 
         private void Awake() => Build();
 
-        private void OnEnable()
+        // The message bus may come up after this component's first OnEnable, so Start tries again.
+        private void Start() => Subscribe();
+
+        private void OnEnable() => Subscribe();
+
+        private void Subscribe()
         {
-            if (!GlobalMessagePipe.IsInitialized) return;
+            if (_subscription != null || !GlobalMessagePipe.IsInitialized) return;
 
             _subscription = GlobalMessagePipe.GetSubscriber<LocalCreatureBodyChangedMessage>().Subscribe(message =>
             {

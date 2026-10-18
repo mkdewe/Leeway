@@ -166,6 +166,9 @@ namespace Leeway.CreatureEditor
         /// <summary>Seconds since the last beat of the wings.</summary>
         public float SinceFlap => _sinceFlap;
 
+        /// <summary>Seconds until the next wing beat is allowed.</summary>
+        public float FlapCooldownRemaining => _flapCooldown;
+
         /// <summary>Which way the lean is going. Fixed once, at the start of the loss of balance.</summary>
         private float _tipSign;
 
