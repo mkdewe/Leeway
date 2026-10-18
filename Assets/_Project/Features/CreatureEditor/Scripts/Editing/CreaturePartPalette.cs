@@ -31,6 +31,7 @@ namespace Leeway.CreatureEditor
             PartCategory.Sense,
             PartCategory.Grasper,
             PartCategory.Weapon,
+            PartCategory.Wing,
             PartCategory.Detail,
         };
 
@@ -311,6 +312,7 @@ namespace Leeway.CreatureEditor
             PartCategory.Grasper => "Graspers",
             PartCategory.Weapon => "Weapons",
             PartCategory.Detail => "Details",
+            PartCategory.Wing => "Wings",
             _ => category.ToString(),
         };
     }

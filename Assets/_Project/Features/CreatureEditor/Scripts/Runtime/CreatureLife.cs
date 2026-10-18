@@ -60,6 +60,10 @@ namespace Leeway.CreatureEditor
         private BuiltCreatureBody _builtFor;
 
         private readonly List<EyeRig> _eyes = new();
+        private readonly List<WingRig> _wings = new();
+        private float _wingPhase;
+        private float _wingAngle = -50f;
+        private float _wingFold = 72f;
         private JawRig _jaw;
         private Transform _horn;
         private Vector3 _hornRest;
@@ -133,6 +137,7 @@ namespace Leeway.CreatureEditor
         {
             foreach (EyeRig eye in _eyes) eye.Dispose();
             _eyes.Clear();
+            _wings.Clear();
             _jaw?.Dispose();
             _jaw = null;
             _horn = null;
@@ -162,7 +167,8 @@ namespace Leeway.CreatureEditor
                 PartGene gene = genome.GetPart(instance.GeneIndex);
                 if (!rules.TryGetRule(gene.PartId, out PartRule rule)) continue;
 
-                if (rule.Category == PartCategory.Sense) _eyes.Add(new EyeRig(instance.Object.transform, genome, _pupilSize));
+                if (rule.Category == PartCategory.Wing) _wings.Add(new WingRig(instance.Object.transform, instance.Mirrored, transform));
+                else                 if (rule.Category == PartCategory.Sense) _eyes.Add(new EyeRig(instance.Object.transform, genome, _pupilSize));
                 else if (rule.Category == PartCategory.Mouth && _jaw == null) _jaw = JawRig.TryCreate(instance.Object.transform);
                 else if (gene.PartId == hornId && _horn == null)
                 {
@@ -442,6 +448,7 @@ namespace Leeway.CreatureEditor
 
             UpdateActivities(dt, alive, down);
             UpdateBodyMotion(dt, alive, down);
+            UpdateWings(dt, alive && !down);
             UpdateBreathing(dt, alive);
             UpdateLook(dt, alive && !down);
             UpdateEyes(dt, alive);
@@ -450,6 +457,32 @@ namespace Leeway.CreatureEditor
             if (!alive || down) ClearAttackPose();
 
             _locomotion?.SetBodyPose(down || !alive ? Vector3.zero : _poseOut, _offsetOut);
+        }
+
+        /// <summary>
+        /// Wings fold on the ground, beat while the creature climbs and hold out flat while it glides. Read
+        /// from the motion itself, so every machine shows the same wings without anything being sent.
+        /// </summary>
+        private void UpdateWings(float dt, bool active)
+        {
+            if (_wings.Count == 0) return;
+
+            bool airborne = _locomotion != null && _locomotion.IsAirborne && active;
+            bool beating = airborne && (_lastVerticalSpeed > 0.6f || (TryGetComponent(out PlaygroundCreatureController c) && c.SinceFlap < 0.45f));
+            bool gliding = airborne && !beating;
+
+            float target;
+            if (beating)
+            {
+                _wingPhase += dt * Mathf.PI * 2f * 5.5f;
+                target = 8f + 38f * Mathf.Sin(_wingPhase);
+            }
+            else if (gliding) target = 12f + 4f * Mathf.Sin(Time.time * 1.3f);
+            else target = -30f + 2.5f * Mathf.Sin(_breathPhase);
+
+            _wingAngle = Mathf.Lerp(_wingAngle, target, 1f - Mathf.Exp(-(beating ? 30f : 9f) * dt));
+            _wingFold = Mathf.Lerp(_wingFold, airborne ? 0f : 72f, 1f - Mathf.Exp(-8f * dt));
+            foreach (WingRig wing in _wings) wing.Set(_wingAngle, _wingFold);
         }
 
         private void UpdateBreathing(float dt, bool alive)
@@ -674,6 +707,42 @@ namespace Leeway.CreatureEditor
             }
 
             public void Dispose() { }
+        }
+
+        /// <summary>A wing: swung about the creature's forward axis, up to beat and down to fold.</summary>
+        private sealed class WingRig
+        {
+            private readonly Transform _model;
+            private readonly float _sign;
+            private readonly float _foldSign;
+            private static readonly Vector3 Swing = Vector3.up;
+            private static readonly Vector3 Fold = Vector3.right;
+
+            public WingRig(Transform part, bool mirrored, Transform creature)
+            {
+                _model = part.childCount > 0 ? part.GetChild(0) : part;
+
+                // The mirrored wing is the other hand of the pair: the same swing is the opposite turn.
+                _sign = mirrored ? -1f : 1f;
+
+                // Which way is "back" for the fold depends on how the part was turned onto the flank, so it is
+                // found by trying: the direction that sweeps the wingtip towards the tail is the right one.
+                Vector3 tip = new Vector3(0f, 0f, 0.9f);
+                _model.localRotation = Quaternion.AngleAxis(60f, Fold);
+                float forward = Vector3.Dot(_model.TransformPoint(tip) - creature.position, creature.forward);
+                _model.localRotation = Quaternion.AngleAxis(-60f, Fold);
+                float backward = Vector3.Dot(_model.TransformPoint(tip) - creature.position, creature.forward);
+                _model.localRotation = Quaternion.identity;
+                _foldSign = forward < backward ? 1f : -1f;
+            }
+
+            /// <param name="beat">Degrees about the creature's forward axis: positive lifts the tip.</param>
+            /// <param name="fold">Degrees the wing is swept back along the flank: 0 is spread out.</param>
+            public void Set(float beat, float fold = 0f)
+            {
+                if (_model != null)
+                    _model.localRotation = Quaternion.AngleAxis(fold * _foldSign, Fold) * Quaternion.AngleAxis(beat * _sign, Swing);
+            }
         }
 
         /// <summary>

@@ -146,6 +146,7 @@ namespace Leeway.CreatureEditor.Authoring
             PartCategory.Sense => "sense",
             PartCategory.Grasper => "grasp",
             PartCategory.Weapon => "weapon",
+            PartCategory.Wing => "wing",
             _ => "detail",
         };
 

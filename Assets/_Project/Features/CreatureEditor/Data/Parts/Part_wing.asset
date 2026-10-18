@@ -1,0 +1,34 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: e89edc8a3957d04488699da6f3478fa0, type: 3}
+  m_Name: Part_wing
+  m_EditorClassIdentifier: Leeway.CreatureEditor::Leeway.CreatureEditor.CreaturePartDefinition
+  <PartKey>k__BackingField: wing.feather
+  <DisplayName>k__BackingField: Wings
+  <Category>k__BackingField: 7
+  <AllowedSites>k__BackingField: 2
+  <MirrorCapable>k__BackingField: 1
+  <Prefab>k__BackingField: {fileID: 4925332911677226174, guid: 0bc29e1b48d30734eb2a2de876bccc4e, type: 3}
+  <SkinOffset>k__BackingField: -0.02
+  <Stats>k__BackingField:
+    HpBonus: 2
+    SpeedBonus: 0
+    DamageBonus: 0
+    SenseRadiusBonus: 0
+    MassKg: 1.2
+  <BendPoints>k__BackingField: 2
+  <WholeLimb>k__BackingField: 0
+  <SegmentLength>k__BackingField: 0.22
+  <AcceptsFitting>k__BackingField: 0
+  <DefaultFitting>k__BackingField: {fileID: 0}
+  <Cost>k__BackingField: 45
+  _cachedPartId: 1219707739

@@ -30,6 +30,9 @@ namespace Leeway.Creature.Domain
         /// fitted into a leg or an arm, which is why it has a category of its own.
         /// </summary>
         Extremity = 6,
+
+        /// <summary>Wings: they carry a creature through the air - flapped for height, held out to glide.</summary>
+        Wing = 7,
     }
 
     /// <summary>

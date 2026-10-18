@@ -72,6 +72,7 @@ namespace Leeway.CreatureEditor.Authoring
             [PartCategory.Grasper] = "grasp",
             [PartCategory.Weapon] = "weapon",
             [PartCategory.Detail] = "detail",
+            [PartCategory.Wing] = "wing",
         };
 
         public static List<PartIssue> Inspect(CreaturePartCatalog catalog)

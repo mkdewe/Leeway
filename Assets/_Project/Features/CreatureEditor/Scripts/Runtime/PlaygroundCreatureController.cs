@@ -26,6 +26,12 @@ namespace Leeway.CreatureEditor
         public bool Jump;
         public bool Sprint;
 
+        /// <summary>Space was pressed this tick: one beat of the wings, if it has any.</summary>
+        public bool Flap;
+
+        /// <summary>Space is held: the wings stay out and the creature glides.</summary>
+        public bool Glide;
+
         private uint _tick;
         public void Dispose() { }
         public uint GetTick() => _tick;
@@ -37,6 +43,7 @@ namespace Leeway.CreatureEditor
         public Vector3 Position;
         public Vector3 Velocity;
         public float Yaw;
+        public float Stamina;
 
         private uint _tick;
         public void Dispose() { }
@@ -51,6 +58,10 @@ namespace Leeway.CreatureEditor
     [RequireComponent(typeof(Rigidbody))]
     public class PlaygroundCreatureController : CreatureBody
     {
+        [Header("Flight and stamina")]
+        [Tooltip("How much of the ground control a creature keeps in the air while it has its wings out (0 to 1).")]
+        [SerializeField, Range(0f, 1f)] private float _airControl = 0.55f;
+
         [Header("Control")]
         [Tooltip("The maximum acceleration the legs can transfer to the ground (m/s^2).")]
         [SerializeField] private float _acceleration = 22f;
@@ -119,6 +130,8 @@ namespace Leeway.CreatureEditor
         private CreatureSuspension _suspension;
         private Vector2 _moveInput;
         private bool _jumpQueued;
+        private bool _flapQueued;
+        private bool _glideHeld;
         private float _yaw;
 
         /// <summary>The lateral load in units of the creature's own limit, signed. 1 = on the edge.</summary>
@@ -127,6 +140,31 @@ namespace Leeway.CreatureEditor
         /// <summary>How far the loss of balance has gone. 1 = the creature goes over.</summary>
         private float _tipProgress;
         private float _slideTime;
+
+        private float _stamina = -1f;
+        private float _staminaDelay;
+        private float _flapCooldown;
+        private float _sinceFlap = 99f;
+        private bool _exhausted;
+        private bool _gliding;
+        private float _wingPower;
+        private float _maxStamina = 100f;
+
+        /// <summary>The strength left to run, fly and fight with. Replicated to its owner with the movement.</summary>
+        public float Stamina => _stamina < 0f ? _maxStamina : _stamina;
+        public float MaxStamina => _maxStamina;
+
+        /// <summary>Worn out: it cannot sprint or take wing until it has caught its breath.</summary>
+        public bool IsExhausted => _exhausted;
+
+        /// <summary>Whether this creature has wings at all.</summary>
+        public bool CanFly => CreatureFlightRules.CanFly(_wingPower);
+
+        /// <summary>The wings are out and carrying it.</summary>
+        public bool IsGliding => _gliding;
+
+        /// <summary>Seconds since the last beat of the wings.</summary>
+        public float SinceFlap => _sinceFlap;
 
         /// <summary>Which way the lean is going. Fixed once, at the start of the loss of balance.</summary>
         private float _tipSign;
@@ -149,7 +187,16 @@ namespace Leeway.CreatureEditor
             TryGetComponent(out _muscles);
             _rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
+            BodyRebuilt += OnBuiltForFlight;
         }
+
+        private void OnBuiltForFlight(CreatureGenome genome, CreatureStats stats)
+        {
+            _wingPower = CreatureFlightRules.WingPower(genome, Rules);
+            _maxStamina = CreatureStaminaRules.Max(genome);
+            if (_stamina > _maxStamina) _stamina = _maxStamina;
+        }
+
 
         public override void OnStartNetwork()
         {
@@ -211,7 +258,13 @@ namespace Leeway.CreatureEditor
             _sprintHeld = keyboard != null && (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
 
             // Latched until the next tick sends it - a press shorter than a tick must not be lost.
-            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame) _jumpQueued = true;
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
+            {
+                _jumpQueued = true;
+                _flapQueued = true;
+            }
+
+            _glideHeld = keyboard != null && keyboard.spaceKey.isPressed;
 
             if (keyboard != null && keyboard.fKey.wasPressedThisFrame && _shover != null)
                 _shover.RequestShove();
@@ -239,8 +292,11 @@ namespace Leeway.CreatureEditor
                     CameraYaw = _orbitCamera != null ? _orbitCamera.Yaw : 0f,
                     Jump = _jumpQueued,
                     Sprint = _sprintHeld,
+                    Flap = _flapQueued,
+                    Glide = _glideHeld,
                 });
                 _jumpQueued = false;
+                _flapQueued = false;
             }
             else if (IsServerInitialized)
             {
@@ -288,6 +344,7 @@ namespace Leeway.CreatureEditor
                 Position = _rb.position,
                 Velocity = _rb.linearVelocity,
                 Yaw = _yaw,
+                Stamina = _stamina,
             });
         }
 
@@ -358,8 +415,72 @@ namespace Leeway.CreatureEditor
             // Water holds the body up where the legs cannot reach the bottom - and lets it paddle along.
             bool swimming = Float(grounded, delta);
 
-            IsSprinting = md.Sprint && grounded && !swimming && throttle > 0.01f &&
+            if (_stamina < 0f) _stamina = _maxStamina;
+            _flapCooldown = Mathf.Max(0f, _flapCooldown - delta);
+            _sinceFlap += delta;
+            _staminaDelay -= delta;
+            if (_stamina <= 0.5f) _exhausted = true;
+            else if (_exhausted && _stamina >= CreatureStaminaRules.RecoveryThreshold) _exhausted = false;
+            bool spent = false;
+
+            IsSprinting = md.Sprint && grounded && !swimming && throttle > 0.01f && !_exhausted &&
                 Genome != null && Genome.CountParts(PartCategory.Locomotion, Rules) > 0;
+            if (IsSprinting)
+            {
+                _stamina -= CreatureStaminaRules.SprintDrainPerSecond * delta;
+                spent = true;
+            }
+
+            // Only from the ground, and not again while still rising from the last push-off. A press that jumps is
+            // not also a beat of the wings.
+            bool hasLegs = Genome != null && Genome.CountParts(PartCategory.Locomotion, Rules) > 0;
+            bool legJump = md.Jump && grounded && risingBefore < 0.5f && !_exhausted && _stamina >= CreatureStaminaRules.JumpCost;
+            if (legJump)
+            {
+                Jump();
+                _stamina -= CreatureStaminaRules.JumpCost;
+                spent = true;
+            }
+
+            // Standing on the ground, or lifted off it by a jump or a beat: the legs reach the ground for a good
+            // way up, so "grounded" alone says nothing about whether the wings are doing the work.
+            float stand = GenomeStatRules.StandHeight(Genome, Rules);
+            bool lifted = !grounded || (_suspension != null && _suspension.GroundDistance > stand + 0.2f) || _rb.linearVelocity.y > 1.2f;
+
+            // Wings. A beat lifts; holding the key glides. Both cost stamina, the beat far more.
+            _gliding = false;
+            bool wingsOut = false;
+            if (CanFly && !swimming)
+            {
+                if (md.Flap && _flapCooldown <= 0f && !_exhausted && _stamina >= CreatureFlightRules.FlapCost && !legJump && (lifted || !hasLegs))
+                {
+                    Vector3 v = _rb.linearVelocity;
+                    v.y = Mathf.Max(v.y, 0f) + CreatureFlightRules.FlapSpeed(_wingPower, Stats.Mass);
+                    v += direction * (Stats.MoveSpeed * 0.25f);
+                    _rb.linearVelocity = v;
+                    _stamina -= CreatureFlightRules.FlapCost;
+                    _flapCooldown = CreatureFlightRules.FlapCooldown;
+                    _sinceFlap = 0f;
+                    spent = true;
+                    wingsOut = true;
+                }
+                else if (md.Glide && lifted && !_exhausted && _rb.linearVelocity.y < 0.5f)
+                {
+                    Vector3 v = _rb.linearVelocity;
+                    float sink = CreatureFlightRules.GlideSinkSpeed(_wingPower, Stats.Mass);
+                    if (v.y < -sink) v.y = Mathf.MoveTowards(v.y, -sink, 30f * delta);
+                    _rb.linearVelocity = v;
+                    _stamina -= CreatureFlightRules.GlideDrainPerSecond * delta;
+                    spent = true;
+                    _gliding = true;
+                    wingsOut = true;
+                }
+                else if (lifted && _sinceFlap < 0.6f) wingsOut = true;
+            }
+
+            if (spent) _staminaDelay = CreatureStaminaRules.RegenDelay;
+            else if (_staminaDelay <= 0f) _stamina = Mathf.Min(_maxStamina, _stamina + CreatureStaminaRules.RegenPerSecond * delta);
+            _stamina = Mathf.Max(0f, _stamina);
             float speed = CreatureSprintRules.Speed(Stats.MoveSpeed, IsSprinting, grounded, true, _sprintMultiplier);
             if (grounded)
             {
@@ -373,10 +494,10 @@ namespace Leeway.CreatureEditor
             {
                 _slideTime = Mathf.Max(0f, _slideTime - delta);
                 if (swimming) ApplyTraction(direction * (Stats.MoveSpeed * _swimSpeedFactor), throttle, delta);
+                else if (wingsOut) ApplyTraction(direction * (Stats.MoveSpeed * (_gliding ? CreatureFlightRules.GlideSpeedFactor : 1f)), throttle, delta, _airControl);
             }
 
             // Only from the ground, and not again while still rising from the last push-off.
-            if (md.Jump && grounded && risingBefore < 0.5f) Jump();
 
             _rb.MoveRotation(targetRotation);
         }
@@ -655,6 +776,7 @@ namespace Leeway.CreatureEditor
             _previousPlanarVelocity = new Vector3(rd.Velocity.x, 0f, rd.Velocity.z);
             _rb.rotation = Quaternion.Euler(0f, rd.Yaw, 0f);
             _yaw = rd.Yaw;
+            if (rd.Stamina >= 0f) _stamina = rd.Stamina;
         }
     }
 }

@@ -25,5 +25,6 @@ MonoBehaviour:
   - {fileID: 11400000, guid: 14929d0adc09a5b40b0d919696026130, type: 2}
   - {fileID: 11400000, guid: 2e13e8d75f4b5694ead597c16e1f5885, type: 2}
   - {fileID: 11400000, guid: 43422ba3c7be8894babad2e77640b043, type: 2}
+  - {fileID: 11400000, guid: a01d6e1619e21c84fb4426262f84d941, type: 2}
   _vertebraCost: 10
   _budget: 1000000
