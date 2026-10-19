@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using FishNet.Object;
 using RootMotion.Dynamics;
 using UnityEngine;
@@ -40,6 +41,7 @@ namespace Leeway.CreatureEditor
 
         private CreaturePuppet _puppet;
         private Rigidbody _rigidbody;
+        private Vector3 Up => GravityWorld.UpAt(transform.position, gameObject.scene);
 
         private void Awake()
         {
@@ -49,7 +51,7 @@ namespace Leeway.CreatureEditor
 
         private void FixedUpdate()
         {
-            if (!IsServerInitialized || _rigidbody == null) return;
+            if (!IsServerInitialized || _rigidbody == null || _rigidbody.isKinematic) return;
 
             Vector3 shove = MeasureShove();
             if (shove == Vector3.zero) return;
@@ -58,10 +60,10 @@ namespace Leeway.CreatureEditor
 
             // Only the horizontal part is capped: the vertical component is the creature's own falling,
             // and clamping it would make gravity weaker the faster a creature was shoved.
-            var horizontal = new Vector3(velocity.x, 0f, velocity.z);
+            var horizontal = Vector3.ProjectOnPlane(velocity, Up);
             if (horizontal.magnitude > _maxSpeed) horizontal = horizontal.normalized * _maxSpeed;
 
-            _rigidbody.linearVelocity = new Vector3(horizontal.x, velocity.y, horizontal.z);
+            _rigidbody.linearVelocity = horizontal + Up * Vector3.Dot(velocity, Up);
         }
 
         /// <summary>
@@ -80,7 +82,7 @@ namespace Leeway.CreatureEditor
             if (hips?.joint == null || hips.target == null) return Vector3.zero;
 
             Vector3 offset = hips.joint.transform.position - hips.target.position;
-            offset.y = 0f;
+            offset = Vector3.ProjectOnPlane(offset, Up);
 
             float distance = offset.magnitude;
             if (distance <= _deadzone) return Vector3.zero;

@@ -1,4 +1,6 @@
 using System;
+using Leeway.Gravity;
+using Leeway.World.Domain;
 using FishNet.Connection;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
@@ -106,6 +108,10 @@ namespace Leeway.CreatureEditor
         public CreaturePartCatalog Catalog => _catalog;
         public PartRuleSet Rules => _catalog != null ? _catalog.BuildRuleSet() : PartRuleSet.Empty;
         public CreatureStatTuning Tuning => _tuning;
+
+        public Vector3 Up => GravityWorld.UpAt(transform.position, gameObject.scene);
+        public SurfaceFrame Surface => GravityWorld.FrameAt(transform.position, gameObject.scene);
+        public Vector3 GravityAcceleration => GravityWorld.AccelerationAt(transform.position, gameObject.scene);
 
         public float Hp => _hp.Value;
         public float MaxHp => _stats.MaxHp;
@@ -395,6 +401,8 @@ namespace Leeway.CreatureEditor
         /// control is locked for exactly that long — otherwise the creature would break into a run
         /// halfway through getting up.</para>
         /// </remarks>
+        private uint _riseStartTick;
+
         [Server]
         private void BeginRise()
         {
@@ -402,6 +410,7 @@ namespace Leeway.CreatureEditor
             if (!state.IsDown || state.IsRising) return;
 
             state.IsRising = true;
+            _riseStartTick = TimeManager.Tick;
             state.Landing = ResolveLanding();
             state.RiseTicks = RiseTicksFor();
 
@@ -433,12 +442,13 @@ namespace Leeway.CreatureEditor
             float clearance = standHeight > 0.001f ? standHeight
                 : _locomotionCollider is CapsuleCollider capsule ? Mathf.Max(0.05f, capsule.radius - capsule.center.y) : 0.6f;
 
-            var origin = new Vector3(centre.x, centre.y + probeHeight, centre.z);
+            Vector3 up = GravityWorld.UpAt(centre, gameObject.scene);
+            var origin = centre + up * probeHeight;
             int groundMask = ~((1 << gameObject.layer) | (1 << LayerMask.NameToLayer(RagdollLayerName)));
 
-            return Physics.Raycast(origin, Vector3.down, out RaycastHit hit, probeHeight * 3f, groundMask, QueryTriggerInteraction.Ignore)
-                ? hit.point + Vector3.up * clearance
-                : new Vector3(centre.x, transform.position.y, centre.z);
+            return Physics.Raycast(origin, -up, out RaycastHit hit, probeHeight * 3f, groundMask, QueryTriggerInteraction.Ignore)
+                ? hit.point + up * clearance
+                : centre + up * Vector3.Dot(transform.position - centre, up);
         }
 
         /// <summary>
@@ -465,7 +475,7 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
-            if (elapsed >= KnockdownTicks + _knockdown.Value.RiseTicks)
+            if (TimeManager.Tick - _riseStartTick >= _knockdown.Value.RiseTicks)
             {
                 _knockdown.Value = KnockdownState.Standing;
                 ApplyKnockdownVisuals(KnockdownState.Standing);
@@ -580,8 +590,9 @@ namespace Leeway.CreatureEditor
         /// </remarks>
         private void Stand(Vector3 landing)
         {
-            transform.rotation = Quaternion.Euler(0f, transform.eulerAngles.y, 0f);
+            float yaw = Surface.YawOf(transform.forward);
             transform.position = landing;
+            transform.rotation = Surface.Rotation(yaw);
 
             if (!TryGetComponent(out Rigidbody rb)) return;
 
@@ -671,7 +682,7 @@ namespace Leeway.CreatureEditor
         {
             if (!_isAlive.Value) return;
             // Death enters the same replicated ragdoll state, but never recovers automatically.
-            if (!_knockdown.Value.IsDown) Knockdown(Vector3.up * (_knockdownImpulseThreshold + 0.1f), 0);
+            if (!_knockdown.Value.IsDown) Knockdown(Up * (_knockdownImpulseThreshold + 0.1f), 0);
             _isAlive.Value = false;
         }
 

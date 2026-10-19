@@ -31,7 +31,7 @@ Material:
     - _FlowNormalStrength: 0.03
     - _FoamWidth: 0.12
     - _LightInfluence: 0.35
-    - _OceanWaveHeight: 0.38
+    - _OceanWaveHeight: 0.08
     - _OceanWaveLength: 18
     - _OceanWaveSpeed: 1.8
     - _ReflectionDistortion: 0.006

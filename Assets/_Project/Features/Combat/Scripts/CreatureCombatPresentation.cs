@@ -60,11 +60,11 @@ namespace Leeway.Combat
             var spec=_combatant.AttackFor(_combatant.PendingAbility);
             float progress=_combatant.WindupProgress;
             float height=0;
-            if(Physics.Raycast(transform.position+Vector3.up,Vector3.down,out var hit,6,1,QueryTriggerInteraction.Ignore))height=hit.point.y-transform.position.y+0.04f;
+            if(Physics.Raycast(transform.position+_body.Up,-_body.Up,out var hit,6,1,QueryTriggerInteraction.Ignore))height=Vector3.Dot(hit.point-transform.position,_body.Up)+0.04f;
             for(int i=0;i<_points.Length;i++)
             {
                 float a=Mathf.Lerp(-spec.ArcDegrees*0.5f,spec.ArcDegrees*0.5f,i/(float)(_points.Length-1));
-                _points[i]=transform.position+Vector3.up*height+(Quaternion.Euler(0,a,0)*_heading)*spec.Reach*Mathf.Lerp(0.85f,1,progress);
+                _points[i]=transform.position+_body.Up*height+(Quaternion.AngleAxis(a,_body.Up)*Vector3.ProjectOnPlane(_heading,_body.Up).normalized)*spec.Reach*Mathf.Lerp(0.85f,1,progress);
             }
             _line.startColor=_line.endColor=Color.Lerp(new Color(1,0.7f,0.25f,0.25f),new Color(1,0.25f,0.12f,0.9f),progress);
             _line.SetPositions(_points);

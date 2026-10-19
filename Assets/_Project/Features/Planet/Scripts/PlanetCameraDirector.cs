@@ -1,9 +1,6 @@
 using System;
-using System.Collections.Generic;
-using System.Diagnostics;
 using Leeway.CreatureEditor;
 using Leeway.Rendering;
-using Leeway.World;
 using Unity.Cinemachine;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -11,543 +8,329 @@ using UnityEngine.InputSystem;
 
 namespace Leeway.Planet
 {
-    /// <summary>
-    /// Lets the camera leave the island: scrolling out past the farthest point of the play camera lifts the
-    /// shot away from the ground until the whole planet is in view, and from there the planet is what the
-    /// camera orbits.
-    /// </summary>
-    /// <remarks>
-    /// <para>Two cameras share the work. The play camera keeps following the creature; a second camera,
-    /// made here, takes over for the planet view and Cinemachine's brain blends between them, so the
-    /// climb out and the descent back are one smooth move rather than a cut.</para>
-    ///
-    /// <para>Leaving the ground is leaving the air. How far the camera has climbed sets one number, how much of the
-    /// sky is still air (see <see cref="SpaceBackdrop"/>), and that number does the rest: the haze that hides the planet
-    /// from the ground thins and lets its colours through, the sky darkens to stars, and the flat world - the island's
-    /// terrain, sea and plants - is switched off once the haze has swallowed it, a few renderers at a time, so that
-    /// nothing is switched on or off in view and no frame has to do it all at once.</para>
-    /// </remarks>
+    /// <summary>One distance-controlled view centred on the creature. Zoom never chooses a new heading.
+    /// The auxiliary camera takes over at the exact live pose and extends the surface camera's range.</summary>
+    [DefaultExecutionOrder(30)]
     public sealed class PlanetCameraDirector : MonoBehaviour
     {
-        private enum View { Surface, Planet }
-
         [SerializeField] private PlanetView _planet;
         [SerializeField] private CinemachineCamera _playCamera;
         [SerializeField] private CreatureOrbitCamera _orbit;
         [SerializeField] private SpaceBackdrop _backdrop;
+        [Header("Continuous zoom")]
+        [SerializeField,Min(0.1f)] private float _minimumDistance=2f;
+        [SerializeField,Min(1f)] private float _maximumRadiusFactor=8f;
+        [SerializeField,Range(0.02f,0.5f)] private float _zoomStep=0.12f;
+        [SerializeField,Min(0.02f)] private float _zoomSmoothTime=0.18f;
+        [SerializeField,Min(0.1f)] private float _maximumLogZoomSpeed=3f;
+        [Header("Rotation and return")]
+        [SerializeField] private float _dragSensitivity=0.28f;
+        [SerializeField,Min(0.1f)] private float _damping=12f;
+        [SerializeField,Min(0.1f)] private float _recallSeconds=0.8f;
 
-        [Header("Planet camera")]
-        [SerializeField, Range(20f, 60f)] private float _fieldOfView = 35f;
-        [Tooltip("Seconds the camera takes to fly between the island and the planet.")]
-        [SerializeField, Min(0.5f)] private float _flightSeconds = 2.8f;
-        [Tooltip("Degrees the camera banks into the swing round to the orbit.")]
-        [SerializeField, Range(0f, 12f)] private float _leanDegrees = 3f;
-        [Tooltip("Degrees of slow sway while climbing.")]
-        [SerializeField, Range(0f, 2f)] private float _swayDegrees = 0.5f;
-        [Tooltip("Degrees the field of view opens at the fastest part of the flight.")]
-        [SerializeField, Range(0f, 25f)] private float _fieldKick = 9f;
-        [Tooltip("Closest the planet camera gets to the surface, as a multiple of the radius.")]
-        [SerializeField, Min(1.05f)] private float _nearFactor = 1.35f;
-        [Tooltip("Farthest the planet camera backs off, as a multiple of the distance at which the planet just fits.")]
-        [SerializeField, Min(1f)] private float _farFactor = 1.7f;
-        [Tooltip("Degrees the view is tilted up, so the planet sits below the panel across the top of the screen.")]
-        [SerializeField, Range(0f, 10f)] private float _screenLift = 4.5f;
-        [SerializeField, Range(0.02f, 0.5f)] private float _zoomStep = 0.12f;
-        [Tooltip("Degrees of rotation per pixel of mouse movement at the closest range.")]
-        [SerializeField] private float _dragSensitivity = 0.28f;
-        [SerializeField] private float _damping = 9f;
-
-        private const int ActivePriority = 50;
-        // A planet is thousands of metres across: the clip planes of a camera that walks the island would cut it in two.
-        private const float PlanetNear = 5f;
-        private const float PlanetFar = 600000f;
-        private static readonly int PlanetViewId = Shader.PropertyToID("_LeewayPlanetView");
-
+        private const int ActivePriority=50;
+        private const float PlanetFar=600000f;
+        private static readonly int PlanetViewId=Shader.PropertyToID("_LeewayPlanetView");
         private CinemachineCamera _planetCamera;
         private CinemachineBrain _brain;
-        private CinemachineBlendDefinition _savedBlend;
-        private bool _blendOverridden;
-
-        // The flight: 0 with the camera where the ground camera is, 1 with it in orbit round the planet.
-        private float _flight;
         private CinemachineVirtualCameraBase _ground;
         private CinemachineVirtualCameraBase.StandbyUpdateMode _groundStandby;
-        private bool _airEffects = true;
+        private CinemachineBlendDefinition _savedBlend;
+        private bool _blendOverridden;
+        private float _switchedAt;
+        private Transform _target;
+        private Vector3 _focusOffset,_fixedFocus,_eye;
+        private Quaternion _rotation,_requestedRotation,_surfaceRelativeRotation,_recallFrom;
+        private float _distance,_requestedDistance,_logDistance,_zoomVelocity;
+        private float _surfaceDistance,_surfaceLimit,_minimum,_maximum,_nextLimits;
+        private float _recallElapsed,_recallDistance,_space;
+        private bool _controlling,_overview,_returning,_recalling,_dragging;
+        private bool _airEffects=true;
         private IslandWind _wind;
         private StylizedWaterReflections _reflections;
-        private Vector3 _eye;
-        private bool _hasEye;
+        private Func<float,bool> _zoomHook;
 
-        private View _view;
-        private float _yaw, _pitch, _distance;
-        private float _smoothYaw, _smoothPitch, _smoothDistance;
-        private bool _dragging;
-        private float _ignoreScrollUntil;
-
-        private float _switchedAt;
-        private float _space;
-
-        // The flat world is switched off and on in small batches: a few hundred renderers at once is a visible stall.
-        private const double BatchMilliseconds = 1.5;
-        private enum Flat { Shown, Hiding, Hidden, Showing }
-
-        private Flat _flat = Flat.Shown;
-        private bool _flatWanted = true;
-        private readonly List<Renderer> _hidden = new();
-        private readonly List<Renderer> _toHide = new();
-        private int _hideCursor;
-
-        // Where the camera is between the ground (0) and open space (1).
-        public float Space => _space;
-
-        /// <summary>True from the moment the camera sets out for the planet until it starts back.</summary>
-        public bool InPlanetView => _view == View.Planet;
-
-        /// <summary>True while the camera is anywhere but on the ground: on its way out, in orbit, or still on its way back.</summary>
-        public bool IsAway => _flight > 0f || _view == View.Planet;
-
+        public float Space=>_space;
+        public bool InPlanetView=>_overview;
+        public bool IsAway=>_overview||_returning||(_controlling&&_distance>_surfaceLimit*1.03f);
+        public float Distance=>_controlling?_distance:(_orbit!=null?_orbit.SurfaceMaximumDistance:0f);
+        public float TargetDistance=>_requestedDistance;
+        public float MinimumZoomDistance=>_minimum;
+        public float MaximumZoomDistance=>_maximum;
+        public bool IsRecalling=>_recalling;
+        public Vector3 FocusPoint=>_target!=null?_target.position+_focusOffset:_fixedFocus;
         public event Action<bool> ViewChanged;
-
-        private float FitDistance => _planet.Radius / Mathf.Sin(_fieldOfView * 0.5f * Mathf.Deg2Rad) * 1.3f;
-        private float MinDistance => _planet.Radius * _nearFactor;
-        private float MaxDistance => FitDistance * _farFactor;
 
         private void Awake()
         {
-            var cameraObject = new GameObject("CM_Planet");
-            cameraObject.transform.SetParent(transform, false);
-            _planetCamera = cameraObject.AddComponent<CinemachineCamera>();
-            _planetCamera.Priority.Value = 0;
-
-            LensSettings lens = _planetCamera.Lens;
-            lens.FieldOfView = _fieldOfView;
-            lens.NearClipPlane = PlanetNear;
-            lens.FarClipPlane = PlanetFar;
-            _planetCamera.Lens = lens;
+            var go=new GameObject("CM_Planet");go.transform.SetParent(transform,false);
+            _planetCamera=go.AddComponent<CinemachineCamera>();
+            _planetCamera.Priority.Value=0;
+            _zoomHook=HandleSurfaceScroll;
         }
 
-        private void Start()
+        private void Start()=>Bind();
+        private void OnEnable(){if(_zoomHook!=null)Bind();}
+        private void Bind()
         {
-            if (_orbit == null) _orbit = FindAnyObjectByType<CreatureOrbitCamera>();
-            if (_playCamera == null && _orbit != null) _playCamera = FindPlayCamera();
-            if (_backdrop == null) _backdrop = FindAnyObjectByType<SpaceBackdrop>();
-        }
-
-        private void OnDestroy()
-        {
-            Shader.SetGlobalFloat(PlanetViewId, 0f);
-            if (_reflections != null) _reflections.Suspended = false;
-            if (_wind != null) _wind.StreaksEnabled = true;
-            foreach (Renderer renderer in _hidden)
-                if (renderer != null) renderer.enabled = true;
-            _hidden.Clear();
-        }
-
-        private CinemachineCamera FindPlayCamera()
-        {
-            foreach (CinemachineCamera candidate in FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None))
-                if (candidate.TryGetComponent<CinemachineFollow>(out _)) return candidate;
-            return null;
+            if(_orbit==null)_orbit=FindAnyObjectByType<CreatureOrbitCamera>();
+            if(_playCamera==null)
+                foreach(var camera in FindObjectsByType<CinemachineCamera>(FindObjectsSortMode.None))
+                    if(camera.TryGetComponent<CinemachineFollow>(out _)){_playCamera=camera;break;}
+            if(_backdrop==null)_backdrop=FindAnyObjectByType<SpaceBackdrop>();
+            if(_orbit!=null)_orbit.ZoomOverride=_zoomHook;
         }
 
         private void Update()
         {
-            if (_planet == null) return;
-
-            if (_view == View.Surface) UpdateSurface();
-            else UpdatePlanet();
-
-            // At the far end of the island camera the planet is likely next: its fine tiles are asked for in good time.
-            _planet.Prefetch(_view == View.Surface && _orbit != null && _orbit.AtFarLimit);
-            StepFlight();
+            if(_planet==null)return;
+            if(_controlling)
+            {
+                ReadInput();
+                RefreshLimits();
+                if(!_returning)SetOverview(_requestedDistance>Mathf.Max(_surfaceLimit*1.03f,_planet.Radius*0.2f));
+            }
+            _planet.Prefetch(_controlling||(_orbit!=null&&_orbit.AtFarLimit));
             UpdateAtmosphere();
             SettleBlend();
         }
 
-        // ---------------------------------------------------------------- air
-
-        // How much of the air the camera has left behind, from its height over the home island. The planet cannot be
-        // nearer than 0.35 of its radius, so the climb always ends in space whatever the size.
-        private void UpdateAtmosphere()
+        private void LateUpdate()
         {
-            UnityEngine.Camera main = UnityEngine.Camera.main;
-            Vector3 eye = _hasEye ? _eye : main != null ? main.transform.position : _planet.Anchor;
-            float radius = _planet.Radius;
-            float top = Mathf.Clamp(radius * 0.3f, 300f, 2000f);
-            float bottom = Mathf.Min(180f, top * 0.5f);
-
-            float altitude = (eye - _planet.Center).magnitude - radius - _planet.SurfaceGap;
-            _space = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(bottom, top, altitude));
-
-            if (_backdrop != null) _backdrop.Space = _space;
-            SetAirEffects(_space < 0.4f);
-
-            // Reflections of the island are of no use from this high, and are the dearest part of drawing it.
-            if (_reflections == null) _reflections = FindAnyObjectByType<StylizedWaterReflections>();
-            if (_reflections != null) _reflections.Suspended = altitude > 120f;
-            Shader.SetGlobalFloat(PlanetViewId, _space);
-
-            // The flat world goes when the haze has swallowed it and returns before the haze lifts again.
-            _flatWanted = _flatWanted ? _space < 0.5f : _space < 0.45f;
-            StepFlatWorld();
-
-            bool flatGone = _flat == Flat.Hidden;
-            // Until the flat world is gone the planet is all haze, the same colour as the sea and the sky's foot; then it clears.
-            _planet.SetHaze(flatGone ? 1f - Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1f, _space)) : 1f);
-
-            bool flatShown = _flat == Flat.Shown;
-            bool wanted = _view == View.Planet || _space > 0.01f || !flatShown;
-            if (wanted != _planet.IsVisible) _planet.SetVisible(wanted);
+            // The focus has consumed this frame's puppet pose before the camera follows it.
+            if (_planet != null && _controlling) StepPose(Time.unscaledDeltaTime);
         }
 
-        // Things that only make sense in the air - the motes drifting by the camera, the streaks of wind - are put away outside it.
-        private void SetAirEffects(bool inAir)
+        private bool HandleSurfaceScroll(float raw)
         {
-            if (inAir == _airEffects) return;
-            _airEffects = inAir;
-
-            UnityEngine.Camera main = UnityEngine.Camera.main;
-            if (main != null)
-            {
-                foreach (ParticleSystem motes in main.GetComponentsInChildren<ParticleSystem>(true))
-                {
-                    ParticleSystem.EmissionModule emission = motes.emission;
-                    emission.enabled = inAir;
-                    if (!inAir) motes.Clear();
-                }
-            }
-
-            if (_wind == null) _wind = FindAnyObjectByType<IslandWind>();
-            if (_wind != null) _wind.StreaksEnabled = inAir;
+            if(_controlling)return true;
+            if(raw>=0||_orbit==null||!_orbit.AtFarLimit)return false;
+            if(!TakeControl())return false;
+            ZoomBy(Notches(raw));
+            return true;
         }
 
-        // ---------------------------------------------------------------- surface
+        private static float Notches(float raw)=>Mathf.Clamp(Mathf.Abs(raw)>=10f?raw/120f:raw,-10f,10f);
 
-        private void UpdateSurface()
+        /// <summary>Input-device-independent zoom. Positive steps approach, negative steps withdraw.</summary>
+        public void ZoomBy(float steps)
         {
-            if (_orbit == null || Time.unscaledTime < _ignoreScrollUntil) return;
-
-            Mouse mouse = Mouse.current;
-            if (mouse == null || OverUi()) return;
-
-            bool live = _playCamera != null && CinemachineCore.IsLive(_playCamera);
-            if (live && mouse.scroll.ReadValue().y < 0f && _orbit.AtFarLimit) EnterPlanetView();
+            if(!float.IsFinite(steps)||Mathf.Approximately(steps,0))return;
+            if(!_controlling&&!TakeControl())return;
+            RefreshLimits(true);
+            _returning=false;
+            if(steps>0&&!_recalling&&NeedsRecall())BeginRecall();
+            if(steps<0&&_recalling){_recalling=false;_requestedRotation=_rotation;}
+            _requestedDistance=Mathf.Clamp(_requestedDistance*Mathf.Exp(-Mathf.Clamp(steps,-100f,100f)*_zoomStep),_minimum,_maximum);
+            SetOverview(_requestedDistance>Mathf.Max(_surfaceLimit*1.03f,_planet.Radius*0.2f));
         }
 
-        // ---------------------------------------------------------------- planet
-
-        private void UpdatePlanet()
-        {
-            Mouse mouse = Mouse.current;
-            Keyboard keyboard = Keyboard.current;
-            bool overUi = OverUi();
-
-            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
-            {
-                ExitPlanetView();
-                return;
-            }
-
-            if (mouse != null)
-            {
-                bool pressed = mouse.leftButton.wasPressedThisFrame || mouse.rightButton.wasPressedThisFrame;
-                bool held = mouse.leftButton.isPressed || mouse.rightButton.isPressed;
-                if (pressed && !overUi) _dragging = true;
-                if (!held) _dragging = false;
-
-                if (_dragging)
-                {
-                    // The globe follows the hand: drag right and the surface moves right, so the camera goes left.
-                    // Close to the surface a pixel is a smaller piece of the sky, so the drag slows down.
-                    float scale = Mathf.Clamp(_distance / FitDistance, 0.25f, 1.2f);
-                    Vector2 delta = mouse.delta.ReadValue();
-                    _yaw += delta.x * _dragSensitivity * scale;
-                    _pitch = Mathf.Clamp(_pitch - delta.y * _dragSensitivity * scale, -82f, 82f);
-                }
-
-                float scroll = overUi ? 0f : mouse.scroll.ReadValue().y;
-                if (scroll > 0f && _distance <= MinDistance * 1.01f && Time.unscaledTime > _ignoreScrollUntil)
-                {
-                    ExitPlanetView();
-                    return;
-                }
-
-                if (!Mathf.Approximately(scroll, 0f))
-                    _distance = Mathf.Clamp(_distance * (1f - Mathf.Sign(scroll) * _zoomStep), MinDistance, MaxDistance);
-            }
-
-            SmoothPose();
-        }
-
-        // The orbit pose eases towards where the player has put it.
-        private void SmoothPose()
-        {
-            float t = 1f - Mathf.Exp(-_damping * Time.unscaledDeltaTime);
-            _smoothYaw = Mathf.LerpAngle(_smoothYaw, _yaw, t);
-            _smoothPitch = Mathf.Lerp(_smoothPitch, _pitch, t);
-            _smoothDistance = Mathf.Lerp(_smoothDistance, _distance, t);
-
-        }
-
-        private void OrbitPose(out Vector3 position, out Quaternion rotation)
-        {
-            float yaw = _smoothYaw * Mathf.Deg2Rad, pitch = _smoothPitch * Mathf.Deg2Rad;
-            var direction = new Vector3(Mathf.Cos(pitch) * Mathf.Sin(yaw), Mathf.Sin(pitch), Mathf.Cos(pitch) * Mathf.Cos(yaw));
-
-            position = _planet.Center + direction * _smoothDistance;
-            rotation = Quaternion.LookRotation(-direction, Vector3.up) * Quaternion.Euler(-_screenLift, 0f, 0f);
-        }
-
-        // ---------------------------------------------------------------- switching
-
+        /// <summary>Explicit overview command, e.g. a button. Mouse-wheel zoom never calls this command.</summary>
         public void EnterPlanetView()
         {
-            if (_view == View.Planet || _planet == null) return;
-            if (!_planet.EnsureBuilt()) return;
-
-            // Whichever camera has the view now is the one the flight leaves from and comes back to.
-            if (_flight <= 0f && !TakeGroundCamera()) return;
-
-            _view = View.Planet;
-            _switchedAt = Time.unscaledTime;
-            _ignoreScrollUntil = Time.unscaledTime + 0.4f;
-
-            // Starting on the far side of the pole from where the play camera looked, at a high angle,
-            // so the descent later comes over the island the creature stands on.
-            FaceAwayFromTheSun();
-            _distance = FitDistance;
-            _smoothYaw = _yaw;
-            _smoothPitch = _pitch;
-            _smoothDistance = _distance;
-
-            // The planet is on screen from the first frame of the climb, but lost in haze until the air thins.
-            _planet.SetHaze(1f);
-            _planet.SetVisible(true);
-
-            if (_orbit != null) _orbit.Suspended = true;
-
-            // The planet camera starts exactly where the ground camera is, so taking over is not seen.
-            StepFlight();
-            UseCut();
-            _planetCamera.Priority.Value = ActivePriority;
-            ViewChanged?.Invoke(true);
+            if(!_controlling&&!TakeControl())return;
+            _returning=false;
+            RefreshLimits(true);
+            float fov=_planetCamera.Lens.FieldOfView;
+            _requestedDistance=Mathf.Clamp(_planet.Radius/Mathf.Sin(fov*0.5f*Mathf.Deg2Rad)*1.3f,_minimum,_maximum);
+            SetOverview(true);
         }
 
         public void ExitPlanetView()
         {
-            if (_view == View.Surface) return;
-
-            _view = View.Surface;
-            _switchedAt = Time.unscaledTime;
-            _ignoreScrollUntil = Time.unscaledTime + 1f;
-            _dragging = false;
-
-            if (_orbit != null) _orbit.Suspended = false;
-            ViewChanged?.Invoke(false);
+            if(!_controlling){SetOverview(false);return;}
+            _returning=true;_dragging=false;
+            _requestedDistance=Mathf.Clamp(_surfaceDistance,_minimum,_maximum);
+            if(NeedsRecall())BeginRecall();
+            SetOverview(false);
         }
 
-        // The first view of the planet: from the dark side and above, the sun a little behind its edge, so that
-        // the planet is half lit and the star is the first thing outside it.
-        private void FaceAwayFromTheSun()
+        private bool TakeControl()
         {
-            Vector4 sun = Shader.GetGlobalVector("_LeewaySunDirection");
-            var flat = new Vector3(sun.x, 0f, sun.z);
-            if (flat.sqrMagnitude < 0.01f) flat = Vector3.forward;
-            flat.Normalize();
-            Vector3 side = Vector3.Cross(Vector3.up, flat);
-            Vector3 away = (-flat * 0.7f + side * 0.7f).normalized;
-
-            _yaw = Mathf.Atan2(away.x, away.z) * Mathf.Rad2Deg;
-            _pitch = 38f;
-        }
-
-        private bool TakeGroundCamera()
-        {
-            if (_brain == null)
-            {
-                UnityEngine.Camera main = UnityEngine.Camera.main;
-                if (main != null) main.TryGetComponent(out _brain);
-            }
-
-            _ground = _brain != null ? _brain.ActiveVirtualCamera as CinemachineVirtualCameraBase : null;
-            if (_ground == null || _ground == _planetCamera) return false;
-
-            // Kept up to date while it is not the live one, so there is somewhere to come back to.
-            _groundStandby = _ground.StandbyUpdate;
-            _ground.StandbyUpdate = CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
+            if(_planet==null||!_planet.EnsureBuilt())return false;
+            if(_planet.PlayableWorld!=null&&!_planet.PlayableWorld.IsReady)return false;
+            Bind();
+            var main=Camera.main;
+            if(main==null||!main.TryGetComponent(out _brain))return false;
+            _ground=_brain.ActiveVirtualCamera as CinemachineVirtualCameraBase;
+            if(_ground==null||_ground==_planetCamera)return false;
+            var groundCamera=_ground as CinemachineCamera;
+            _target=groundCamera!=null?(groundCamera.LookAt!=null?groundCamera.LookAt:groundCamera.Follow):null;
+            if(_target==null&&_orbit!=null)_target=_orbit.Target;
+            Vector3 targetPoint=_target!=null?_target.position:_planet.Anchor;
+            var state=_ground.State;
+            if(state.HasLookAt())targetPoint=state.ReferenceLookAt;
+            // Keep the first pose exact, including an authored composition offset on the creature.
+            _rotation=_requestedRotation=main.transform.rotation;
+            float distance=Mathf.Max(0.1f,Vector3.Dot(targetPoint-main.transform.position,main.transform.forward));
+            Vector3 focus=main.transform.position+main.transform.forward*distance;
+            _fixedFocus=focus;_focusOffset=_target!=null?focus-_target.position:Vector3.zero;
+            _distance=_requestedDistance=_surfaceDistance=distance;
+            _logDistance=Mathf.Log(distance);_zoomVelocity=0;
+            _surfaceLimit=_orbit!=null?_orbit.SurfaceMaximumDistance:Mathf.Max(15,distance);
+            _surfaceRelativeRotation=Quaternion.Inverse(SurfaceRotation())*_rotation;
+            _groundStandby=_ground.StandbyUpdate;
+            _ground.StandbyUpdate=CinemachineVirtualCameraBase.StandbyUpdateMode.Always;
+            _planetCamera.transform.SetPositionAndRotation(main.transform.position,_rotation);
+            _planetCamera.Lens=state.Lens;
+            _controlling=true;_returning=_recalling=false;
+            if(_orbit!=null)_orbit.Suspended=true;
+            RefreshLimits(true);
+            UseCut();
+            _planetCamera.Priority.Value=ActivePriority;
+            _eye=main.transform.position;
             return true;
         }
 
-        // ---------------------------------------------------------------- the flight
-
-        // The climb is not a straight line: what the eye wants is the same change of scale each moment, so the height
-        // above the ground is blended as a logarithm. The first hundred metres then take as long on screen as the
-        // last ten thousand, and the air thins at a pace that can be watched instead of in a blink.
-        private void StepFlight()
+        private void RefreshLimits(bool force=false)
         {
-            float target = _view == View.Planet ? 1f : 0f;
-            if (_flight == target && (target >= 1f || _ground == null))
-            {
-                if (target >= 1f) PoseOrbit();
-                return;
-            }
-
-            _flight = Mathf.MoveTowards(_flight, target, Time.unscaledDeltaTime / _flightSeconds);
-            if (_flight <= 0f && _view == View.Surface)
-            {
-                HandBack();
-                return;
-            }
-
-            float f = _flight;
-            // Up is quick and starts at once; the swing round to the orbit comes late, when the planet already fills
-            // the view. A climb that moves sideways from the first metre is what made the camera skate over the surface.
-            float rise = Mathf.Lerp(Mathf.SmoothStep(0f, 1f, f), 1f - (1f - f) * (1f - f), 0.65f);
-            float swing = Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.55f, 1f, f));
-            float turn = Mathf.SmoothStep(0f, 1f, f);
-            OrbitPose(out Vector3 orbitPosition, out Quaternion orbitRotation);
-
-            CameraState from = _ground.State;
-            Vector3 groundPosition = from.GetFinalPosition();
-            Quaternion groundRotation = from.GetFinalOrientation();
-            Vector3 centre = _planet.Center;
-
-            Vector3 a = groundPosition - centre, b = orbitPosition - centre;
-            float surface = _planet.Radius + _planet.SurfaceGap;
-            float altitudeA = Mathf.Max(a.magnitude - surface, 30f), altitudeB = Mathf.Max(b.magnitude - surface, 30f);
-            Vector3 direction = Vector3.Slerp(a.normalized, b.normalized, swing);
-            float distance = surface + Mathf.Exp(Mathf.Lerp(Mathf.Log(altitudeA), Mathf.Log(altitudeB), rise));
-            Vector3 position = centre + direction * distance;
-
-            // The gaze: first the ground camera's own, then turning to look down at the island it is leaving, then
-            // - once high - on to the framing of the orbit. The heading of the ground camera keeps "up" in the picture
-            // meaningful when the view is straight down.
-            Vector3 heading = Vector3.ProjectOnPlane(groundRotation * Vector3.forward, direction);
-            if (heading.sqrMagnitude < 1e-4f) heading = Vector3.ProjectOnPlane(Vector3.forward, direction);
-            Quaternion lookDown = Quaternion.LookRotation(centre - position, heading.normalized);
-            Quaternion gaze = Quaternion.Slerp(groundRotation, lookDown, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0f, 0.3f, f)));
-            gaze = Quaternion.Slerp(gaze, orbitRotation, Mathf.SmoothStep(0f, 1f, Mathf.InverseLerp(0.6f, 1f, f)));
-
-            // Alive, not on rails: the camera leans into the swing, the field of view opens with the speed and
-            // closes again on arrival, and a faint sway comes and goes with the effort of the climb.
-            float effort = Mathf.Sin(f * Mathf.PI);
-            float side = Mathf.Sign(Vector3.Dot(Vector3.Cross(a.normalized, b.normalized), Vector3.up) + 1e-4f);
-            float lean = _leanDegrees * Mathf.Sin(swing * Mathf.PI) * side;
-            float sway = (Mathf.PerlinNoise(Time.unscaledTime * 1.7f, 3.1f) - 0.5f) * 2f * _swayDegrees * effort;
-            Quaternion alive = Quaternion.AngleAxis(lean + sway, Vector3.forward);
-
-            Transform eye = _planetCamera.transform;
-            eye.SetPositionAndRotation(position, gaze * alive);
-            _eye = position;
-            _hasEye = true;
-
-            LensSettings lens = _planetCamera.Lens;
-            lens.FieldOfView = Mathf.Lerp(from.Lens.FieldOfView, _fieldOfView, turn) + _fieldKick * effort;
-            lens.NearClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.NearClipPlane, 0.01f)), Mathf.Log(PlanetNear), rise));
-            lens.FarClipPlane = Mathf.Exp(Mathf.Lerp(Mathf.Log(Mathf.Max(from.Lens.FarClipPlane, 10f)), Mathf.Log(PlanetFar), rise));
-            _planetCamera.Lens = lens;
+            if(!force&&Time.unscaledTime<_nextLimits)return;
+            _nextLimits=Time.unscaledTime+0.5f;
+            _minimum=Mathf.Max(_minimumDistance,_orbit!=null?_orbit.MinimumDistance:0.1f);
+            _maximum=Mathf.Max(_minimum,_planet.Radius*_maximumRadiusFactor);
+            _requestedDistance=Mathf.Clamp(_requestedDistance,_minimum,_maximum);
         }
 
-        // Arrived: the planet camera is simply where the orbit says.
-        private void PoseOrbit()
+        private Vector3 LocalUp()
         {
-            OrbitPose(out Vector3 position, out Quaternion rotation);
-            Transform eye = _planetCamera.transform;
-            eye.SetPositionAndRotation(position, rotation);
-            _eye = position;
-            _hasEye = true;
+            if(_target!=null)return Leeway.Gravity.GravityWorld.UpAt(FocusPoint,_target.gameObject.scene);
+            return (FocusPoint-_planet.Center).normalized;
+        }
+        private Quaternion SurfaceRotation()=>new Leeway.World.Domain.SurfaceFrame(LocalUp()).Rotation(0);
+        private bool NeedsRecall()=>Vector3.Dot(-(_rotation*Vector3.forward),LocalUp())<0.03f;
+        private void BeginRecall()
+        {
+            _recalling=true;_recallElapsed=0;_recallFrom=_rotation;
+            // Rotating at this radius cannot send the camera through the planet.
+            _recallDistance=Mathf.Max(_distance,_planet.Radius*2.2f);
         }
 
-        // Back down: the ground camera is live again and the planet camera lets go.
-        private void HandBack()
+        /// <summary>Manual orbit only. Zoom does not invoke rotation.</summary>
+        public void OrbitByDegrees(Vector2 degrees)
         {
-            _flight = 0f;
-            _hasEye = false;
-            UseCut();
-            _planetCamera.Priority.Value = 0;
-            if (_ground != null) _ground.StandbyUpdate = _groundStandby;
-            _ground = null;
+            if(!_controlling||_recalling)return;
+            Vector3 up=LocalUp();
+            Quaternion yaw=Quaternion.AngleAxis(degrees.x,up)*_requestedRotation;
+            float pitch=Mathf.Asin(Mathf.Clamp(-Vector3.Dot(yaw*Vector3.forward,up),-1,1))*Mathf.Rad2Deg;
+            float minimum=_distance>_planet.Radius*2.2f?-85f:5f;
+            float next=Mathf.Clamp(pitch+degrees.y,minimum,85f);
+            _requestedRotation=Quaternion.AngleAxis(next-pitch,yaw*Vector3.right)*yaw;
         }
 
-        private void UseCut()
+        private void ReadInput()
         {
-            if (_brain == null) return;
-
-            if (!_blendOverridden)
-            {
-                _savedBlend = _brain.DefaultBlend;
-                _blendOverridden = true;
-            }
-            _brain.DefaultBlend = new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut, 0f);
-            _switchedAt = Time.unscaledTime;
+            var keyboard=Keyboard.current;
+            if(keyboard!=null&&keyboard.escapeKey.wasPressedThisFrame){ExitPlanetView();return;}
+            var mouse=Mouse.current;if(mouse==null)return;
+            bool overUi=EventSystem.current!=null&&EventSystem.current.IsPointerOverGameObject();
+            bool wide=_distance>_planet.Radius*0.15f;
+            bool pressed=mouse.rightButton.wasPressedThisFrame||(wide&&mouse.leftButton.wasPressedThisFrame);
+            bool held=mouse.rightButton.isPressed||(wide&&mouse.leftButton.isPressed);
+            if(pressed&&!overUi)_dragging=true;
+            if(!held)_dragging=false;
+            if(_dragging){var delta=mouse.delta.ReadValue();OrbitByDegrees(new Vector2(delta.x,-delta.y)*_dragSensitivity);}
+            float raw=overUi?0:mouse.scroll.ReadValue().y;
+            if(!Mathf.Approximately(raw,0))ZoomBy(Notches(raw));
         }
 
-        // The brain goes back to blending as it did before, once the cut has been made.
-        private void SettleBlend()
+        private void StepPose(float dt)
         {
-            if (!_blendOverridden || _brain == null) return;
-            if (_brain.IsBlending || Time.unscaledTime - _switchedAt < 0.2f) return;
-
-            _brain.DefaultBlend = _savedBlend;
-            _blendOverridden = false;
-        }
-
-        // ---------------------------------------------------------------- the flat world
-
-        // Works through the switching of the flat world within a small budget of time each frame. Hiding walks the
-        // renderers that are on; showing hands back the ones that were hidden. Turning round mid-way is fine: what has
-        // been done stays done, and the next pass starts from there.
-        private void StepFlatWorld()
-        {
-            if (!_flatWanted && (_flat == Flat.Shown || _flat == Flat.Showing))
+            if(_recalling)
             {
-                _toHide.Clear();
-                foreach (Transform root in FlatWorldRoots())
-                    foreach (Renderer renderer in root.GetComponentsInChildren<Renderer>(false))
-                        if (renderer.enabled) _toHide.Add(renderer);
-                _hideCursor = 0;
-                _flat = Flat.Hiding;
-            }
-            else if (_flatWanted && (_flat == Flat.Hidden || _flat == Flat.Hiding))
-            {
-                _flat = Flat.Showing;
-            }
-
-            if (_flat != Flat.Hiding && _flat != Flat.Showing) return;
-
-            var clock = Stopwatch.StartNew();
-            if (_flat == Flat.Hiding)
-            {
-                while (_hideCursor < _toHide.Count && clock.Elapsed.TotalMilliseconds < BatchMilliseconds)
-                {
-                    Renderer renderer = _toHide[_hideCursor++];
-                    if (renderer == null || !renderer.enabled) continue;
-                    renderer.enabled = false;
-                    _hidden.Add(renderer);
-                }
-                if (_hideCursor >= _toHide.Count) { _flat = Flat.Hidden; _toHide.Clear(); }
+                _recallElapsed+=dt;
+                float t=Mathf.SmoothStep(0,1,Mathf.Clamp01(_recallElapsed/_recallSeconds));
+                _rotation=Quaternion.Slerp(_recallFrom,SurfaceRotation()*_surfaceRelativeRotation,t);
+                _requestedRotation=_rotation;
+                if(t>=1)_recalling=false;
             }
             else
             {
-                while (_hidden.Count > 0 && clock.Elapsed.TotalMilliseconds < BatchMilliseconds)
-                {
-                    Renderer renderer = _hidden[^1];
-                    _hidden.RemoveAt(_hidden.Count - 1);
-                    if (renderer != null) renderer.enabled = true;
-                }
-                if (_hidden.Count == 0) _flat = Flat.Shown;
+                _rotation=Quaternion.Slerp(_rotation,_requestedRotation,1-Mathf.Exp(-_damping*dt));
+                if(_distance<_surfaceLimit*2&&!NeedsRecall())
+                    _surfaceRelativeRotation=Quaternion.Inverse(SurfaceRotation())*_rotation;
             }
+            float target=_recalling?_recallDistance:_requestedDistance;
+            _logDistance=Mathf.SmoothDamp(_logDistance,Mathf.Log(Mathf.Max(0.1f,target)),ref _zoomVelocity,
+                _zoomSmoothTime,_maximumLogZoomSpeed,dt);
+            _distance=Mathf.Clamp(Mathf.Exp(_logDistance),_minimum,_maximum);
+            _eye=FocusPoint-(_rotation*Vector3.forward)*_distance;
+            _planetCamera.ForceCameraPosition(_eye,_rotation);
+            if(_orbit!=null)_orbit.SetWorldHeading(_rotation*Vector3.forward);
+
+            var lens=_planetCamera.Lens;
+            float altitude=Mathf.Max(0,(_eye-_planet.Center).magnitude-_planet.Radius);
+            lens.NearClipPlane=Mathf.Clamp(altitude*0.002f,0.03f,5f);
+            lens.FarClipPlane=Mathf.Lerp(Mathf.Max(_planet.Radius*4,_distance+_planet.Radius*2),PlanetFar,
+                Mathf.SmoothStep(0,1,Mathf.InverseLerp(150,_planet.Radius*0.3f,altitude)));
+            _planetCamera.Lens=lens;
+            if(_returning&&!_recalling&&Mathf.Abs(_logDistance-Mathf.Log(_requestedDistance))<0.001f)HandBack();
         }
 
-        private IEnumerable<Transform> FlatWorldRoots()
+        private void HandBack()
         {
-            var generator = FindAnyObjectByType<IslandGenerator>();
-            if (generator != null) yield return generator.transform;
-
-            var flora = FindAnyObjectByType<IslandFlora>();
-            if (flora != null) yield return flora.transform;
+            if(_orbit!=null){_orbit.AdoptView(_rotation,_distance);_orbit.Suspended=false;}
+            if(_ground!=null)
+            {
+                _ground.ForceCameraPosition(_eye,_rotation);
+                _ground.StandbyUpdate=_groundStandby;
+            }
+            UseCut();_planetCamera.Priority.Value=0;
+            _controlling=_returning=_recalling=false;_target=null;_ground=null;
+            SetOverview(false);
         }
 
-        private static bool OverUi() => EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
+        private void SetOverview(bool value)
+        {
+            if(_overview==value)return;_overview=value;ViewChanged?.Invoke(value);
+        }
+
+        private void UpdateAtmosphere()
+        {
+            var main=Camera.main;
+            Vector3 eye=_controlling?_eye:main!=null?main.transform.position:_planet.Anchor;
+            float top=Mathf.Clamp(_planet.Radius*0.3f,300,2000);
+            float bottom=Mathf.Min(180,top*0.5f);
+            float altitude=(eye-_planet.Center).magnitude-_planet.Radius;
+            _space=Mathf.SmoothStep(0,1,Mathf.InverseLerp(bottom,top,altitude));
+            if(_backdrop!=null)_backdrop.Space=_space;
+            SetAirEffects(_space<0.4f);
+            if(_reflections==null)_reflections=FindAnyObjectByType<StylizedWaterReflections>();
+            if(_reflections!=null)_reflections.Suspended=altitude>120;
+            Shader.SetGlobalFloat(PlanetViewId,_space);
+            _planet.SetHaze(0);
+            if(!_planet.IsVisible)_planet.SetVisible(true);
+        }
+        private void SetAirEffects(bool inAir)
+        {
+            if(inAir==_airEffects)return;_airEffects=inAir;
+            var main=Camera.main;
+            if(main!=null)foreach(var motes in main.GetComponentsInChildren<ParticleSystem>(true))
+            {var emission=motes.emission;emission.enabled=inAir;if(!inAir)motes.Clear();}
+            if(_wind==null)_wind=FindAnyObjectByType<IslandWind>();
+            if(_wind!=null)_wind.StreaksEnabled=inAir;
+        }
+        private void UseCut()
+        {
+            if(_brain==null)return;
+            if(!_blendOverridden){_savedBlend=_brain.DefaultBlend;_blendOverridden=true;}
+            _brain.DefaultBlend=new CinemachineBlendDefinition(CinemachineBlendDefinition.Styles.Cut,0);
+            _switchedAt=Time.unscaledTime;
+        }
+        private void SettleBlend()
+        {
+            if(!_blendOverridden||_brain==null||_brain.IsBlending||Time.unscaledTime-_switchedAt<0.2f)return;
+            _brain.DefaultBlend=_savedBlend;_blendOverridden=false;
+        }
+        private void OnDisable()
+        {
+            if(_orbit!=null){_orbit.Suspended=false;if(_orbit.ZoomOverride==_zoomHook)_orbit.ZoomOverride=null;}
+            if(_ground!=null)_ground.StandbyUpdate=_groundStandby;
+            if(_planetCamera!=null)_planetCamera.Priority.Value=0;
+            if(_blendOverridden&&_brain!=null)_brain.DefaultBlend=_savedBlend;
+            _blendOverridden=false;_controlling=_returning=_recalling=false;_ground=null;_target=null;
+            SetOverview(false);Shader.SetGlobalFloat(PlanetViewId,0);
+            if(_reflections!=null)_reflections.Suspended=false;
+            if(_wind!=null)_wind.StreaksEnabled=true;
+        }
     }
 }

@@ -3,6 +3,7 @@
     "rootNamespace": "Leeway.Planet",
     "references": [
         "Leeway.Domain",
+        "Leeway.Gravity",
         "Leeway.World",
         "Leeway.Rendering",
         "Leeway.CreatureEditor",

@@ -11,7 +11,7 @@ namespace Leeway.World.Domain
     public sealed class PlanetSettings
     {
         public const float MinRadius = 1000f;
-        public const float MaxRadius = 12000f;
+        public const float MaxRadius = 5000f;
         public const float MinWater = 0.2f;
         public const float MaxWater = 0.95f;
         public const int MinIslands = 1;
@@ -22,7 +22,7 @@ namespace Leeway.World.Domain
         public const int MaxMoons = 6;
 
         [Tooltip("Radius of the planet in metres. The islands grow and shrink with it.")]
-        [SerializeField] private float _radius = 3500f;
+        [SerializeField] private float _radius = 3000f;
 
         [Tooltip("Fraction of the surface covered by sea.")]
         [Range(MinWater, MaxWater)]

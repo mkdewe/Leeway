@@ -1,3 +1,5 @@
+using Leeway.Gravity;
+using Leeway.World.Domain;
 using System.Collections.Generic;
 using FishNet.Object;
 using Leeway.Creature.Domain;
@@ -24,11 +26,14 @@ namespace Leeway.Combat
         private sealed class Slot
         {
             public PopulationSlot Plan;
+            public IslandGenerator Source;
+            public int IslandIndex;
             public NetworkObject Body;
             public float ReadyAt;
         }
         private readonly List<Slot> _slots=new();
         private int _seed;
+        private readonly HashSet<int> _registeredIslands=new();
         private float _nextSpawn;
         private PartRuleSet _rules;
         public int PlannedCount=>_slots.Count;
@@ -36,7 +41,8 @@ namespace Leeway.Combat
         {get{int n=0;foreach(var slot in _slots)if(slot.Body&&slot.Body.IsSpawned&&slot.Body.GetComponent<CreatureBody>().IsAlive)n++;return n;}}
         public override void OnStartServer()
         {
-            base.OnStartServer();_slots.Clear();
+            base.OnStartServer();_slots.Clear();_registeredIslands.Clear();
+            IslandGenerator.PlanetIslandReady+=RegisterPlanetIsland;
             _rules=_catalog?_catalog.BuildRuleSet():PartRuleSet.Empty;
             if(_island)
             {
@@ -44,7 +50,8 @@ namespace Leeway.Combat
                 var plan=IslandPopulationPlan.Build(_island.Generator.Field,
                     _population?_population.Species:PopulationRule.Defaults(),
                     _population?_population.PopulationCap:24,_population?_population.SafeHubRadius:28);
-                foreach(var p in plan)_slots.Add(new Slot{Plan=p});
+                foreach(var p in plan)_slots.Add(new Slot{Plan=p,Source=_island.Generator});
+                _registeredIslands.Add(0);
             }
             else
             {
@@ -59,10 +66,10 @@ namespace Leeway.Combat
             }
             _nextSpawn=Time.time+0.5f;
         }
-        public override void OnStopServer(){base.OnStopServer();_slots.Clear();_rules=null;}
+        public override void OnStopServer(){IslandGenerator.PlanetIslandReady-=RegisterPlanetIsland;base.OnStopServer();_slots.Clear();_rules=null;}
         private void Update()
         {
-            if(!IsServerInitialized||Time.time<_nextSpawn)return;
+            if(!IsServerInitialized||Time.time<_nextSpawn||!GravityWorld.IsSceneReady(gameObject.scene))return;
             _nextSpawn=Time.time+0.25f;
             if(_island&&_island.Generator.Field.Seed!=_seed)return;
             foreach(var slot in _slots)
@@ -73,21 +80,38 @@ namespace Leeway.Combat
                 SpawnOne(slot);break;
             }
         }
+        private void RegisterPlanetIsland(IslandGenerator source,int index)
+        {
+            if(!IsServerInitialized)return;
+            if(_registeredIslands.Contains(index))
+            {
+                foreach(var slot in _slots)if(slot.IslandIndex==index)slot.Source=source;
+                return;
+            }
+            _registeredIslands.Add(index);
+            var plan=IslandPopulationPlan.Build(source.Field,
+                _population?_population.Species:PopulationRule.Defaults(),
+                _population?_population.PopulationCap:24,_population?_population.SafeHubRadius:28);
+            foreach(var entry in plan)_slots.Add(new Slot{Plan=entry,Source=source,IslandIndex=index});
+        }
         [Server] private void SpawnOne(Slot slot)
         {
             if(!_enemyPrefab||_rules==null)return;
             var p=slot.Plan;var genome=IslandSpeciesLibrary.Create(p.Species,_rules,p.Variant);
             var valid=GenomeValidator.Validate(genome,_rules);
             if(!valid.IsValid){slot.ReadyAt=Time.time+60;Debug.LogError("Wildlife genome rejected: "+p.Species+" "+valid.Error,this);return;}
-            Vector3 position=_island?_island.Generator.FieldToWorld(p.Position):p.Position;
-            Vector3 home=_island?_island.Generator.FieldToWorld(p.Home):p.Home;
+            var source=slot.Source;
+            Vector3 position=source?source.FieldToWorld(p.Position):p.Position;
+            Vector3 home=source?source.FieldToWorld(p.Home):p.Home;
             float stand=GenomeStatRules.StandHeight(genome,_rules);
-            var instance=Instantiate(_enemyPrefab,position+Vector3.up*Mathf.Max(stand+0.12f,0.6f),Quaternion.Euler(0,p.Variant%360,0));
+            var frame=GravityWorld.FrameAt(position,gameObject.scene);
+            if(!GravityWorld.EnsureGround(position,gameObject.scene))return;
+            var instance=Instantiate(_enemyPrefab,position+frame.Up*Mathf.Max(stand+0.12f,0.6f),frame.Rotation(p.Variant%360));
             instance.name=IslandSpeciesLibrary.Name(p.Species)+" ["+p.Group+"]";
             var nob=instance.GetComponent<NetworkObject>();var body=instance.GetComponent<CreatureBody>();
             if(!nob||!body){Destroy(instance);slot.ReadyAt=Time.time+60;return;}
             var agent=instance.GetComponent<NpcCreatureAgent>();
-            if(agent)agent.Configure(p.Species,home,p.TerritoryRadius,_island?_island.Generator:null);
+            if(agent)agent.Configure(p.Species,home,p.TerritoryRadius,source);
             var fighter=instance.GetComponent<CreatureCombatant>();if(fighter)fighter.ConfigureTeam((byte)(2+(int)p.Species));
             ServerManager.Spawn(nob);
             if(!body.ServerSetGenome(genome,out var error))

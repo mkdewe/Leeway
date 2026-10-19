@@ -188,7 +188,8 @@ namespace Leeway.CreatureEditor
             TryGetComponent(out _shover);
             TryGetComponent(out _suspension);
             TryGetComponent(out _muscles);
-            _rb.constraints = RigidbodyConstraints.FreezeRotationX | RigidbodyConstraints.FreezeRotationZ;
+            _rb.constraints = RigidbodyConstraints.FreezeRotation;
+            _rb.useGravity = false;
             _rb.interpolation = RigidbodyInterpolation.Interpolate;
             BodyRebuilt += OnBuiltForFlight;
         }
@@ -218,7 +219,7 @@ namespace Leeway.CreatureEditor
             base.OnStartClient();
             if (!IsOwner) return;
 
-            _yaw = transform.eulerAngles.y;
+            _yaw = Surface.YawOf(transform.forward);
 
             // A prefab cannot hold a reference to a scene object, so we find the camera at startup. Only
             // for the owner — other people's creatures do not read input, so they have no use for the
@@ -334,9 +335,9 @@ namespace Leeway.CreatureEditor
         [Server]
         public void ServerDrive(Vector3 heading, float throttle)
         {
-            heading.y = 0f;
+            heading = Surface.Tangent(heading);
 
-            if (heading.sqrMagnitude > 1e-6f) _aiYaw = LocomotionSteering.YawOf(heading);
+            if (heading.sqrMagnitude > 1e-6f) _aiYaw = Surface.YawOf(heading);
             _aiThrottle = Mathf.Clamp01(throttle);
         }
 
@@ -346,7 +347,7 @@ namespace Leeway.CreatureEditor
             {
                 Position = _rb.position,
                 Velocity = _rb.linearVelocity,
-                Yaw = _yaw,
+                Yaw = Surface.YawOf(_rb.rotation * Vector3.forward),
                 Stamina = _stamina,
             });
         }
@@ -354,19 +355,21 @@ namespace Leeway.CreatureEditor
         [Replicate]
         private void Move(PlaygroundMoveData md, ReplicateState state = ReplicateState.Invalid, Channel channel = Channel.Unreliable)
         {
-            if (!IsAlive) { IsSprinting = false; return; }
+            if (!IsAlive || !Leeway.Gravity.GravityWorld.IsSceneReady(gameObject.scene)) { IsSprinting = false; return; }
             float delta = (float)TimeManager.TickDelta;
 
             // Read before the suspension runs: it adds lift every tick that only the next physics step's
             // ground contact cancels, so a creature standing still reads as rising after it.
-            float risingBefore = _rb.linearVelocity.y;
+            var frame = Surface;
+            Vector3 up = frame.Up;
+            if (!_rb.isKinematic) _rb.AddForce(GravityAcceleration, ForceMode.Acceleration);
+            float risingBefore = frame.Vertical(_rb.linearVelocity);
 
             // The body's real acceleration from the previous physics step. Measured from velocity rather
             // than derived from the commanded heading, because it is what actually acts on the
             // creature — see CheckRollover.
-            Vector3 planar = _rb.linearVelocity;
-            planar.y = 0f;
-            Vector3 planarAcceleration = (planar - _previousPlanarVelocity) / Mathf.Max(delta, 1e-4f);
+            Vector3 planar = frame.Tangent(_rb.linearVelocity);
+            Vector3 planarAcceleration = frame.Tangent(planar - _previousPlanarVelocity) / Mathf.Max(delta, 1e-4f);
             _previousPlanarVelocity = planar;
 
             // A knocked-down creature stops predicting. The flag comes from a reliable, server-side
@@ -386,6 +389,7 @@ namespace Leeway.CreatureEditor
             // sideways slide.
             Vector3 desired = LocomotionSteering.DesiredDirection(md.Forward, md.Strafe, md.CameraYaw);
 
+            _yaw = frame.YawOf(_rb.rotation * Vector3.forward);
             float previousYaw = _yaw;
             _yaw = LocomotionSteering.StepYaw(_yaw, desired, Stats.TurnSpeed, delta);
             float throttle = LocomotionSteering.Throttle(_yaw, desired);
@@ -394,7 +398,7 @@ namespace Leeway.CreatureEditor
             // before it too.
             CheckRollover(planarAcceleration, previousYaw, delta);
 
-            Quaternion targetRotation = Quaternion.Euler(0f, _yaw, 0f);
+            Quaternion targetRotation = frame.Rotation(_yaw);
             Vector3 direction = targetRotation * Vector3.forward * throttle;
 
             // Muscle-driven movement is the server's business alone: a jointed body cannot be replayed,
@@ -448,7 +452,7 @@ namespace Leeway.CreatureEditor
             // Standing on the ground, or lifted off it by a jump or a beat: the legs reach the ground for a good
             // way up, so "grounded" alone says nothing about whether the wings are doing the work.
             float stand = GenomeStatRules.StandHeight(Genome, Rules);
-            bool lifted = !grounded || (_suspension != null && _suspension.GroundDistance > stand + 0.2f) || _rb.linearVelocity.y > 1.2f;
+            bool lifted = !grounded || (_suspension != null && _suspension.GroundDistance > stand + 0.2f) || frame.Vertical(_rb.linearVelocity) > 1.2f;
 
             // Wings. A beat lifts; holding the key glides. Both cost stamina, the beat far more.
             _gliding = false;
@@ -458,7 +462,7 @@ namespace Leeway.CreatureEditor
                 if (md.Flap && _flapCooldown <= 0f && !_exhausted && _stamina >= CreatureFlightRules.FlapCost && !legJump && (lifted || !hasLegs))
                 {
                     Vector3 v = _rb.linearVelocity;
-                    v.y = Mathf.Max(v.y, 0f) + CreatureFlightRules.FlapSpeed(_wingPower, Stats.Mass);
+                    v += up * (Mathf.Max(-frame.Vertical(v), 0f) + CreatureFlightRules.FlapSpeed(_wingPower, Stats.Mass));
                     v += direction * (Stats.MoveSpeed * 0.25f);
                     _rb.linearVelocity = v;
                     _stamina -= CreatureFlightRules.FlapCost;
@@ -467,11 +471,12 @@ namespace Leeway.CreatureEditor
                     spent = true;
                     wingsOut = true;
                 }
-                else if (md.Glide && lifted && !_exhausted && _rb.linearVelocity.y < 0.5f)
+                else if (md.Glide && lifted && !_exhausted && frame.Vertical(_rb.linearVelocity) < 0.5f)
                 {
                     Vector3 v = _rb.linearVelocity;
                     float sink = CreatureFlightRules.GlideSinkSpeed(_wingPower, Stats.Mass);
-                    if (v.y < -sink) v.y = Mathf.MoveTowards(v.y, -sink, 30f * delta);
+                    float vertical = frame.Vertical(v);
+                    if (vertical < -sink) v += up * (Mathf.MoveTowards(vertical, -sink, 30f * delta) - vertical);
                     _rb.linearVelocity = v;
                     _stamina -= CreatureFlightRules.GlideDrainPerSecond * delta;
                     spent = true;
@@ -584,7 +589,7 @@ namespace Leeway.CreatureEditor
             // With no ground contact there is nothing for a foot to catch on — nothing topples in the air.
             if (_suspension != null && !_suspension.IsGrounded) { Settle(delta); return; }
 
-            Vector3 right = Quaternion.Euler(0f, yaw, 0f) * Vector3.right;
+            Vector3 right = Surface.Rotation(yaw) * Vector3.right;
             float sideways = Vector3.Dot(planarAcceleration, right);
 
             // The load in units of the nominal limit: 1 = exactly on the edge. This is the plain "how
@@ -631,8 +636,8 @@ namespace Leeway.CreatureEditor
             if (_suspension == null) return 0f;
 
             Vector3 normal = _suspension.GroundNormal;
-            slope = Vector3.Angle(normal, Vector3.up);
-            downhill = Vector3.ProjectOnPlane(Vector3.down, normal);
+            slope = Vector3.Angle(normal, Up);
+            downhill = Vector3.ProjectOnPlane(-Up, normal);
             downhill = downhill.sqrMagnitude > 1e-6f ? downhill.normalized : Vector3.zero;
 
             return Mathf.InverseLerp(_maxWalkSlope, _maxWalkSlope + 12f, slope);
@@ -649,12 +654,11 @@ namespace Leeway.CreatureEditor
                 return;
             }
 
-            float along = -Physics.gravity.y * Mathf.Sin(slope * Mathf.Deg2Rad) * _slideGravity * steepness;
+            float along = GravityAcceleration.magnitude * Mathf.Sin(slope * Mathf.Deg2Rad) * _slideGravity * steepness;
             _rb.AddForce(downhill * along, ForceMode.Acceleration);
 
             // Footing is lost on a very steep slope at once, and on a merely steep one once it is really sliding.
-            Vector3 flat = _rb.linearVelocity;
-            flat.y = 0f;
+            Vector3 flat = Surface.Tangent(_rb.linearVelocity);
             bool sliding = slope >= _fallSlope || Vector3.Dot(flat, downhill) > 3f;
             _slideTime = sliding ? _slideTime + delta : Mathf.Max(0f, _slideTime - delta);
 
@@ -673,30 +677,32 @@ namespace Leeway.CreatureEditor
         {
             if (!TryWaterSurface(out float surface)) return false;
 
-            float depth = surface + _floatHeight - _rb.position.y;
+            float depth = surface + _floatHeight;
             if (depth <= -0.05f) return false;
 
             float damping = 2f * Mathf.Sqrt(_buoyancyStiffness) * _buoyancyDamping;
 
             // Standing on the bottom the legs already hold the weight; only floating needs to cancel gravity.
-            float gravity = grounded || !_rb.useGravity ? 0f : -Physics.gravity.y;
-            float acceleration = depth * _buoyancyStiffness - _rb.linearVelocity.y * damping + gravity;
+            float gravity = grounded ? 0f : GravityAcceleration.magnitude;
+            float acceleration = depth * _buoyancyStiffness - Surface.Vertical(_rb.linearVelocity) * damping + gravity;
 
-            _rb.linearVelocity += Vector3.up * (acceleration * delta);
+            _rb.linearVelocity += Up * (acceleration * delta);
             return true;
         }
 
         /// <summary>The water surface under (or over) the creature, if there is water here at all.</summary>
         private bool TryWaterSurface(out float surface)
         {
+            if (Leeway.Gravity.GravityWorld.TryWaterSurface(_rb.position,gameObject.scene,out var waterPoint))
+            { surface=Vector3.Dot(waterPoint-_rb.position,Up); return surface > -3f; }
             const float probe = 3f;
             surface = 0f;
 
-            if (!Physics.Raycast(_rb.position + Vector3.up * probe, Vector3.down, out RaycastHit hit, probe * 2f, _waterMask,
+            if (!Physics.Raycast(_rb.position + Up * probe, -Up, out RaycastHit hit, probe * 2f, _waterMask,
                     QueryTriggerInteraction.Collide))
                 return false;
 
-            surface = hit.point.y;
+            surface = Vector3.Dot(hit.point - _rb.position, Up);
             return true;
         }
 
@@ -710,11 +716,11 @@ namespace Leeway.CreatureEditor
         /// </summary>
         private void Jump()
         {
-            float speed = CreatureJumpRules.TakeOffSpeed(JumpHeight, Tuning.Gravity);
+            float speed = CreatureJumpRules.TakeOffSpeed(JumpHeight, GravityAcceleration.magnitude);
             if (speed <= 0f) return;
 
             Vector3 velocity = _rb.linearVelocity;
-            velocity.y = Mathf.Max(velocity.y, speed);
+            velocity += Up * Mathf.Max(0f, speed - Surface.Vertical(velocity));
             _rb.linearVelocity = velocity;
         }
 
@@ -756,7 +762,7 @@ namespace Leeway.CreatureEditor
             Vector3 velocity = _rb.linearVelocity;
 
             // The vertical belongs to the suspension and to gravity — traction only moves the plane.
-            var horizontal = new Vector3(velocity.x, 0f, velocity.z);
+            var horizontal = Surface.Tangent(velocity);
             Vector3 error = targetVelocity - horizontal;
 
             // A released key means braking, not an instant stop.
@@ -776,8 +782,8 @@ namespace Leeway.CreatureEditor
 
             // A correction is a velocity jump imposed from outside, not the result of forces acting on
             // the creature — without this the next step would derive a fictitious acceleration from it.
-            _previousPlanarVelocity = new Vector3(rd.Velocity.x, 0f, rd.Velocity.z);
-            _rb.rotation = Quaternion.Euler(0f, rd.Yaw, 0f);
+            _previousPlanarVelocity = Surface.Tangent(rd.Velocity);
+            _rb.rotation = Surface.Rotation(rd.Yaw);
             _yaw = rd.Yaw;
             if (rd.Stamina >= 0f) _stamina = rd.Stamina;
         }

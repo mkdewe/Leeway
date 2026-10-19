@@ -43,6 +43,16 @@ namespace Leeway.GamePhases
         private readonly List<int> _respawnQueue = new();
         private readonly Dictionary<int, NetworkObject> _playerBodies = new();
 
+        private readonly Dictionary<int,NetworkConnection> _pendingPlayers=new();
+        private readonly Dictionary<int,CreatureGenome> _pendingGenomes=new();
+
+        private void SpawnPendingPlayers()
+        {
+            if(!Leeway.Gravity.GravityWorld.IsSceneReady(gameObject.scene))return;
+            var ready=new List<NetworkConnection>(_pendingPlayers.Values);
+            foreach(var connection in ready)SpawnPlayerBody(connection);
+        }
+
         private void Awake()
         {
             if (_island == null) return;
@@ -57,7 +67,8 @@ namespace Leeway.GamePhases
         }
 
         // Runs on every peer: each one builds the island locally and steps its own puppets.
-        private void OnIslandGenerated(Leeway.World.Domain.IslandHeightField field) => MirrorWhenActiveAsync().Forget();
+        private void OnIslandGenerated(Leeway.World.Domain.IslandHeightField field)
+        { if(Leeway.Gravity.GravityWorld.IsSceneReady(gameObject.scene))MirrorWhenActiveAsync().Forget(); }
 
         /// <summary>
         /// FishNet builds the island while its scene object is still being spawned, i.e. inactive, and
@@ -95,11 +106,13 @@ namespace Leeway.GamePhases
             // same session SpawnPlayerBody decides the player already has a creature — nobody gets a body.
             _playerBodies.Clear();
             _deadSince.Clear();
+            _pendingPlayers.Clear();_pendingGenomes.Clear();
         }
 
         private void Update()
         {
             if (!IsServerInitialized) return;
+            SpawnPendingPlayers();
             _respawnQueue.Clear();
             foreach (var pair in _playerBodies)
             {
@@ -114,6 +127,7 @@ namespace Leeway.GamePhases
                 CreatureGenome saved = _playerBodies[id].GetComponent<CreatureBody>().Genome?.Clone();
                 if (_playerBodies[id].IsSpawned) _playerBodies[id].Despawn();
                 _playerBodies.Remove(id); _deadSince.Remove(id);
+                if (saved != null) _pendingGenomes[id]=saved;
                 SpawnPlayerBody(connection);
                 if (saved != null && _playerBodies.TryGetValue(id, out var replacement))
                 {
@@ -141,7 +155,12 @@ namespace Leeway.GamePhases
                 return;
             }
 
-            GameObject instance = Instantiate(_playgroundCreaturePrefab, ResolveSpawnPosition(conn.ClientId), Quaternion.identity);
+            Vector3 spawn=ResolveSpawnPosition(conn.ClientId);
+            if(!Leeway.Gravity.GravityWorld.EnsureGround(spawn,gameObject.scene))
+            { _pendingPlayers[conn.ClientId]=conn;return; }
+            _pendingPlayers.Remove(conn.ClientId);
+            var rotation=Leeway.Gravity.GravityWorld.FrameAt(spawn,gameObject.scene).Rotation(0);
+            GameObject instance = Instantiate(_playgroundCreaturePrefab, spawn, rotation);
             var networkObject = instance.GetComponent<NetworkObject>();
             ServerManager.Spawn(networkObject, conn);
 
@@ -154,7 +173,8 @@ namespace Leeway.GamePhases
             }
 
             PartRuleSet rules = _catalog != null ? _catalog.BuildRuleSet() : PartRuleSet.Empty;
-            CreatureGenome starter = StarterGenomeFactory.Create(conn.ClientId ^ _worldSeed, rules);
+            CreatureGenome starter = _pendingGenomes.TryGetValue(conn.ClientId,out var saved) ? saved : StarterGenomeFactory.Create(conn.ClientId ^ _worldSeed, rules);
+            _pendingGenomes.Remove(conn.ClientId);
 
             if (!body.ServerSetGenome(starter, out GenomeError error))
                 Debug.LogError($"Starter genome rejected ({error}) — check that the part catalog is complete.", this);
@@ -163,6 +183,7 @@ namespace Leeway.GamePhases
         [Server]
         private void HandlePlayerDisconnected(NetworkConnection conn)
         {
+            _pendingPlayers.Remove(conn.ClientId);_pendingGenomes.Remove(conn.ClientId);
             if (!_playerBodies.TryGetValue(conn.ClientId, out NetworkObject networkObject)) return;
 
             if (networkObject != null && networkObject.IsSpawned)
@@ -176,6 +197,14 @@ namespace Leeway.GamePhases
         private Vector3 ResolveSpawnPosition(int clientId)
         {
             float angle = clientId * 2.399963f; // the golden angle — even spread without a table of positions
+            if (_island != null && _island.Generator.IsGenerated)
+            {
+                var generator=_island.Generator;
+                Vector3 hub=generator.HubPosition;
+                var frame=Leeway.Gravity.GravityWorld.FrameAt(hub,gameObject.scene);
+                Vector3 point=generator.GroundPoint(hub+frame.Right*(Mathf.Cos(angle)*_spawnRadius)+frame.Forward*(Mathf.Sin(angle)*_spawnRadius));
+                return point+frame.Up*_spawnHeight;
+            }
             return new Vector3(Mathf.Cos(angle) * _spawnRadius, _spawnHeight, Mathf.Sin(angle) * _spawnRadius);
         }
     }

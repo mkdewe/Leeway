@@ -1,4 +1,5 @@
 using Leeway.Creature.Domain;
+using Leeway.Gravity;
 using UnityEngine;
 
 namespace Leeway.CreatureEditor
@@ -34,6 +35,7 @@ namespace Leeway.CreatureEditor
         [Tooltip("How far beyond the end of the body the ground is also probed while moving (m), so a rock or a step lifts the creature before the body runs into it.")]
         [SerializeField, Min(0f)] private float _lookAhead = 0.2f;
 
+        private Vector3 Up => GravityWorld.UpAt(_rb.position, gameObject.scene);
         private Rigidbody _rb;
         private CreatureBody _body;
         private CreatureLocomotion _locomotion;
@@ -81,7 +83,7 @@ namespace Leeway.CreatureEditor
 
             // The legs stand perpendicular to the ground, so on a slope the same leg length puts the body higher
             // above the point straight below it: 1 / cos(slope).
-            rideHeight /= Mathf.Clamp(GroundNormal.y, 0.6f, 1f);
+            rideHeight /= Mathf.Clamp(Vector3.Dot(GroundNormal, Up), 0.6f, 1f);
 
             var spring = new Suspension(_stiffness, _dampingRatio, _maxDroop);
             float probe = rideHeight + _maxDroop;
@@ -91,13 +93,13 @@ namespace Leeway.CreatureEditor
 
             if (!IsGrounded) return;
 
-            float gravity = _rb.useGravity ? -Physics.gravity.y : 0f;
-            float acceleration = spring.Acceleration(rideHeight, GroundDistance, _rb.linearVelocity.y, gravity);
+            float gravity = _body != null ? _body.GravityAcceleration.magnitude : GravityWorld.AccelerationAt(_rb.position, gameObject.scene).magnitude;
+            float acceleration = spring.Acceleration(rideHeight, GroundDistance, Vector3.Dot(_rb.linearVelocity, Up), gravity);
 
             Compression = Mathf.Max(0f, rideHeight - GroundDistance);
             if (acceleration <= 0f) return;
 
-            _rb.linearVelocity += Vector3.up * (acceleration * deltaTime);
+            _rb.linearVelocity += Up * (acceleration * deltaTime);
         }
 
         /// <summary>
@@ -118,7 +120,7 @@ namespace Leeway.CreatureEditor
         private float ProbeUnderLegs(float maxDistance)
         {
             float closest = Probe(_rb.position, maxDistance, out Vector3 normal);
-            GroundNormal = float.IsInfinity(closest) ? Vector3.up : Vector3.Slerp(GroundNormal, normal, 0.35f);
+            GroundNormal = float.IsInfinity(closest) ? Up : Vector3.Slerp(GroundNormal, normal, 0.35f);
 
             if (_locomotion == null) return closest;
 
@@ -126,7 +128,7 @@ namespace Leeway.CreatureEditor
             {
                 // The hip is projected up to the root's height — what we care about is the ground under
                 // the leg, not how high that leg is attached to the carcass.
-                var origin = new Vector3(hip.x, _rb.position.y, hip.z);
+                var origin = hip + Up * Vector3.Dot(_rb.position - hip, Up);
                 closest = Mathf.Min(closest, Probe(origin, maxDistance));
             }
 
@@ -144,8 +146,7 @@ namespace Leeway.CreatureEditor
         /// </remarks>
         private float ProbeAhead(float maxDistance)
         {
-            Vector3 velocity = _rb.linearVelocity;
-            velocity.y = 0f;
+            Vector3 velocity = Vector3.ProjectOnPlane(_rb.linearVelocity, Up);
             if (velocity.sqrMagnitude < 0.04f) return float.PositiveInfinity;
 
             float reach = _lookAhead;
@@ -157,7 +158,7 @@ namespace Leeway.CreatureEditor
 
             // Ground that simply keeps rising along a slope is not a step: the legs follow it, the body does not
             // need lifting for it. Only the part of the rise beyond what the slope under the body predicts counts.
-            float gradient = -(GroundNormal.x * direction.x + GroundNormal.z * direction.z) / Mathf.Max(0.2f, GroundNormal.y);
+            float gradient = -Vector3.Dot(GroundNormal, direction) / Mathf.Max(0.2f, Vector3.Dot(GroundNormal, Up));
             return ahead + Mathf.Clamp(gradient, 0f, 1.7f) * reach;
         }
 
@@ -166,13 +167,13 @@ namespace Leeway.CreatureEditor
 
         private float Probe(Vector3 from, float maxDistance, out Vector3 normal)
         {
-            normal = Vector3.up;
+            normal = Up;
             // Start slightly above the point so the ray does not set off from inside our own capsule.
             const float lift = 0.05f;
 
-            Vector3 origin = from + Vector3.up * lift;
+            Vector3 origin = from + Up * lift;
 
-            if (!Physics.Raycast(origin, Vector3.down, out RaycastHit hit, maxDistance + lift, _groundMask, QueryTriggerInteraction.Ignore))
+            if (!Physics.Raycast(origin, -Up, out RaycastHit hit, maxDistance + lift, _groundMask, QueryTriggerInteraction.Ignore))
                 return float.PositiveInfinity;
 
             normal = hit.normal;

@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using LitMotion;
 using UnityEngine;
@@ -87,6 +88,7 @@ namespace Leeway.CreatureEditor
                 _bindLocalPositions.Add(bone.localPosition);
 
                 var boneBody = bone.gameObject.AddComponent<Rigidbody>();
+                bone.gameObject.AddComponent<GravityBody>().SourceScene = gameObject.scene;
                 boneBody.mass = perBoneMass;
                 boneBody.linearDamping = _boneDrag;
                 boneBody.angularDamping = _boneAngularDrag;
@@ -263,13 +265,14 @@ namespace Leeway.CreatureEditor
             for (int i = 0; i < _boneBodies.Count; i++) center += _boneBodies[i].position;
             center /= _boneBodies.Count;
 
-            var origin = new Vector3(center.x, center.y + _groundProbeHeight, center.z);
+            Vector3 up = GravityWorld.UpAt(center, gameObject.scene);
+            var origin = center + up * _groundProbeHeight;
             int groundMask = ~((1 << gameObject.layer) | (1 << LayerMask.NameToLayer("CreatureRagdoll")));
 
-            if (Physics.Raycast(origin, Vector3.down, out RaycastHit hit, _groundProbeHeight * 3f, groundMask, QueryTriggerInteraction.Ignore))
-                return hit.point + Vector3.up * clearance;
+            if (Physics.Raycast(origin, -up, out RaycastHit hit, _groundProbeHeight * 3f, groundMask, QueryTriggerInteraction.Ignore))
+                return hit.point + up * clearance;
 
-            return new Vector3(center.x, fallback.y, center.z);
+            return center + up * Vector3.Dot(fallback - center, up);
         }
 
         /// <summary>
@@ -366,7 +369,12 @@ namespace Leeway.CreatureEditor
                 if (_boneColliders[i] != null) DestroySafely(_boneColliders[i]);
 
             for (int i = 0; i < _boneBodies.Count; i++)
-                if (_boneBodies[i] != null) DestroySafely(_boneBodies[i]);
+                if (_boneBodies[i] != null)
+                {
+                    var gravity = _boneBodies[i].GetComponent<GravityBody>();
+                    if (gravity != null) { gravity.enabled = false; DestroySafely(gravity); }
+                    DestroySafely(_boneBodies[i]);
+                }
 
             _boneBodies.Clear();
             _boneColliders.Clear();

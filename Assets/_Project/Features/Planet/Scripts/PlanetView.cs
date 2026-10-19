@@ -50,6 +50,9 @@ namespace Leeway.Planet
         private GameObject _surface;
         private Material _runtimeMaterial;
         private PlanetTerrain _terrain;
+        private PlanetTerrain _waterTerrain;
+        private PlanetPlayableWorld _playable;
+        public PlanetPlayableWorld PlayableWorld => _playable;
         private PlanetTerrain _next;
         private PlanetModel _nextModel;
         private PlanetSettings _nextSettings;
@@ -59,6 +62,11 @@ namespace Leeway.Planet
         private PlanetSettings _built;
         private int _builtSeed;
         private bool _visible;
+        private UnityEngine.Camera _loadingCamera;
+        private int _savedCullingMask;
+        public bool SurfacePrepared => _terrain!=null && _terrain.ViewReady && (_waterTerrain==null || _waterTerrain.ViewReady);
+        public bool StableGroundReadyAt(Vector3 point) => _terrain!=null && _terrain.StableGroundReadyAt(point);
+        public void SetGroundAnchors(System.Collections.Generic.IReadOnlyList<Vector3> points,int level) => _terrain?.SetGroundAnchors(points,level);
         private readonly PlanetSettings _live = new();
 
         // The build on the worker thread, and what it was asked to build.
@@ -76,7 +84,7 @@ namespace Leeway.Planet
         /// <summary>How many tiles of ground are drawn, and how many are made, for the planet as it is now.</summary>
         public int ShownTiles => _terrain != null ? _terrain.ShownTiles : 0;
         public int ResidentTiles => _terrain != null ? _terrain.ResidentTiles : 0;
-        public float Radius => Current().Radius;
+        public float Radius => _model?.Radius ?? Current().Radius;
 
         /// <summary>The seed the sky and the planet are made from.</summary>
         public int Seed => _islandSeed != null ? unchecked(_islandSeed.Seed + Current().SeedOffset * 7919) : 0;
@@ -87,7 +95,9 @@ namespace Leeway.Planet
             get
             {
                 Vector3 anchor = Anchor;
-                return anchor + Vector3.down * (Current().Radius + _surfaceGap);
+                var patch = _model?.GetPatch(0);
+                return patch != null ? anchor - patch.SurfaceVector(patch.Field.HubCenter)
+                    : anchor + Vector3.down * Current().Radius;
             }
         }
 
@@ -95,7 +105,7 @@ namespace Leeway.Planet
         public Vector3 Anchor => _islandSeed != null ? _islandSeed.transform.position : Vector3.zero;
 
         /// <summary>Metres between the home island's sea level and the planet's surface under it.</summary>
-        public float SurfaceGap => _surfaceGap;
+        public float SurfaceGap => 0f;
 
         /// <summary>False for a client that is not the host.</summary>
         public bool CanEdit => !IsClientInitialized || IsServerInitialized;
@@ -132,12 +142,23 @@ namespace Leeway.Planet
         {
             _surface = new GameObject("PlanetSurface");
             _surface.transform.SetParent(transform, false);
-            _runtimeMaterial = new Material(_material);
+            _surface.SetActive(false);
+            var biome = _islandSeed != null ? _islandSeed.Generator.Biome : null;
+            _runtimeMaterial = new Material(biome != null && biome.GroundMaterial != null ? biome.GroundMaterial : _material);
+            if (Application.isPlaying && _islandSeed != null)
+            {
+                _playable = gameObject.AddComponent<PlanetPlayableWorld>();
+                _playable.Initialize(this, _islandSeed.Generator);
+            }
         }
+
+        private void OnDisable() => GatePresentation(false);
 
         private void OnDestroy()
         {
+            GatePresentation(false);
             _terrain?.Dispose();
+            _waterTerrain?.Dispose();
             _next?.Dispose();
             if (_runtimeMaterial != null) Destroy(_runtimeMaterial);
         }
@@ -202,8 +223,10 @@ namespace Leeway.Planet
 
         public void SetVisible(bool visible)
         {
-            if (_visible && !visible) _terrain?.Hide();
-            _visible = visible;
+            bool wasVisible=_visible;
+            _visible = (visible || (_playable != null && _playable.IsReady)) && (_playable==null || _playable.IsReady);
+            _surface.SetActive(_visible);
+            if (!_visible && wasVisible) { _terrain?.Hide(); _waterTerrain?.Hide(); }
         }
 
         /// <summary>Asks for the fine tiles of the planet before they are needed: the camera is about to leave.</summary>
@@ -212,7 +235,7 @@ namespace Leeway.Planet
         /// <summary>How much of the planet is lost in the air's haze: 1 hides it completely, 0 shows its colours.</summary>
         public void SetHaze(float amount)
         {
-            _runtimeMaterial.SetFloat(FogAmountId, Mathf.Clamp01(amount));
+            _runtimeMaterial.SetFloat(FogAmountId, _playable != null && _playable.IsReady ? 0f : Mathf.Clamp01(amount));
         }
 
         /// <summary>
@@ -240,7 +263,11 @@ namespace Leeway.Planet
 
             // Built as soon as the island is, so that the player never waits for it.
             IslandGenerator generator = _islandSeed != null ? _islandSeed.Generator : null;
-            if (generator != null && generator.IsGenerated) EnsureBuilt();
+            if (generator != null && generator.IsGenerated)
+            {
+                EnsureBuilt();
+                GatePresentation(_playable!=null&&!_playable.IsReady);
+            }
 
             if (_model != null) _surface.transform.position = Center;
 
@@ -252,13 +279,45 @@ namespace Leeway.Planet
             {
                 _next.LimitLevel = PlanetTerrain.MinLevel;
                 _next.Update(camera, false);
-                if (_next.CoarseReady) SwapIn();
+                if (_next.CoarseReady && (_playable==null || !_playable.IsPreparing)) SwapIn();
             }
 
-            if (_terrain != null && (_visible || _prefetch))
+            if (_playable != null) _visible = _playable.IsReady;
+            _surface.SetActive(_visible);
+            // Finish the visible view while hidden; collision alone is not a ready world.
+            if (_terrain != null)
             {
                 _terrain.LimitLevel = PlanetTerrain.MaxLevel;
                 _terrain.Update(camera, _visible);
+                if (_waterTerrain != null)
+                {
+                    _waterTerrain.LimitLevel = PlanetTerrain.MaxLevel;
+                    _waterTerrain.Update(camera, _visible);
+                }
+            }
+        }
+
+        public void PublishPreparedSurface()
+        {
+            SetVisible(true);
+            var camera=UnityEngine.Camera.main;
+            if(camera!=null){_terrain?.Update(camera,true);_waterTerrain?.Update(camera,true);}
+            GatePresentation(false);
+        }
+
+        private void GatePresentation(bool loading)
+        {
+            if(loading)
+            {
+                var camera=UnityEngine.Camera.main;
+                if(camera==null)return;
+                if(_loadingCamera==null){_loadingCamera=camera;_savedCullingMask=camera.cullingMask;}
+                _loadingCamera.cullingMask=0;
+            }
+            else if(_loadingCamera!=null)
+            {
+                _loadingCamera.cullingMask=_savedCullingMask;
+                _loadingCamera=null;
             }
         }
 
@@ -269,6 +328,9 @@ namespace Leeway.Planet
             _next = null;
 
             _model = _nextModel;
+            _waterTerrain?.Dispose();
+            var waterMaterial = _islandSeed != null ? _islandSeed.Generator.Biome.WaterMaterial : null;
+            if (waterMaterial != null) _waterTerrain = new PlanetTerrain(_model, _surface.transform, waterMaterial, water: true);
             _built = _nextSettings;
             _builtSeed = _nextSeed;
             _surface.transform.position = Center;
@@ -290,7 +352,7 @@ namespace Leeway.Planet
             _job = Task.Run(() =>
             {
                 var model = new PlanetModel(snapshot.Radius, snapshot.WaterCoverage, snapshot.IslandCount, modelSeed, homeRadius);
-                if (field != null) model.SetHome((x, z) => field.SampleHeight(x, z) - field.Settings.SeaLevel, field.Settings.HalfSize * 0.95f);
+                if (field != null) model.BuildArchipelago(field, modelSeed);
                 return model;
             });
         }
@@ -316,7 +378,9 @@ namespace Leeway.Planet
             _nextModel = job.Result;
             _nextSettings = _jobSettings;
             _nextSeed = _jobSeed;
-            _next = new PlanetTerrain(_nextModel, _surface.transform, _runtimeMaterial);
+            var biome = _islandSeed != null ? _islandSeed.Generator.Biome : null;
+            var colours = biome != null ? PlanetPalette.ForBiome(_nextModel, biome) : null;
+            _next = new PlanetTerrain(_nextModel, _surface.transform, _runtimeMaterial, colour: colours);
         }
 
         // The playable island's real reach, so the planet's home island matches what the player stands on.

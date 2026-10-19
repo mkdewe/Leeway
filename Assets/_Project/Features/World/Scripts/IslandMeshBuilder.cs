@@ -17,7 +17,7 @@ namespace Leeway.World
         {
             IslandSettings s = field.Settings;
             var patches = new IslandNoise(field.Seed + 101);
-            float grassMinNormalY = Mathf.Cos(biome.GrassMaxSlope * Mathf.Deg2Rad);
+            var palette = new IslandGroundPalette(biome);
             float deepFloor = s.SeaFloorDepth + 0.25f;
 
             int cells = (x1 - x0) * (z1 - z0);
@@ -64,22 +64,7 @@ namespace Leeway.World
 
             Color TriangleColor(Vector3 centre, Vector3 normal)
             {
-                float fresh = field.FreshWaterLevel(centre.x, centre.z);
-                Color color;
-                if (centre.y < s.SeaLevel - 0.2f || centre.y < fresh - 0.3f) color = biome.SeaBed;
-                // Cliff faces must stay rock: nearest water levels can differ sharply at a fall.
-                // Painting sand before testing slope made tall, bright triangular teeth on the bank.
-                else if (normal.y < grassMinNormalY) color = biome.Rock;
-                else if (centre.y < s.BeachHeight + 0.45f || centre.y < fresh + 0.6f) color = biome.Sand;
-                else
-                {
-                    float patch = patches.Fbm(centre.x / 22f, centre.z / 22f, 2);
-                    color = Color.Lerp(biome.Grass, biome.GrassDark, Mathf.SmoothStep(0f, 1f, (patch - 0.35f) * 3f));
-                }
-
-                // Small per-facet brightness jitter keeps flat areas from reading as one plastic sheet.
-                float jitter = 0.97f + 0.06f * Hash(centre);
-                return new Color(color.r * jitter, color.g * jitter, color.b * jitter, 1f);
+                return palette.At(field, patches, centre, normal);
             }
         }
 

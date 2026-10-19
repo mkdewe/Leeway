@@ -31,6 +31,7 @@ namespace Leeway.CreatureEditor
             if (target == null) return 0f;
 
             CreatureFocusPoint focus = target.GetComponentInParent<CreatureFocusPoint>();
+            if (focus == null && target.TryGetComponent<CreatureFocusAnchor>(out var anchor)) focus = anchor.Owner;
             if (focus == null) return 0f;
 
             return focus.SilhouetteRadius + nearClipPlane + margin;

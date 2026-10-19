@@ -64,7 +64,7 @@ namespace Leeway.CreatureEditor
                 if (!hits[i].collider.TryGetComponent(out CreatureBody target)) continue;
                 if (target == _body) continue;
 
-                Vector3 push = (direction + Vector3.up * _upwardBias).normalized * _impulse;
+                Vector3 push = (direction + _body.Up * _upwardBias).normalized * _impulse;
                 int bone = NearestBone(target, hits[i].point);
 
                 if (target.Knockdown(push, bone)) return true;

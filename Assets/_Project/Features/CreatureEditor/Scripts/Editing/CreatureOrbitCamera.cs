@@ -25,6 +25,7 @@ namespace Leeway.CreatureEditor
     /// to 1 s. Pulling the smoothing out of here and handing it to Cinemachine <b>will not
     /// work</b>.</para>
     /// </remarks>
+    [DefaultExecutionOrder(20)]
     public class CreatureOrbitCamera : MonoBehaviour
     {
         [SerializeField] private CinemachineCamera _playCamera;
@@ -59,6 +60,9 @@ namespace Leeway.CreatureEditor
         [SerializeField] private float _zoomDamping = 10f;
 
         private CinemachineFollow _follow;
+        private Leeway.World.Domain.SurfaceFrame _lastFrame;
+        private bool _hasFrame;
+        private Transform _worldUp, _savedUp;
         private float _yaw;
         private float _smoothedYaw;
         private float _pitch = -1f;
@@ -74,6 +78,11 @@ namespace Leeway.CreatureEditor
 
         /// <summary>Set while another camera has the view: the mouse then belongs to that camera.</summary>
         public bool Suspended { get; set; }
+        public System.Func<float,bool> ZoomOverride { get; set; }
+        public Transform Target => _playCamera != null ? _playCamera.Follow : null;
+        public float MinimumDistance => Mathf.Max(_baseOffset.magnitude*_zoomRange.x,
+            CameraClearance.RequiredDistance(Target,_playCamera != null ? _playCamera.Lens.NearClipPlane : 0.1f,_clearanceMargin));
+        public float SurfaceMaximumDistance => _baseOffset.magnitude*_zoomRange.y;
 
         private void Awake()
         {
@@ -83,6 +92,18 @@ namespace Leeway.CreatureEditor
         private void LateUpdate()
         {
             if (_follow == null) return;
+
+            Transform target = _playCamera.Follow;
+            var frame = target != null ? Leeway.Gravity.GravityWorld.FrameAt(target.position, target.gameObject.scene)
+                : new Leeway.World.Domain.SurfaceFrame(Vector3.up);
+            if (_hasFrame)
+            {
+                _yaw = frame.YawOf(_lastFrame.Heading(_yaw));
+                _smoothedYaw = frame.YawOf(_lastFrame.Heading(_smoothedYaw));
+            }
+            _lastFrame = frame;
+            _hasFrame = true;
+            UpdateWorldUp(target, frame.Up);
 
             var mouse = Mouse.current;
             // The authored offset sets the starting tilt; from there the mouse moves it within the range.
@@ -104,17 +125,66 @@ namespace Leeway.CreatureEditor
             float scroll = mouse != null ? mouse.scroll.ReadValue().y : 0f;
             bool overUi = EventSystem.current != null && EventSystem.current.IsPointerOverGameObject();
             bool live = _playCamera != null && CinemachineCore.IsLive(_playCamera) && !Suspended;
-            if (live && !Mathf.Approximately(scroll, 0f) && !overUi)
+            if (live && !Mathf.Approximately(scroll, 0f) && !overUi && !(ZoomOverride?.Invoke(scroll) ?? false))
                 _zoom = Mathf.Clamp(_zoom * (1f - Mathf.Sign(scroll) * _zoomStep), _zoomRange.x, _zoomRange.y);
 
             _smoothedZoom = Mathf.Lerp(_smoothedZoom, _zoom, 1f - Mathf.Exp(-_zoomDamping * Time.deltaTime));
 
             // The base offset's length is the distance; heading and tilt are applied as one rotation.
             Vector3 back = Vector3.back * (_baseOffset.magnitude * _smoothedZoom);
-            _follow.FollowOffset = Clear(Quaternion.Euler(_smoothedPitch, _smoothedYaw, 0f) * back);
+            _follow.FollowOffset = Clear(frame.ToWorld(Quaternion.Euler(_smoothedPitch, _smoothedYaw, 0f) * back));
         }
 
         /// <summary>The tilt the authored offset implies, in degrees above the horizon.</summary>
+        private void UpdateWorldUp(Transform target, Vector3 up)
+        {
+            var camera = Camera.main;
+            var brain = camera != null ? camera.GetComponent<CinemachineBrain>() : null;
+            if (brain == null) return;
+            bool radial = target != null && Leeway.Gravity.GravityWorld.ForScene(target.gameObject.scene)?.IsRadial == true;
+            if (!radial)
+            {
+                if (_worldUp != null && brain.WorldUpOverride == _worldUp) brain.WorldUpOverride = _savedUp;
+                return;
+            }
+            if (_worldUp == null)
+            {
+                _savedUp = brain.WorldUpOverride;
+                _worldUp = new GameObject("Creature camera local up") {hideFlags=HideFlags.DontSave}.transform;
+                _worldUp.SetParent(transform,false);
+            }
+            _worldUp.rotation = Quaternion.FromToRotation(Vector3.up,up);
+            brain.WorldUpOverride = _worldUp;
+        }
+
+        private void OnDestroy()
+        {
+            var camera = Camera.main;
+            var brain = camera != null ? camera.GetComponent<CinemachineBrain>() : null;
+            if (brain != null && brain.WorldUpOverride == _worldUp) brain.WorldUpOverride = _savedUp;
+            if (_worldUp != null) Destroy(_worldUp.gameObject);
+        }
+
+        public void SetWorldHeading(Vector3 forward)
+        {
+            if(Target==null)return;
+            var frame=Leeway.Gravity.GravityWorld.FrameAt(Target.position,Target.gameObject.scene);
+            _yaw=_smoothedYaw=frame.YawOf(forward);
+            _lastFrame=frame;_hasFrame=true;
+        }
+
+        public void AdoptView(Quaternion rotation,float distance)
+        {
+            if(Target==null||_follow==null)return;
+            var frame=Leeway.Gravity.GravityWorld.FrameAt(Target.position,Target.gameObject.scene);
+            Vector3 forward=rotation*Vector3.forward;
+            _yaw=_smoothedYaw=frame.YawOf(forward);
+            _lastFrame=frame;_hasFrame=true;
+            _pitch=_smoothedPitch=Mathf.Asin(Mathf.Clamp(-Vector3.Dot(forward,frame.Up),-1,1))*Mathf.Rad2Deg;
+            _zoom=_smoothedZoom=Mathf.Clamp(distance/_baseOffset.magnitude,_zoomRange.x,_zoomRange.y);
+            _follow.FollowOffset=Clear(-(rotation*Vector3.forward)*(_baseOffset.magnitude*_zoom));
+        }
+
         private float BasePitch => Mathf.Atan2(_baseOffset.y, new Vector2(_baseOffset.x, _baseOffset.z).magnitude) * Mathf.Rad2Deg;
 
         /// <summary>

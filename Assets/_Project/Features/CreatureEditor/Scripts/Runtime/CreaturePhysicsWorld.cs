@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -41,10 +42,13 @@ namespace Leeway.CreatureEditor
         private bool _created;
         private float _nextRefresh;
 
-        private readonly List<GameObject> _ghosts = new();
+        private readonly Dictionary<Collider, GameObject> _mirrors = new();
+        private readonly List<GravityBody> _gravityBodies = new();
 
         /// <summary>Whether the separate scene exists and can be stepped.</summary>
         public bool IsReady => _created && _scene.IsValid();
+
+        public Scene SimulationScene => _scene;
 
         private void Awake()
         {
@@ -77,6 +81,11 @@ namespace Leeway.CreatureEditor
         {
             if (!IsReady) return;
 
+            for (int i = _gravityBodies.Count - 1; i >= 0; i--)
+            {
+                if (_gravityBodies[i] == null) { _gravityBodies.RemoveAt(i); continue; }
+                _gravityBodies[i].Step();
+            }
             _physics.Simulate(Time.fixedDeltaTime);
 
             if (_refreshSeconds <= 0f || Time.time < _nextRefresh) return;
@@ -94,10 +103,22 @@ namespace Leeway.CreatureEditor
         /// pulled onto their targets by force, and those targets stay in the main scene where the
         /// creature is.
         /// </remarks>
+        public void RegisterGravity(GravityBody body)
+        {
+            if (body == null || _gravityBodies.Contains(body)) return;
+            body.ExternallyStepped = true;
+            var rigid = body.GetComponent<Rigidbody>();
+            // Jointed puppets need more solver passes than the default free body, especially far from the origin.
+            rigid.solverIterations = Mathf.Max(rigid.solverIterations, 12);
+            rigid.solverVelocityIterations = Mathf.Max(rigid.solverVelocityIterations, 4);
+            _gravityBodies.Add(body);
+        }
+
         public bool Adopt(GameObject puppet)
         {
             if (!IsReady || puppet == null) return false;
 
+            foreach (var gravity in puppet.GetComponentsInChildren<GravityBody>(true)) RegisterGravity(gravity);
             puppet.transform.SetParent(null, true);
             SceneManager.MoveGameObjectToScene(puppet, _scene);
 
@@ -121,23 +142,62 @@ namespace Leeway.CreatureEditor
         {
             if (!IsReady) return;
 
-            foreach (GameObject ghost in _ghosts)
-                if (ghost != null) Destroy(ghost);
-            _ghosts.Clear();
-
+            var present = new HashSet<Collider>();
             foreach (Collider source in FindObjectsByType<Collider>(FindObjectsSortMode.None))
             {
-                if (source == null || source.isTrigger) continue;
-                if ((_environmentLayers.value & (1 << source.gameObject.layer)) == 0) continue;
-                if (source.gameObject.scene == _scene) continue;
-                if (source.attachedRigidbody != null) continue;
-
-                GameObject ghost = Mirror(source);
-                if (ghost == null) continue;
-
-                SceneManager.MoveGameObjectToScene(ghost, _scene);
-                _ghosts.Add(ghost);
+                if (!CanMirror(source)) continue;
+                present.Add(source);
+                RegisterEnvironment(source);
             }
+            var stale = new List<Collider>();
+            foreach (var source in _mirrors.Keys)
+                if (source == null || !present.Contains(source)) stale.Add(source);
+            foreach (var source in stale) UnregisterEnvironment(source);
+        }
+
+        private bool CanMirror(Collider source) => IsReady && source != null && source.enabled &&
+            source.gameObject.activeInHierarchy && !source.isTrigger &&
+            (_environmentLayers.value & (1 << source.gameObject.layer)) != 0 &&
+            source.gameObject.scene != _scene && source.attachedRigidbody == null;
+
+        /// <summary>Publishes one tile/prop without rebuilding the rest of the physics world.</summary>
+        public void RegisterEnvironment(Collider source)
+        {
+            if (!CanMirror(source)) { UnregisterEnvironment(source); return; }
+            if (!_mirrors.TryGetValue(source, out var ghost) || ghost == null)
+            {
+                ghost = Mirror(source);
+                if (ghost == null) return;
+                SceneManager.MoveGameObjectToScene(ghost, _scene);
+                _mirrors[source] = ghost;
+            }
+            ghost.transform.SetPositionAndRotation(source.transform.position, source.transform.rotation);
+            ghost.transform.localScale = source.transform.lossyScale;
+            ghost.layer = source.gameObject.layer;
+            var copy = ghost.GetComponent<Collider>();
+            copy.sharedMaterial = source.sharedMaterial;
+            copy.contactOffset = source.contactOffset;
+            switch (source)
+            {
+                case MeshCollider mesh when copy is MeshCollider meshTarget:
+                    meshTarget.cookingOptions = mesh.cookingOptions;
+                    if (meshTarget.sharedMesh != mesh.sharedMesh) meshTarget.sharedMesh = mesh.sharedMesh;
+                    break;
+                case BoxCollider box when copy is BoxCollider boxTarget:
+                    boxTarget.center = box.center; boxTarget.size = box.size; break;
+                case SphereCollider sphere when copy is SphereCollider sphereTarget:
+                    sphereTarget.center = sphere.center; sphereTarget.radius = sphere.radius; break;
+                case CapsuleCollider capsule when copy is CapsuleCollider capsuleTarget:
+                    capsuleTarget.center = capsule.center; capsuleTarget.radius = capsule.radius;
+                    capsuleTarget.height = capsule.height; capsuleTarget.direction = capsule.direction; break;
+            }
+        }
+
+        public void UnregisterEnvironment(Collider source)
+        {
+            if (ReferenceEquals(source, null) || !_mirrors.TryGetValue(source, out var ghost)) return;
+            _mirrors.Remove(source);
+            if (ghost != null) { ghost.SetActive(false); Destroy(ghost); }
         }
 
         /// <summary>One collider-only copy, posed in world space.</summary>
@@ -174,6 +234,7 @@ namespace Leeway.CreatureEditor
 
                 case MeshCollider mesh when mesh.sharedMesh != null:
                     MeshCollider meshGhost = ghost.AddComponent<MeshCollider>();
+                    meshGhost.cookingOptions = mesh.cookingOptions;
                     meshGhost.sharedMesh = mesh.sharedMesh;
 
                     // Static scenery is concave as often as not, and a non-convex mesh collider is legal

@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using RootMotion.Dynamics;
 using UnityEngine;
 
@@ -74,6 +75,7 @@ namespace Leeway.CreatureEditor
         [Tooltip("How briskly the small drift between the creature and its body is worked off.")]
         [SerializeField, Min(0f)] private float _followStiffness = 6f;
 
+        private Vector3 Up => GravityWorld.UpAt(transform.position, gameObject.scene);
         private CreaturePuppet _puppet;
         private Rigidbody _body;
         private CreatureSuspension _suspension;
@@ -160,7 +162,7 @@ namespace Leeway.CreatureEditor
             Vector3 wanted = direction.sqrMagnitude > 0.0001f ? direction.normalized * speed : Vector3.zero;
 
             Vector3 velocity = body.linearVelocity;
-            Vector3 planar = new Vector3(velocity.x, 0f, velocity.z);
+            Vector3 planar = Vector3.ProjectOnPlane(velocity, Up);
 
             Vector3 difference = wanted - planar;
             if (difference.magnitude > _maxDriveSpeed) difference = difference.normalized * _maxDriveSpeed;
@@ -178,22 +180,22 @@ namespace Leeway.CreatureEditor
         /// </remarks>
         private void Support(Rigidbody body, float standHeight)
         {
-            if (!Physics.Raycast(body.position, Vector3.down, out RaycastHit hit, standHeight * 2f + 0.5f,
+            if (!Physics.Raycast(body.position, -Up, out RaycastHit hit, standHeight * 2f + 0.5f,
                     ~0, QueryTriggerInteraction.Ignore))
                 return;
 
             float error = standHeight - hit.distance;
-            float damping = -body.linearVelocity.y * _supportDamper;
+            float damping = -Vector3.Dot(body.linearVelocity, Up) * _supportDamper;
 
-            body.AddForce(Vector3.up * (error * _supportSpring + damping), ForceMode.Acceleration);
+            body.AddForce(Up * (error * _supportSpring + damping), ForceMode.Acceleration);
         }
 
         /// <summary>Keeps the body level and turned the way it is travelling.</summary>
         private void KeepUpright(Rigidbody body, Vector3 direction)
         {
             Quaternion wanted = direction.sqrMagnitude > 0.0001f
-                ? Quaternion.LookRotation(new Vector3(direction.x, 0f, direction.z).normalized, Vector3.up)
-                : Quaternion.LookRotation(Vector3.ProjectOnPlane(body.transform.forward, Vector3.up).normalized, Vector3.up);
+                ? Quaternion.LookRotation(Vector3.ProjectOnPlane(direction, Up).normalized, Up)
+                : Quaternion.LookRotation(Vector3.ProjectOnPlane(body.transform.forward, Up).normalized, Up);
 
             Quaternion difference = wanted * Quaternion.Inverse(body.rotation);
             difference.ToAngleAxis(out float angle, out Vector3 axis);
@@ -228,11 +230,11 @@ namespace Leeway.CreatureEditor
             // its own hips. So it is recorded once and subtracted from every comparison after.
             if (!_restOffsetKnown)
             {
-                _restOffset = hips.position - _body.position;
+                _restOffset = Quaternion.Inverse(_body.rotation) * (hips.position - _body.position);
                 _restOffsetKnown = true;
             }
 
-            Vector3 error = hips.position - _restOffset - _body.position;
+            Vector3 error = hips.position - _body.rotation * _restOffset - _body.position;
 
             // A gap this wide is not movement, it is the creature having been put somewhere: spawned,
             // stood up by the server, corrected. Chasing it with velocity would fling the creature
@@ -248,11 +250,11 @@ namespace Leeway.CreatureEditor
             // The creature is carried to where its body is. Position rather than velocity, because the
             // body is kinematic now: the muscles have already done the colliding, and integrating the
             // capsule as well would be a second, disagreeing simulation of the same creature.
-            _body.MovePosition(hips.position - _restOffset);
+            _body.MovePosition(hips.position - _body.rotation * _restOffset);
 
-            Vector3 forward = Vector3.ProjectOnPlane(hips.transform.forward, Vector3.up);
+            Vector3 forward = Vector3.ProjectOnPlane(hips.transform.forward, Up);
             if (forward.sqrMagnitude > 0.0001f)
-                _body.MoveRotation(Quaternion.LookRotation(forward.normalized, Vector3.up));
+                _body.MoveRotation(Quaternion.LookRotation(forward.normalized, Up));
         }
     }
 }

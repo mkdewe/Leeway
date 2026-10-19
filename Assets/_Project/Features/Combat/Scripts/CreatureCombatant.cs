@@ -143,13 +143,13 @@ namespace Leeway.Combat
             if(!best)return false;
             // The blow carries the speed the tip had: a snap or a swing, not a push from the creature's centre.
             Vector3 direction=velocity.sqrMagnitude>0.01f?velocity.normalized:transform.forward;
-            direction=(direction+Vector3.up*0.25f).normalized;
+            direction=(direction+_body.Up*0.25f).normalized;
             ApplyHit(best,point,direction);
             return true;
         }
         private void ApplyHit(CreatureBody target,Vector3 point,Vector3 direction)
         {
-            Vector3 impulse=direction*CombatRules.Knockback(transform.position,target.transform.position,in _pendingSpec,in _tuning).magnitude;
+            Vector3 impulse=direction*LocalKnockback(transform.position,target.transform.position).magnitude;
             bool toppled=target.Knockdown(impulse,NearestBone(target,point));
             target.TakeDamage(_pendingSpec.Damage);
             if(target.TryGetComponent(out NpcCreatureAgent npc))npc.RecordHit(_body);
@@ -161,7 +161,7 @@ namespace Leeway.Combat
             Vector3 origin=transform.position;
             var target=FindTarget(origin,_attackHeading,in _pendingSpec,out var point);
             if(!target){RpcStruck(null,0,origin,false);return;}
-            Vector3 impulse=CombatRules.Knockback(origin,target.transform.position,in _pendingSpec,in _tuning);
+            Vector3 impulse=LocalKnockback(origin,target.transform.position);
             ApplyHit(target,point,impulse.normalized);
         }
         private CreatureBody FindTarget(Vector3 origin,Vector3 forward,in AttackSpec attack,out Vector3 point)
@@ -175,17 +175,23 @@ namespace Leeway.Combat
                 if(!candidate||candidate==_body||candidate.IsInEditorPad||SameTeam(candidate))continue;
                 Vector3 p=c.ClosestPoint(origin);
                 var spec=new AttackSpec(attack.Damage,reach,attack.ArcDegrees,attack.Cooldown,attack.Impulse,attack.Armed);
-                if(!CombatRules.CanStrike(_body.IsAlive,_body.IsKnockedDown,candidate.IsAlive,origin,forward,p,in spec))continue;
+                if(!CombatRules.CanStrike(_body.IsAlive,_body.IsKnockedDown,candidate.IsAlive,Vector3.zero,_body.Surface.ToLocal(forward),_body.Surface.ToLocal(p-origin),in spec))continue;
                 if(!ClearTo(candidate))continue;
                 float d=(p-origin).sqrMagnitude;if(d>=distance)continue;
                 best=candidate;point=p;distance=d;
             }
             return best;
         }
+        private Vector3 LocalKnockback(Vector3 origin,Vector3 target)
+        {
+            var frame=_body.Surface;
+            return frame.ToWorld(CombatRules.Knockback(Vector3.zero,frame.ToLocal(target-origin),in _pendingSpec,in _tuning));
+        }
+
         private bool ClearTo(CreatureBody target)
         {
-            var origin=transform.position+Vector3.up*0.1f;
-            if(!Physics.Linecast(origin,target.transform.position+Vector3.up*0.1f,out var hit,1,QueryTriggerInteraction.Ignore))return true;
+            var origin=transform.position+_body.Up*0.1f;
+            if(!Physics.Linecast(origin,target.transform.position+target.Up*0.1f,out var hit,1,QueryTriggerInteraction.Ignore))return true;
             return hit.collider.GetComponentInParent<CreatureBody>()==target;
         }
         private bool SameTeam(CreatureBody other)=>other.TryGetComponent(out CreatureCombatant c)&&c._team==_team;

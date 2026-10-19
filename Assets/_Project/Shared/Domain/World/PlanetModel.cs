@@ -43,12 +43,19 @@ namespace Leeway.World.Domain
             public readonly float Height;
             /// <summary>0 at the shore to 1 in the deep sea.</summary>
             public readonly float Depth;
+            /// <summary>Signed physical ground elevation in metres, including the ocean floor.</summary>
+            public readonly float GroundHeight;
+            public readonly float WaterHeight;
 
-            public Point(float land, float height, float depth)
+            public Point(float land, float height, float depth) : this(land, height, depth, height) { }
+
+            public Point(float land, float height, float depth, float groundHeight, float waterHeight = 0f)
             {
                 Land = land;
                 Height = height;
                 Depth = depth;
+                GroundHeight = groundHeight;
+                WaterHeight = waterHeight;
             }
 
             public bool IsLand => Land > 0f;
@@ -67,6 +74,52 @@ namespace Leeway.World.Domain
         private float _scale;
         private Func<float, float, float> _home;
         private float _homeReach;
+
+        private PlanetIslandPatch[] _patches;
+        public int PatchCount => _patches?.Length ?? 0;
+        public PlanetIslandPatch GetPatch(int index) => _patches == null ? null : _patches[index];
+
+        /// <summary>Build once before publishing the model to render/collision workers.
+        /// Every island gets the full generator; no second terrain is kept for a distant view.</summary>
+        public void BuildArchipelago(IslandHeightField home, int seed)
+        {
+            if (home == null) throw new ArgumentNullException(nameof(home));
+            if (_patches != null) throw new InvalidOperationException("The archipelago is already built.");
+            var patches = new PlanetIslandPatch[IslandCount];
+            float coast = home.Settings.CoastRadius * home.Settings.HalfSize;
+            for (int i=0;i<patches.Length;i++)
+            {
+                var field=i==0?home:IslandHeightField.Build(home.Settings,unchecked(seed+i*3571));
+                float scale=i==0?1f:Mathf.Max(0.1f,IslandRadius(i)*Radius/Mathf.Max(1f,coast));
+                // A chart never wraps through its antipode.
+                scale=Mathf.Min(scale,Mathf.PI*Radius*0.9f/(field.Settings.HalfSize*0.95f));
+                patches[i]=new PlanetIslandPatch(field,_centers[i],Radius,scale);
+            }
+            _patches=patches;
+        }
+
+        private Point SampleArchipelago(Vector3 direction)
+        {
+            PlanetIslandPatch selected=null;
+            float weight=0;
+            foreach(var patch in _patches)
+            {
+                float candidate=patch.WeightAt(direction);
+                if(candidate>weight){selected=patch;weight=candidate;if(weight>=1f)break;}
+            }
+            if(selected==null)return SampleOwn(direction);
+            Vector2 at=selected.ChartAt(direction);
+            var field=selected.Field;
+            float ground=field.SampleHeight(at.x,at.y)-field.Settings.SeaLevel;
+            float water=field.SampleWaterSurface(at.x,at.y)-field.Settings.SeaLevel;
+            float land=field.IsLand(at.x,at.y)?0.05f+0.45f*Mathf.Clamp01(ground/8f):-0.01f-Mathf.Clamp01((water-ground)/30f);
+            float depth=Mathf.Clamp01((water-ground)/Mathf.Max(10f,Radius*0.015f));
+            if(weight>=1f)return new Point(land,Mathf.Max(0,ground),depth,ground,water);
+            Point own=SampleOwn(direction);
+            return new Point(Mathf.Lerp(own.Land,land,weight),Mathf.Lerp(own.Height,Mathf.Max(0,ground),weight),
+                Mathf.Lerp(own.Depth,depth,weight),Mathf.Lerp(own.GroundHeight,ground,weight),
+                Mathf.Lerp(own.WaterHeight,water,weight));
+        }
 
         public float Radius { get; }
         public float MaxHeight => Radius * 0.022f;
@@ -119,6 +172,7 @@ namespace Leeway.World.Domain
         public Point Sample(Vector3 direction)
         {
             direction.Normalize();
+            if (_patches != null) return SampleArchipelago(direction);
             Point own = SampleOwn(direction);
             if (_home == null || _homeReach <= 0f) return own;
 
@@ -133,7 +187,7 @@ namespace Leeway.World.Domain
 
             float land = h > 0f ? 0.05f + 0.45f * Smooth01(h / 8f) : -Smooth01(-h / 30f) - 1e-4f;
             float depth = h > 0f ? 0f : Smooth01(-h / 25f);
-            return new Point(Mathf.Lerp(own.Land, land, weight), Mathf.Lerp(own.Height, Mathf.Max(h, 0f), weight), Mathf.Lerp(own.Depth, depth, weight));
+            return new Point(Mathf.Lerp(own.Land, land, weight), Mathf.Lerp(own.Height, Mathf.Max(h, 0f), weight), Mathf.Lerp(own.Depth, depth, weight), Mathf.Lerp(own.GroundHeight, h, weight));
         }
 
         private Point SampleOwn(Vector3 direction)
@@ -149,7 +203,10 @@ namespace Leeway.World.Domain
             }
 
             if (land <= 0f)
-                return new Point(land, 0f, Smooth01(-land / 1.2f));
+            {
+                float depth = Smooth01(-land / 1.2f);
+                return new Point(land, 0f, depth, -Mathf.Max(10f, Radius * 0.015f) * depth);
+            }
 
             // Rises from the shore, then rolls: a plain slope would make every island a cone.
             float rise = Smooth01(land / 0.45f);
@@ -279,7 +336,7 @@ namespace Leeway.World.Domain
 
         // ---------------------------------------------------------------- geometry
 
-        private static float Angle(Vector3 a, Vector3 b) => Mathf.Acos(Mathf.Clamp(Vector3.Dot(a, b), -1f, 1f));
+        private static float Angle(Vector3 a, Vector3 b) => Mathf.Atan2(Vector3.Cross(a, b).magnitude, Vector3.Dot(a, b));
 
         private static Vector3 RandomOffset(System.Random rng) =>
             new((float)rng.NextDouble() * 200f, (float)rng.NextDouble() * 200f, (float)rng.NextDouble() * 200f);

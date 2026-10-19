@@ -145,10 +145,11 @@ namespace Leeway.Tests
 
             _localBody.Recover();
 
-            Vector3 euler = _localBody.transform.eulerAngles;
+            Vector3 localUp = _localBody.Up;
+            Vector3 euler = (Quaternion.Inverse(_localBody.Surface.Rotation(_localBody.Surface.YawOf(_localBody.transform.forward))) * _localBody.transform.rotation).eulerAngles;
             Assert.AreEqual(0f, Mathf.DeltaAngle(0f, euler.x), 0.01f, "The creature got up tilted about X.");
             Assert.AreEqual(0f, Mathf.DeltaAngle(0f, euler.z), 0.01f, "The creature got up tilted about Z.");
-            Assert.Greater(_localBody.transform.position.y, -1f, "The creature ended up under the floor.");
+            Assert.IsTrue(Physics.Raycast(_localBody.transform.position + localUp * 0.05f, -localUp, 30f, ~((1 << _localBody.gameObject.layer) | (1 << LayerMask.NameToLayer("CreatureRagdoll"))), QueryTriggerInteraction.Ignore), "The creature ended up without ground beneath it.");
         }
 
         /// <summary>
@@ -174,10 +175,10 @@ namespace Leeway.Tests
             _localBody.Recover();
 
             const float lift = 0.05f;
-            Vector3 origin = _localBody.transform.position + Vector3.up * lift;
+            Vector3 origin = _localBody.transform.position + _localBody.Up * lift;
             int groundMask = ~((1 << _localBody.gameObject.layer) | (1 << LayerMask.NameToLayer("CreatureRagdoll")));
 
-            Assert.IsTrue(Physics.Raycast(origin, Vector3.down, out RaycastHit hit, 30f, groundMask, QueryTriggerInteraction.Ignore),
+            Assert.IsTrue(Physics.Raycast(origin, -_localBody.Up, out RaycastHit hit, 30f, groundMask, QueryTriggerInteraction.Ignore),
                 "There is no ground under the standing creature — it ended up off the map.");
 
             Assert.AreEqual(standHeight, hit.distance - lift, 0.05f,
@@ -269,6 +270,38 @@ namespace Leeway.Tests
             Assert.AreEqual(FishNet.Managing.Timing.PhysicsMode.Unity, _networkManager.TimeManager.PhysicsMode,
                 "PhysicsMode was switched to TimeManager — ragdolls will be resimulated in the reconcile loop and explode.");
             yield break;
+        }
+
+
+        [UnityTest]
+        public IEnumerator FallenCameraFocusTracksPhysicalSpineWithoutInheritingRootJumps()
+        {
+            var focus = _localBody.GetComponent<CreatureFocusPoint>();
+            if (focus == null) focus = _localBody.gameObject.AddComponent<CreatureFocusPoint>();
+            focus.Refocus();
+            Assert.That(_localBody.Knockdown(new Vector3(6, 3, 8), 1), Is.True);
+            for (int i = 0; i < 12; i++) yield return new WaitForFixedUpdate();
+            Assert.That(_puppet.TryGetBodyCentre(out var centre), Is.True);
+            var track = typeof(CreatureFocusPoint).GetMethod("TrackSprawl",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            track.Invoke(focus, null);
+            Vector3 before = focus.Pivot.position;
+            Vector3 root = _localBody.transform.position;
+            try
+            {
+                // Root corrections and standing-up relocation must never drag the focus
+                // away from the independently simulated puppet.
+                _localBody.transform.position = root + Vector3.right * 100;
+                track.Invoke(focus, null);
+                Assert.That(Vector3.Distance(before, focus.Pivot.position), Is.LessThan(0.5f));
+                Assert.That(Vector3.Distance(centre, focus.Pivot.position), Is.LessThan(2f));
+            }
+            finally { _localBody.transform.position = root; }
+            before = focus.Pivot.position;
+            _localBody.Recover();
+            track.Invoke(focus, null);
+            Assert.That(Vector3.Distance(before, focus.Pivot.position), Is.LessThan(0.5f),
+                "Recovery must ease the focus back rather than snap to the standing offset.");
         }
 
         // ---------- helpers ----------

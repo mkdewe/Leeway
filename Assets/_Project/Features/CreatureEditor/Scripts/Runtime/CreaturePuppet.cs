@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System;
 using Leeway.Creature.Domain;
 using RootMotion.Dynamics;
@@ -173,6 +174,9 @@ namespace Leeway.CreatureEditor
             muscleObject.transform.SetPositionAndRotation(segment.position, segment.rotation);
 
             var rigidbody = muscleObject.AddComponent<Rigidbody>();
+            var gravity = muscleObject.AddComponent<GravityBody>();
+            gravity.SourceScene = gameObject.scene;
+            if (_physicsWorld != null && _physicsWorld.IsReady) _physicsWorld.RegisterGravity(gravity);
             rigidbody.mass = Mathf.Max(0.05f, _settings.LegMuscleMass);
             rigidbody.linearDamping = _settings.Drag;
             rigidbody.angularDamping = _settings.AngularDrag;
@@ -253,6 +257,9 @@ namespace Leeway.CreatureEditor
             muscleObject.transform.SetPositionAndRotation(pivot.position, pivot.rotation);
 
             var rigidbody = muscleObject.AddComponent<Rigidbody>();
+            var gravity = muscleObject.AddComponent<GravityBody>();
+            gravity.SourceScene = gameObject.scene;
+            if (_physicsWorld != null && _physicsWorld.IsReady) _physicsWorld.RegisterGravity(gravity);
             rigidbody.mass = mass;
             rigidbody.linearDamping = _settings.Drag;
             rigidbody.angularDamping = _settings.AngularDrag;
@@ -358,6 +365,7 @@ namespace Leeway.CreatureEditor
 
         private void FixedUpdate()
         {
+            UpdateGravityWeights();
             if (!_legsPending) return;
 
             _legsPending = false;
@@ -376,10 +384,41 @@ namespace Leeway.CreatureEditor
         ///
         /// <para>So every jump the creature makes has to be told to the puppet as a jump.</para>
         /// </remarks>
+        // Match the gravity compensation in Muscle.Pin without changing vendor sources.
+        // With useGravity=false PuppetMaster omits it; applying the remaining fraction
+        // preserves the original pin behaviour while unpinned bodies receive full gravity.
+        private void UpdateGravityWeights()
+        {
+            if (_puppetMaster == null || !_puppetMaster.initiated) return;
+            foreach (var muscle in _puppetMaster.muscles)
+            {
+                if (muscle?.rigidbody == null || !muscle.rigidbody.TryGetComponent<GravityBody>(out var gravity)) continue;
+                float weight = _puppetMaster.pinWeight * muscle.props.pinWeight * muscle.state.pinWeightMlp;
+                weight = weight > 0f ? Mathf.Pow(weight, _puppetMaster.pinPow) : 0f;
+                if (_puppetMaster.pinDistanceFalloff > 0f)
+                    weight /= 1f + muscle.positionOffset.sqrMagnitude * _puppetMaster.pinDistanceFalloff;
+                gravity.GravityScale = 1f - Mathf.Clamp01(weight);
+            }
+        }
+
         public void Teleport()
         {
             if (_puppetMaster == null) return;
 
+            // PuppetMaster defers Teleport until its next Read. With a separately stepped
+            // physics scene, balance callbacks can see the old body against the new target first.
+            // Move and reset the physical bodies immediately; keep the vendor teleport queued
+            // so its behaviour and pose history are rebased on the next normal update.
+            foreach(var muscle in _puppetMaster.muscles)
+            {
+                if(muscle?.rigidbody==null)continue;
+                muscle.MoveToTarget();
+                var rigid=muscle.rigidbody;
+                rigid.position=muscle.transform.position;
+                rigid.rotation=muscle.transform.rotation;
+                if(!rigid.isKinematic){rigid.linearVelocity=Vector3.zero;rigid.angularVelocity=Vector3.zero;}
+                muscle.ClearVelocities();
+            }
             _puppetMaster.Teleport(transform.position, transform.rotation, moveToTarget: true);
         }
 
@@ -501,12 +540,13 @@ namespace Leeway.CreatureEditor
 
             centre /= count;
             BodySpeed = speed / count;
-            UprightDot = Vector3.Dot(up.normalized, Vector3.up);
+            Vector3 localUp = GravityWorld.UpAt(centre, gameObject.scene);
+            UprightDot = Vector3.Dot(up.normalized, localUp);
 
             float clearance = Mathf.Max(0.5f, GenomeStatRules.StandHeight(_genome, GetComponent<CreatureBody>().Rules) * 1.6f + 0.2f);
             int mask = ~((1 << ResolveLayer(_ragdollLayer)) | (1 << ResolveLayer(_controllerLayer)));
             PhysicsScene scene = _puppetMaster.gameObject.scene.GetPhysicsScene();
-            OnGround = scene.Raycast(centre + Vector3.up * 0.2f, Vector3.down, out _, clearance + 0.2f, mask, QueryTriggerInteraction.Ignore);
+            OnGround = scene.Raycast(centre + localUp * 0.2f, -localUp, out _, clearance + 0.2f, mask, QueryTriggerInteraction.Ignore);
         }
 
         /// <summary>Pushes the body round its length until the back is up again.</summary>
@@ -516,7 +556,7 @@ namespace Leeway.CreatureEditor
             foreach (Muscle muscle in _puppetMaster.muscles)
                 if (muscle?.rigidbody != null) up += muscle.rigidbody.rotation * Vector3.up;
 
-            Vector3 axis = Vector3.Cross(up.normalized, Vector3.up);
+            Vector3 axis = Vector3.Cross(up.normalized, GravityWorld.UpAt(transform.position, gameObject.scene));
             if (axis.sqrMagnitude < 0.01f) axis = transform.forward; // exactly on its back: either way will do
             axis.Normalize();
 

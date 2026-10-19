@@ -1,3 +1,5 @@
+using Leeway.Gravity;
+using Leeway.World.Domain;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -18,10 +20,15 @@ namespace Leeway.Rendering
         private sealed class Plane
         {
             public float Height, Area;
+            public Vector3 Point,Normal;
             public Bounds Bounds;
         }
         private readonly List<Plane> _planes = new();
         private readonly RenderTexture[] _textures = new RenderTexture[4];
+        private readonly Plane[] _capturedPlanes=new Plane[4];
+        private readonly Matrix4x4[] _capturedVP=new Matrix4x4[4];
+        private readonly int[] _captureOrder=new int[4];
+        private int _captureSerial,_lastCaptureFrame=-1;
         [SerializeField,Range(64,256)] private int _environmentResolution=128;
         [SerializeField,Min(1)] private float _environmentRefreshSeconds=4;
         private ReflectionProbe _environment;
@@ -51,6 +58,7 @@ namespace Leeway.Rendering
             _environment=null;_environmentReady=false;_environmentJob=-1;
             foreach (var tex in _textures) if (tex) { tex.Release(); Release(tex); }
             Array.Clear(_textures, 0, _textures.Length);
+            Array.Clear(_capturedPlanes,0,_capturedPlanes.Length);_lastCaptureFrame=-1;
             if (_capture) Release(_capture.gameObject);
             _capture = null;
         }
@@ -66,7 +74,7 @@ namespace Leeway.Rendering
             int waterLayer = LayerMask.NameToLayer("Water");
             // Only the project's water shader, not unrelated objects on the Water layer.
             var filters = FindObjectsByType<MeshFilter>(FindObjectsSortMode.None)
-                .Where(f => f.sharedMesh && f.TryGetComponent<MeshRenderer>(out var r) &&
+                .Where(f => (f.name == "Water" || f.name == "OpenSea") && f.sharedMesh && f.TryGetComponent<MeshRenderer>(out var r) &&
                     r.enabled && r.sharedMaterial && r.sharedMaterial.shader.name == "Leeway/ToonWater").ToArray();
             int signature = 17;
             foreach (var f in filters.OrderBy(f => f.GetInstanceID()))
@@ -75,7 +83,7 @@ namespace Leeway.Rendering
             _meshSignature = signature;
             _planes.Clear();
             if (_planeCache.TryGetValue(signature, out var cached)) { _planes.AddRange(cached); return; }
-            var levels = new Dictionary<int, Plane>();
+            var levels = new Dictionary<(int,int,int,int), Plane>();
             foreach (var f in filters)
             {
                 if (!f.sharedMesh.isReadable) continue;
@@ -87,17 +95,20 @@ namespace Leeway.Rendering
                     Vector3 a = matrix.MultiplyPoint3x4(v[t[j]]);
                     Vector3 b = matrix.MultiplyPoint3x4(v[t[j+1]]);
                     Vector3 c = matrix.MultiplyPoint3x4(v[t[j+2]]);
-                    if (Mathf.Abs(a.y-b.y) > 0.025f || Mathf.Abs(a.y-c.y) > 0.025f) continue;
-                    float area = Vector3.Cross(b-a,c-a).magnitude * 0.5f;
+                    Vector3 cross=Vector3.Cross(b-a,c-a);
+                    Vector3 normal=cross.normalized;
+                    Vector3 point=(a+b+c)/3f;
+                    if(Vector3.Dot(normal,GravityWorld.UpAt(point,gameObject.scene))<0.65f)continue;
+                    float area = cross.magnitude * 0.5f;
                     if (area < 0.001f) continue;
-                    int key = Mathf.RoundToInt(a.y * 10);
+                    var key=(Mathf.RoundToInt(normal.x*32),Mathf.RoundToInt(normal.y*32),Mathf.RoundToInt(normal.z*32),Mathf.RoundToInt(Vector3.Dot(normal,point)*2));
                     if (!levels.TryGetValue(key, out var plane))
-                        levels[key] = plane = new Plane { Height = a.y, Bounds = new Bounds(a, Vector3.zero) };
+                        levels[key] = plane = new Plane { Height = a.y, Point=point, Normal=normal, Bounds = new Bounds(a, Vector3.zero) };
                     plane.Area += area;
                     plane.Bounds.Encapsulate(a); plane.Bounds.Encapsulate(b); plane.Bounds.Encapsulate(c);
                 }
             }
-            foreach (var p in levels.Values.OrderByDescending(p => p.Area).Take(_maxPlanes))
+            foreach (var p in levels.Values.OrderByDescending(p => p.Area / (1f + (Camera.main != null ? p.Bounds.SqrDistance(Camera.main.transform.position) : 0f))).Take(_maxPlanes))
             { p.Bounds.Expand(new Vector3(1,1,1)); _planes.Add(p); }
             if (_planeCache.Count > 8) _planeCache.Clear();
             _planeCache[signature] = new List<Plane>(_planes);
@@ -139,17 +150,23 @@ namespace Leeway.Rendering
             _environmentJob=_environment.RenderProbe();
         }
 
+        private static bool PlaneVisible(Plane plane,Camera source,UnityEngine.Plane[] frustum) =>
+            plane.Bounds.SqrDistance(source.transform.position)<=120f*120f &&
+            Vector3.Dot(source.transform.position-plane.Point,plane.Normal)>0.05f &&
+            GeometryUtility.TestPlanesAABB(frustum,plane.Bounds);
+
         private void Render(ScriptableRenderContext context, Camera source)
         {
             if (_rendering || !source || source.cameraType == CameraType.Reflection ||
                 source.cameraType == CameraType.Preview || source.stereoEnabled) return;
+            if(Application.isPlaying && source != Camera.main)return;
             // Thumbnails and UI cameras must not trigger extra world renders.
             int layer = LayerMask.NameToLayer("Water");
             if (layer < 0 || (source.cullingMask & (1 << layer)) == 0 ||
                 source.GetUniversalAdditionalCameraData().renderType == CameraRenderType.Overlay) return;
-            Scan();
             Shader.SetGlobalFloat(CountId, 0);
             if (Suspended) return;
+            Scan();
             if (_planes.Count == 0) return;
             UpdateEnvironment(source);
             var frustum = GeometryUtility.CalculateFrustumPlanes(source);
@@ -159,29 +176,40 @@ namespace Leeway.Rendering
                 _capture = go.AddComponent<Camera>(); _capture.enabled = false;
                 go.AddComponent<UniversalAdditionalCameraData>();
             }
+            int captureSlot=-1,oldest=int.MaxValue;
+            for(int slot=0;slot<_planes.Count;slot++)
+            {
+                var plane=_planes[slot];
+                if(!PlaneVisible(plane,source,frustum))continue;
+                int order=ReferenceEquals(_capturedPlanes[slot],plane)?_captureOrder[slot]:int.MinValue;
+                if(order<oldest){oldest=order;captureSlot=slot;}
+            }
+            if(Application.isPlaying&&_lastCaptureFrame==Time.frameCount)captureSlot=-1;
             bool inverted = GL.invertCulling;
             _rendering = true;
             int count = 0;
             try
             {
-                foreach (var plane in _planes)
+                for(int slot=0;slot<_planes.Count;slot++)
                 {
-                    if (source.transform.position.y <= plane.Height + 0.05f ||
-                        !GeometryUtility.TestPlanesAABB(frustum, plane.Bounds)) continue;
+                    var plane=_planes[slot];
+                    if(!PlaneVisible(plane,source,frustum))continue;
+                    if(slot==captureSlot)
+                    {
                     int width = Mathf.Max(64, Mathf.RoundToInt(_resolution * Mathf.Min(1,source.aspect)));
                     int height = Mathf.Max(64, Mathf.RoundToInt(_resolution / Mathf.Max(1,source.aspect)));
-                    if (!_textures[count] || _textures[count].width != width || _textures[count].height != height)
+                    if (!_textures[slot] || _textures[slot].width != width || _textures[slot].height != height)
                     {
-                        if (_textures[count]) { _textures[count].Release(); Release(_textures[count]); }
-                        _textures[count] = new RenderTexture(width,height,24,RenderTextureFormat.ARGBHalf)
+                        if (_textures[slot]) { _textures[slot].Release(); Release(_textures[slot]); }
+                        _textures[slot] = new RenderTexture(width,height,24,RenderTextureFormat.ARGBHalf)
                         { name = "Leeway Water Reflection " + count, hideFlags = HideFlags.HideAndDontSave,
                           filterMode = FilterMode.Bilinear, wrapMode = TextureWrapMode.Clamp };
-                        _textures[count].Create();
+                        _textures[slot].Create();
                     }
                     _capture.CopyFrom(source);
                     _capture.enabled = false;
                     _capture.cameraType = CameraType.Reflection;
-                    _capture.targetTexture = _textures[count];
+                    _capture.targetTexture = _textures[slot];
                     _capture.clearFlags = CameraClearFlags.Skybox;
                     _capture.cullingMask = source.cullingMask & ~(1 << layer);
                     _capture.useOcclusionCulling = false;
@@ -193,14 +221,13 @@ namespace Leeway.Rendering
                     data.renderShadows = false;
                     data.requiresColorOption = CameraOverrideOption.Off;
                     data.requiresDepthOption = CameraOverrideOption.Off;
-                    Matrix4x4 mirror = Matrix4x4.identity;
-                    mirror.m11 = -1; mirror.m13 = 2 * plane.Height;
+                    Matrix4x4 mirror = SurfaceReflection.Matrix(plane.Point,plane.Normal);
                     _capture.transform.position = mirror.MultiplyPoint(source.transform.position);
                     _capture.transform.rotation = Quaternion.LookRotation(
                         mirror.MultiplyVector(source.transform.forward), mirror.MultiplyVector(source.transform.up));
                     _capture.worldToCameraMatrix = source.worldToCameraMatrix * mirror;
-                    Vector3 point = _capture.worldToCameraMatrix.MultiplyPoint(new Vector3(0,plane.Height+0.05f,0));
-                    Vector3 normal = _capture.worldToCameraMatrix.MultiplyVector(Vector3.up).normalized;
+                    Vector3 point = _capture.worldToCameraMatrix.MultiplyPoint(plane.Point+plane.Normal*0.05f);
+                    Vector3 normal = _capture.worldToCameraMatrix.MultiplyVector(plane.Normal).normalized;
                     _capture.projectionMatrix = source.projectionMatrix;
                     _capture.projectionMatrix = _capture.CalculateObliqueMatrix(
                         new Vector4(normal.x,normal.y,normal.z,-Vector3.Dot(point,normal)));
@@ -211,10 +238,15 @@ namespace Leeway.Rendering
                     UniversalRenderPipeline.RenderSingleCamera(context, _capture);
 #pragma warning restore CS0618
                     GL.invertCulling = inverted;
-                    Shader.SetGlobalTexture("_LeewayReflection"+count,_textures[count]);
-                    Shader.SetGlobalMatrix("_LeewayReflectionVP"+count,
-                        GL.GetGPUProjectionMatrix(_capture.projectionMatrix,true)*_capture.worldToCameraMatrix);
+                    _capturedPlanes[slot]=plane;
+                    _capturedVP[slot]=GL.GetGPUProjectionMatrix(_capture.projectionMatrix,true)*_capture.worldToCameraMatrix;
+                    _captureOrder[slot]=++_captureSerial;_lastCaptureFrame=Time.frameCount;
+                    }
+                    if(!ReferenceEquals(_capturedPlanes[slot],plane)||!_textures[slot])continue;
+                    Shader.SetGlobalTexture("_LeewayReflection"+count,_textures[slot]);
+                    Shader.SetGlobalMatrix("_LeewayReflectionVP"+count,_capturedVP[slot]);
                     Shader.SetGlobalFloat("_LeewayReflectionHeight"+count,plane.Height);
+                    Shader.SetGlobalVector("_LeewayReflectionPlane"+count,new Vector4(plane.Normal.x,plane.Normal.y,plane.Normal.z,-Vector3.Dot(plane.Normal,plane.Point)));
                     count++;
                 }
             }

@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using Leeway.Creature.Domain;
 using RootMotion.FinalIK;
@@ -54,6 +55,8 @@ namespace Leeway.CreatureEditor
         [Header("Mouth")]
         [Tooltip("How far the jaw opens at full gape (degrees).")]
         [SerializeField, Range(10f, 70f)] private float _maxJawDegrees = 42f;
+
+        private Vector3 Up => GravityWorld.UpAt(transform.position, gameObject.scene);
 
         private CreatureBody _body;
         private CreatureLocomotion _locomotion;
@@ -322,7 +325,7 @@ namespace Leeway.CreatureEditor
             if (_headLunge <= 0.001f || bones == null || bones.Length == 0 || bones[0] == null) return;
 
             Vector3 heading = transform.forward;
-            heading.y = 0f;
+            heading = Vector3.ProjectOnPlane(heading, Up);
             bones[0].position += heading.normalized * _headLunge;
         }
 
@@ -354,9 +357,9 @@ namespace Leeway.CreatureEditor
                 float reach = leg.Spec.Reach;
 
                 // Drawn back and up, then swung across the front in an arc.
-                Vector3 rest = hip.position + forward * reach * 0.3f - Vector3.up * reach * 0.4f;
-                Vector3 back = hip.position - forward * reach * 0.35f + Vector3.up * reach * (0.25f + lift * 2f) + side * reach * sideways * 1.8f;
-                Vector3 front = hip.position + forward * reach * 0.95f + Vector3.up * reach * lift - side * reach * sideways;
+                Vector3 rest = hip.position + forward * reach * 0.3f - Up * reach * 0.4f;
+                Vector3 back = hip.position - forward * reach * 0.35f + Up * reach * (0.25f + lift * 2f) + side * reach * sideways * 1.8f;
+                Vector3 front = hip.position + forward * reach * 0.95f + Up * reach * lift - side * reach * sideways;
 
                 limb.Leg.SetStrike(draw > 0f ? Vector3.Lerp(rest, back, draw) : Vector3.Lerp(front, rest, 1f + draw), 1f);
             }
@@ -519,7 +522,7 @@ namespace Leeway.CreatureEditor
             _lookTarget.position = Vector3.Lerp(_lookTarget.position, point, 1f - Mathf.Exp(-8f * dt));
 
             // A dip of the head for the attack poses rides on top of the look.
-            _lookTarget.position += Vector3.down * (_headDip * 0.05f);
+            _lookTarget.position -= Up * (_headDip * 0.05f);
 
             // Less of it on the move: a head swinging round while the creature walks looks like a twist of the body.
             float moving = _locomotion != null && _locomotion.IsMoving ? 0.35f : 1f;
@@ -529,7 +532,7 @@ namespace Leeway.CreatureEditor
 
         private Vector3 ChooseLookPoint(float dt, out float strength)
         {
-            Vector3 eyes = transform.position + Vector3.up * 0.6f;
+            Vector3 eyes = transform.position + Up * 0.6f;
 
             if (Attention.HasValue)
             {
@@ -552,7 +555,7 @@ namespace Leeway.CreatureEditor
             if (_interest != null && _interest.IsAlive)
             {
                 strength = 0.85f;
-                return _interest.transform.position + Vector3.up * 0.5f;
+                return _interest.transform.position + Up * 0.5f;
             }
 
             if (Time.time >= _nextGlance)

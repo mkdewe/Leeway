@@ -16,7 +16,7 @@ Shader "Leeway/ToonWater"
         _FlowContrast ("Flow Brightness Variation", Range(0, 0.08)) = 0.03
         _FlowNormalStrength ("Flow Normal Strength", Range(0,0.1)) = 0.03
         _FlowDistortion ("Flow Reflection Distortion", Range(0, 0.01)) = 0.003
-        _OceanWaveHeight ("Ocean Wave Height", Range(0, 1)) = 0.38
+        _OceanWaveHeight ("Maximum Ocean Wave Height (metres)", Range(0, 0.15)) = 0.08
         _OceanWaveLength ("Ocean Wave Length", Float) = 18
         _OceanWaveSpeed ("Ocean Wave Speed", Float) = 1.8
         _LightInfluence ("Light Influence", Range(0, 1)) = 0.35
@@ -50,11 +50,18 @@ Shader "Leeway/ToonWater"
             float _ReflectionDistortion;
         CBUFFER_END
 #include "CloudSky.hlsl"
+        float _LeewayPlanetView;
+        void ClipOcean(half4 colour)
+        {
+            // Blue marks streamed ocean vertices; alpha carries a signed shoreline mask.
+            // Inland water keeps its own geometry and is not clipped by this ocean mask.
+            clip(lerp(1.0, colour.a - 0.5, step(0.5, colour.b)));
+        }
         float _LeewayReflectionCount;
-TEXTURE2D(_LeewayReflection0); SAMPLER(sampler_LeewayReflection0); float4x4 _LeewayReflectionVP0; float _LeewayReflectionHeight0;
-TEXTURE2D(_LeewayReflection1); SAMPLER(sampler_LeewayReflection1); float4x4 _LeewayReflectionVP1; float _LeewayReflectionHeight1;
-TEXTURE2D(_LeewayReflection2); SAMPLER(sampler_LeewayReflection2); float4x4 _LeewayReflectionVP2; float _LeewayReflectionHeight2;
-TEXTURE2D(_LeewayReflection3); SAMPLER(sampler_LeewayReflection3); float4x4 _LeewayReflectionVP3; float _LeewayReflectionHeight3;
+TEXTURE2D(_LeewayReflection0); SAMPLER(sampler_LeewayReflection0); float4x4 _LeewayReflectionVP0; float _LeewayReflectionHeight0; float4 _LeewayReflectionPlane0;
+TEXTURE2D(_LeewayReflection1); SAMPLER(sampler_LeewayReflection1); float4x4 _LeewayReflectionVP1; float _LeewayReflectionHeight1; float4 _LeewayReflectionPlane1;
+TEXTURE2D(_LeewayReflection2); SAMPLER(sampler_LeewayReflection2); float4x4 _LeewayReflectionVP2; float _LeewayReflectionHeight2; float4 _LeewayReflectionPlane2;
+TEXTURE2D(_LeewayReflection3); SAMPLER(sampler_LeewayReflection3); float4x4 _LeewayReflectionVP3; float _LeewayReflectionHeight3; float4 _LeewayReflectionPlane3;
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 TEXTURECUBE(_LeewayWaterEnvironment); SAMPLER(sampler_LeewayWaterEnvironment);
 float4 _LeewayWaterEnvironmentHDR,_LeewayWaterEnvironmentPosition,_LeewayWaterEnvironmentExtents;
@@ -92,7 +99,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         #endif
         uv+=distortion;
         float edge=min(min(uv.x,uv.y),min(1-uv.x,1-uv.y));
-        float weight=saturate(normal.y)*saturate(normal.y)*exp2(-abs(pos.y-_LeewayReflectionHeight0)*0.9)*smoothstep(0,0.04,edge);
+        float weight=saturate(dot(normal,_LeewayReflectionPlane0.xyz))*saturate(dot(normal,_LeewayReflectionPlane0.xyz))*exp2(-abs(dot(float4(pos,1),_LeewayReflectionPlane0))*0.9)*smoothstep(0,0.04,edge);
         if(projected.w>0&&weight>bestWeight)
         {planar=SAMPLE_TEXTURE2D(_LeewayReflection0,sampler_LeewayReflection0,saturate(uv)).rgb;bestWeight=weight;}
     }
@@ -106,7 +113,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         #endif
         uv+=distortion;
         float edge=min(min(uv.x,uv.y),min(1-uv.x,1-uv.y));
-        float weight=saturate(normal.y)*saturate(normal.y)*exp2(-abs(pos.y-_LeewayReflectionHeight1)*0.9)*smoothstep(0,0.04,edge);
+        float weight=saturate(dot(normal,_LeewayReflectionPlane1.xyz))*saturate(dot(normal,_LeewayReflectionPlane1.xyz))*exp2(-abs(dot(float4(pos,1),_LeewayReflectionPlane1))*0.9)*smoothstep(0,0.04,edge);
         if(projected.w>0&&weight>bestWeight)
         {planar=SAMPLE_TEXTURE2D(_LeewayReflection1,sampler_LeewayReflection1,saturate(uv)).rgb;bestWeight=weight;}
     }
@@ -120,7 +127,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         #endif
         uv+=distortion;
         float edge=min(min(uv.x,uv.y),min(1-uv.x,1-uv.y));
-        float weight=saturate(normal.y)*saturate(normal.y)*exp2(-abs(pos.y-_LeewayReflectionHeight2)*0.9)*smoothstep(0,0.04,edge);
+        float weight=saturate(dot(normal,_LeewayReflectionPlane2.xyz))*saturate(dot(normal,_LeewayReflectionPlane2.xyz))*exp2(-abs(dot(float4(pos,1),_LeewayReflectionPlane2))*0.9)*smoothstep(0,0.04,edge);
         if(projected.w>0&&weight>bestWeight)
         {planar=SAMPLE_TEXTURE2D(_LeewayReflection2,sampler_LeewayReflection2,saturate(uv)).rgb;bestWeight=weight;}
     }
@@ -134,7 +141,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         #endif
         uv+=distortion;
         float edge=min(min(uv.x,uv.y),min(1-uv.x,1-uv.y));
-        float weight=saturate(normal.y)*saturate(normal.y)*exp2(-abs(pos.y-_LeewayReflectionHeight3)*0.9)*smoothstep(0,0.04,edge);
+        float weight=saturate(dot(normal,_LeewayReflectionPlane3.xyz))*saturate(dot(normal,_LeewayReflectionPlane3.xyz))*exp2(-abs(dot(float4(pos,1),_LeewayReflectionPlane3))*0.9)*smoothstep(0,0.04,edge);
         if(projected.w>0&&weight>bestWeight)
         {planar=SAMPLE_TEXTURE2D(_LeewayReflection3,sampler_LeewayReflection3,saturate(uv)).rgb;bestWeight=weight;}
     }
@@ -146,14 +153,20 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         float4 _LeewayWaterImpactDirections[24];
         half ReceiverFoam(float3 rest,float3 normal,float time)
         {
-            if(normal.y<0.65)return 0;
+            if(dot(normal,LeewayUpAt(rest))<0.65)return 0;
             half foam=0;
             [loop] for(int i=0;i<24;i++)
             {
                 if(i>=(int)_LeewayWaterImpactCount)break;
                 float4 hit=_LeewayWaterImpactPositions[i];
-                if(abs(rest.y-hit.y)>max(0.4,hit.w*0.15))continue;
-                float2 delta=rest.xz-hit.xz,dir=_LeewayWaterImpactDirections[i].xy;
+                float3 impactUp=LeewayUpAt(hit.xyz);
+                float3 worldDelta=rest-hit.xyz;
+                if(abs(dot(worldDelta,impactUp))>max(0.4,hit.w*0.15))continue;
+                float3 impactRight=LeewayRightAt(impactUp),impactForward=LeewayForwardAt(impactUp);
+                float2 delta=float2(dot(worldDelta,impactRight),dot(worldDelta,impactForward));
+                float3 worldDirection=_LeewayPlanet.w>0?_LeewayWaterImpactDirections[i].xyz:
+                    float3(_LeewayWaterImpactDirections[i].x,0,_LeewayWaterImpactDirections[i].y);
+                float2 dir=float2(dot(worldDirection,impactRight),dot(worldDirection,impactForward));
                 if(dot(delta,delta)>hit.w*hit.w*2.5)continue;
                 float2 local=float2(dot(delta,dir)-hit.w*0.2,dot(delta,float2(-dir.y,dir.x)));
                 local/=float2(hit.w*1.25,hit.w*0.8);
@@ -172,29 +185,37 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
         // One world-space displacement function in colour, depth and normals passes.
         float3 OceanWave(float3 world, half4 data)
         {
-            float mask=(1.0-saturate(data.g*4.0))*(1.0-data.b)*smoothstep(0.08,0.8,data.r);
-            float lod=1.0-smoothstep(180.0,550.0,distance(world.xz,_WorldSpaceCameraPos.xz));
+            float mask=(1.0-saturate(data.g*4.0))*smoothstep(0.08,0.8,data.r);
+            float lod=1.0-smoothstep(180.0,550.0,distance(world,_WorldSpaceCameraPos));
             float windStrength=_LeewayWindEnabled>0.5?_LeewayWind.z:0.8;
-            float amplitude=_OceanWaveHeight*mask*lod*lerp(0.55,1.3,saturate(windStrength/1.2));
+            // Height is a bound in metres, not the amplitude of each harmonic. Wind
+            // and overlapping waves may not amplify it; shallow water has a tighter bound.
+            float maximumHeight=min(clamp(_OceanWaveHeight,0.0,0.15),saturate(data.r)*0.3);
+            float amplitude=maximumHeight*mask*lod*lerp(0.55,1.0,saturate(windStrength/1.2))/1.32;
             float2 d=LeewayWindDirection();
             float2 e=normalize(float2(d.x*0.7-d.y*0.7,d.x*0.7+d.y*0.7));
             float k=6.283185/max(_OceanWaveLength,2.0);
             float time=LeewayWeatherTime()*_OceanWaveSpeed;
-            float p=dot(world.xz,d)*k-time;
-            float q=dot(world.xz,e)*k*1.9-time*1.35;
+            float3 axisA=_LeewayPlanet.w>0?normalize(float3(d.x,0.37,d.y)):float3(d.x,0,d.y);
+            float3 axisB=_LeewayPlanet.w>0?normalize(float3(e.x,-0.61,e.y)):float3(e.x,0,e.y);
+            float3 samplePosition=_LeewayPlanet.w>0?world-_LeewayPlanet.xyz:world;
+            float p=dot(samplePosition,axisA)*k-time;
+            float q=dot(samplePosition,axisB)*k*1.9-time*1.35;
             float height=amplitude*(sin(p)+0.32*sin(q));
-            float2 gradient=amplitude*k*(d*cos(p)+e*0.608*cos(q));
-            return float3(height,gradient.x,gradient.y);
+            float3 gradient=amplitude*k*(axisA*cos(p)+axisB*0.608*cos(q));
+            float3 up=LeewayUpAt(world);
+            return float3(height,dot(gradient,LeewayRightAt(up)),dot(gradient,LeewayForwardAt(up)));
         }
         float3 WaterPosition(float3 world,half4 data)
         {
-            world.y+=OceanWave(world,data).x;
+            world+=LeewayUpAt(world)*OceanWave(world,data).x;
             return world;
         }
         float3 WaterNormal(float3 world,float3 normal,half4 data)
         {
             float3 wave=OceanWave(world,data);
-            return normalize(normal+float3(-wave.y,0,-wave.z));
+            float3 up=LeewayUpAt(world);
+            return normalize(normal-LeewayRightAt(up)*wave.y-LeewayForwardAt(up)*wave.z);
         }
         ENDHLSL
 
@@ -252,11 +273,14 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
 
             half4 Frag(Varyings input) : SV_Target
             {
+                ClipOcean(input.color);
                 float3 wpos = input.positionWS;
                 half depth = input.color.r;
                 half fresh = input.color.g;
                 float t = LeewayWeatherTime();
-                float2 p = wpos.xz * 0.07;
+                float3 up=LeewayUpAt(wpos);
+                float3 right=LeewayRightAt(up),forward=LeewayForwardAt(up);
+                float2 p = (_LeewayPlanet.w>0?float2(dot(wpos,float3(0.7,0.2,0.1)),dot(wpos,float3(0.1,-0.3,0.8))):wpos.xz) * 0.07;
 
                 half3 color = lerp(_ShallowColor.rgb, _DeepColor.rgb, smoothstep(0.0, 1.0, depth));
                 color = lerp(color, lerp(_FreshTint.rgb, _DeepColor.rgb, depth * 0.6), fresh);
@@ -272,9 +296,12 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
                 color*=1.0+variation*_FlowContrast*moving;
 
                 // Reflections retain the palette treatment of the main camera.
-                float2 distortion=float2(sin(p.y*5.0+t*0.45),cos(p.x*4.0-t*0.32))*_ReflectionDistortion + input.normalWS.xz*0.035*(1.0-fresh);
+                float2 distortion=float2(sin(p.y*5.0+t*0.45),cos(p.x*4.0-t*0.32))*_ReflectionDistortion + float2(dot(input.normalWS,right),dot(input.normalWS,forward))*0.035*(1.0-fresh);
                 distortion+=float2(motion,filament)*_FlowDistortion*moving;
-                float3 n=normalize(input.normalWS+float3(distortion.x*3.0,0,distortion.y*3.0));
+                // Subpixel ripples must not alias into broad stripes in the orbital view.
+                distortion*=1.0-smoothstep(120.0,550.0,distance(wpos,_WorldSpaceCameraPos));
+                float3 surfaceNormal=normalize(lerp(input.normalWS,up,step(0.5,input.color.b)));
+                float3 n=normalize(surfaceNormal+(right*distortion.x+forward*distortion.y)*3.0);
                 if(moving>0.001)
                 {
                     float2 ux=ddx(input.flowUV),uy=ddy(input.flowUV);
@@ -302,7 +329,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
                 color *= lit * lerp(half3(1, 1, 1), mainLight.color, _LightInfluence);
 
                 color *= lerp(1.0,lerp(0.38,1.0,_LeewayDaylight),_LeewayDayNightEnabled);
-                color = MixFog(color, input.fogFactor);
+                color = lerp(color, MixFog(color, input.fogFactor), 1.0 - saturate(_LeewayPlanetView));
                 return half4(color, 1.0);
             }
             ENDHLSL
@@ -319,9 +346,15 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
             #pragma fragment DepthFrag
 
             struct DepthAttributes { float4 positionOS:POSITION; half4 color:COLOR; };
-            float4 DepthVert(DepthAttributes input) : SV_POSITION
-            { return TransformWorldToHClip(WaterPosition(TransformObjectToWorld(input.positionOS.xyz),input.color)); }
-            half DepthFrag() : SV_Target { return 0; }
+            struct DepthVaryings { float4 positionCS:SV_POSITION; half4 color:TEXCOORD0; };
+            DepthVaryings DepthVert(DepthAttributes input)
+            {
+                DepthVaryings output;
+                output.positionCS=TransformWorldToHClip(WaterPosition(TransformObjectToWorld(input.positionOS.xyz),input.color));
+                output.color=input.color;
+                return output;
+            }
+            half DepthFrag(DepthVaryings input) : SV_Target { ClipOcean(input.color); return 0; }
             ENDHLSL
         }
 
@@ -346,6 +379,7 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
             {
                 float4 positionCS : SV_POSITION;
                 float3 normalWS : TEXCOORD0;
+                half4 color : TEXCOORD1;
             };
 
             Varyings NormalsVert(Attributes input)
@@ -354,11 +388,13 @@ half3 WaterReflection(float3 pos,float3 ray,float2 distortion,float3 normal)
                 float3 rest=TransformObjectToWorld(input.positionOS.xyz);
                 output.positionCS=TransformWorldToHClip(WaterPosition(rest,input.color));
                 output.normalWS=WaterNormal(rest,TransformObjectToWorldNormal(input.normalOS),input.color);
+                output.color=input.color;
                 return output;
             }
 
             half4 NormalsFrag(Varyings input) : SV_Target
             {
+                ClipOcean(input.color);
                 float3 normalWS = NormalizeNormalPerPixel(input.normalWS);
                 #if defined(_GBUFFER_NORMALS_OCT)
                     float2 oct = saturate(PackNormalOctQuadEncode(normalWS) * 0.5 + 0.5);

@@ -1,3 +1,5 @@
+using System;
+using Leeway.World;
 using Leeway.World.Domain;
 using UnityEngine;
 
@@ -13,6 +15,39 @@ namespace Leeway.Planet
         private static readonly Color HighGrass = new(0.28f, 0.55f, 0.27f);
         private static readonly Color Rock = new(0.55f, 0.51f, 0.47f);
         private static readonly Color Snow = new(0.95f, 0.96f, 0.98f);
+
+
+        /// <summary>Capture assets once on the main thread. Sampling reads immutable data only;
+        /// the colour at a geographic point never depends on camera distance or tile level.</summary>
+        public static Func<Vector3,PlanetModel.Point,Color32> ForBiome(PlanetModel model,IslandBiome biome)
+        {
+            var palette=new IslandGroundPalette(biome);
+            var patches=new PlanetIslandPatch[model.PatchCount];
+            var noises=new IslandNoise[patches.Length];
+            for(int i=0;i<patches.Length;i++)
+            {
+                patches[i]=model.GetPatch(i);
+                noises[i]=new IslandNoise(patches[i].Field.Seed+101);
+            }
+            return (direction,point)=>
+            {
+                int selected=-1;
+                float weight=0;
+                for(int i=0;i<patches.Length;i++)
+                {
+                    float candidate=patches[i].WeightAt(direction);
+                    if(candidate>weight){selected=i;weight=candidate;if(weight>=1)break;}
+                }
+                Color fallback=point.IsLand?Color.Lerp(palette.Grass,palette.GrassDark,
+                    Mathf.Clamp01(point.Height/Mathf.Max(1,model.MaxHeight))):palette.SeaBed;
+                if(selected<0)return (Color32)fallback;
+                var field=patches[selected].Field;
+                Vector2 at=patches[selected].ChartAt(direction);
+                Vector3 chart=new Vector3(at.x,field.SampleHeight(at.x,at.y),at.y);
+                Color local=palette.At(field,noises[selected],chart,field.SampleNormal(at.x,at.y));
+                return (Color32)Color.Lerp(fallback,local,weight);
+            };
+        }
 
         /// <summary>The colour of one point of the surface. Safe to call from any thread.</summary>
         public static Color32 Of(PlanetModel model, PlanetModel.Point point)

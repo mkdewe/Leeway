@@ -21,28 +21,34 @@ namespace Leeway.Combat
         private CreatureCombatant _combatant;
         private PlaygroundCreatureController _controller;
         private IslandGenerator _island;
-        private Vector3 _home,_wanderTarget,_heading;
+        private Vector3 _home,_homeChart,_wanderTarget,_heading;
+        private Vector3 Up => _body.Up;
         private float _nextWander,_nextThink,_deadSince=-1,_provokedUntil,_throttle;
         private bool _configured;
         private System.Random _rng;
         public IslandSpecies Species=>_species.Value;
         public string SpeciesName=>IslandSpeciesLibrary.Name(Species);
         public NpcCreatureType Disposition=>IslandSpeciesLibrary.Behavior(Species);
-        public Vector3 Home=>_home;
+        public Vector3 Home=>_island?_island.FieldToWorld(_homeChart):_home;
         public bool IsPredator=>_type==NpcCreatureType.Predator;
         private float Now=>TimeManager!=null?(float)TimeManager.Tick*(float)TimeManager.TickDelta:Time.time;
         private void Awake()
         {_body=GetComponent<CreatureBody>();TryGetComponent(out _combatant);TryGetComponent(out _controller);}
         public void Configure(IslandSpecies species,Vector3 home,float territory,IslandGenerator island)
-        {_species.Value=species;_type=IslandSpeciesLibrary.Behavior(species);_home=home;_wanderRadius=territory;_island=island;_configured=true;}
+        {_species.Value=species;_type=IslandSpeciesLibrary.Behavior(species);_home=home;_wanderRadius=territory;_island=island;_homeChart=island?island.WorldToField(home):home;_configured=true;}
         public override void OnStartServer()
         {
             base.OnStartServer();if(!_configured)_home=transform.position;
+            IslandGenerator.PlanetIslandReady+=OnPlanetIsland;
             _rng=new System.Random((int)(_home.x*997+_home.z*73)^((int)Species*7919));
             _wanderTarget=_home;_nextWander=0;_nextThink=0;_deadSince=-1;_heading=transform.forward;
             TimeManager.OnTick+=OnServerTick;
         }
-        public override void OnStopServer(){base.OnStopServer();if(TimeManager!=null)TimeManager.OnTick-=OnServerTick;}
+        public override void OnStopServer(){IslandGenerator.PlanetIslandReady-=OnPlanetIsland;base.OnStopServer();if(TimeManager!=null)TimeManager.OnTick-=OnServerTick;}
+        private void OnPlanetIsland(IslandGenerator island,int index)
+        {
+            if(_island&&_island.PlanetIslandIndex==index)_island=island;
+        }
         [Server] public void RecordHit(CreatureBody attacker){_aggressor=attacker;_provokedUntil=Now+12;}
         private void OnServerTick()
         {
@@ -55,6 +61,7 @@ namespace Leeway.Combat
                 return;
             }
             if(_body.IsKnockedDown){_controller?.ServerDrive(transform.forward,0);return;}
+            _home=Home;
             if(Now>=_nextThink){_nextThink=Now+0.2f;Think();}
             _controller?.ServerDrive(_heading,_throttle);
         }
@@ -83,11 +90,11 @@ namespace Leeway.Combat
             Vector3 goal=WanderTarget();
             bool flee=_type==NpcCreatureType.Prey&&threat||_body.Hp<_body.MaxHp*0.2f&&threat;
             if(flee)
-            {var away=transform.position-threat.transform.position;away.y=0;goal=transform.position+away.normalized*8;quarry=null;}
+            {var away=transform.position-threat.transform.position;away=Vector3.ProjectOnPlane(away,Up);goal=transform.position+away.normalized*8;quarry=null;}
             else if(quarry)goal=quarry.transform.position;
             if(FlatDistance(transform.position,_home)>_wanderRadius*2.2f||_body.IsInEditorPad)
             {goal=_home;quarry=null;}
-            var delta=goal-transform.position;delta.y=0;
+            var delta=goal-transform.position;delta=Vector3.ProjectOnPlane(delta,Up);
             _heading=delta.sqrMagnitude>0.01f?delta.normalized:transform.forward;
             _throttle=delta.magnitude<1?0:quarry||flee?1:0.48f;
             if(quarry&&_combatant)
@@ -102,7 +109,7 @@ namespace Leeway.Combat
         }
         private bool Visible(CreatureBody other)
         {
-            var from=transform.position+Vector3.up*0.15f;var to=other.transform.position+Vector3.up*0.15f;
+            var from=transform.position+Up*0.15f;var to=other.transform.position+Up*0.15f;
             if(!Physics.Linecast(from,to,out var hit,1,QueryTriggerInteraction.Ignore))return true;
             return hit.collider.GetComponentInParent<CreatureBody>()==other;
         }
@@ -113,7 +120,7 @@ namespace Leeway.Combat
             for(int attempt=0;attempt<7;attempt++)
             {
                 float angle=attempt==0?0:((attempt+1)/2)*35*(attempt%2==0?-1:1);
-                var dir=Quaternion.Euler(0,angle,0)*_heading;
+                var dir=Quaternion.AngleAxis(angle,Up)*_heading;
                 var end=_island.WorldToField(transform.position+dir*(1.8f+_body.Stats.MoveSpeed*0.35f));
                 if(!IslandPopulationPlan.CanTraverse(f,local,end))continue;
                 _heading=dir;if(attempt>0)_throttle=Mathf.Min(_throttle,0.5f);return;
@@ -127,17 +134,18 @@ namespace Leeway.Combat
             for(int i=0;i<20;i++)
             {
                 float a=(float)_rng.NextDouble()*Mathf.PI*2,r=Mathf.Sqrt((float)_rng.NextDouble())*_wanderRadius;
-                var p=_home+new Vector3(Mathf.Cos(a)*r,0,Mathf.Sin(a)*r);
+                var frame=_body.Surface;
+                var p=_home+frame.Right*(Mathf.Cos(a)*r)+frame.Forward*(Mathf.Sin(a)*r);
                 if(_island)
                 {
                     var l=_island.WorldToField(p);
                     if(!_island.Field.IsLand(l.x,l.z)||Vector3.Angle(_island.Field.SampleNormal(l.x,l.z),Vector3.up)>30)continue;
-                    p.y=_island.GroundHeight(p);
+                    p=_island.GroundPoint(p);
                 }
                 _wanderTarget=p;return p;
             }
             return _home;
         }
-        private static float FlatDistance(Vector3 a,Vector3 b){a.y=b.y=0;return Vector3.Distance(a,b);}
+        private float FlatDistance(Vector3 a,Vector3 b)=>Vector3.ProjectOnPlane(a-b,Up).magnitude;
     }
 }

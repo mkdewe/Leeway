@@ -50,7 +50,7 @@ namespace Leeway.CreatureEditor
 
             float dt = Mathf.Max(Time.deltaTime, 1e-4f);
             Vector3 travel = transform.position - _previousBody;
-            travel.y = 0f;
+            travel = Vector3.ProjectOnPlane(travel, Leeway.Gravity.GravityWorld.UpAt(transform.position, gameObject.scene));
             float bodySpeed = travel.magnitude / dt;
             _previousBody = transform.position;
 
@@ -80,7 +80,7 @@ namespace Leeway.CreatureEditor
             if (_dustPrefab == null || count <= 0) return;
             if (_sharedDust == null) _sharedDust = Instantiate(_dustPrefab);
 
-            var emit = new ParticleSystem.EmitParams { position = position + Vector3.up * 0.05f, applyShapeToPosition = true };
+            var emit = new ParticleSystem.EmitParams { position = position + Leeway.Gravity.GravityWorld.UpAt(position, gameObject.scene) * 0.05f, applyShapeToPosition = true };
             _sharedDust.Emit(emit, count);
         }
     }

@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using Leeway.Creature.Domain;
 using UnityEngine;
@@ -41,6 +42,8 @@ namespace Leeway.CreatureEditor
     /// </remarks>
     public class ProceduralLeg
     {
+        public Vector3? UpOverride { get; set; }
+        private Vector3 Up => UpOverride ?? (_hip != null ? GravityWorld.UpAt(_hip.position, _hip.gameObject.scene) : Vector3.up);
         private const float Epsilon = 1e-5f;
 
         /// <summary>Reused for carrying a renderer's tint to a cloned link — a block per clone would be pure garbage.</summary>
@@ -417,16 +420,16 @@ namespace Leeway.CreatureEditor
             Vector2 offset = _gait.FootOffset(phase + _phaseOffset, stride) * Mathf.Clamp01(gaitWeight);
 
             // The foot's rest point: under the hip, at the leg's working height.
-            Vector3 neutral = hip + Vector3.down * _spec.RideHeight;
+            Vector3 neutral = hip - Up * _spec.RideHeight;
             Vector3 desired = neutral + forward * offset.x;
 
             HasGroundContact = TryGround(desired, groundMask, 0.25f, out RaycastHit support);
             if (HasGroundContact)
             {
                 GroundNormal = support.normal;
-                desired = support.point + Vector3.up * (offset.y + 0.015f);
+                desired = support.point + Up * (offset.y + 0.015f);
             }
-            else desired += Vector3.up * offset.y;
+            else desired += Up * offset.y;
 
             // Pulling rather than jumping: on a change of pace or a turn the foot moves to its new place
             // smoothly instead of teleporting.
@@ -437,7 +440,7 @@ namespace Leeway.CreatureEditor
             _initialised = true;
             // Recheck the interpolated foot itself: smoothing across a rise must not drag it through the hill.
             if (TryGround(_footTarget, groundMask, 0.25f, out var beneath))
-                _footTarget.y = Mathf.Max(_footTarget.y, beneath.point.y + 0.01f);
+                _footTarget += Up * Mathf.Max(0f, Vector3.Dot(beneath.point - _footTarget, Up) + 0.01f);
 
             // A hard reach limit. Without it the pull falls behind the turning carcass and the leg splays
             // out into a straight line pointing at the foot's old place.
@@ -486,7 +489,7 @@ namespace Leeway.CreatureEditor
 
             Vector3 hip = _hip.position;
 
-            _footTarget = ClampToReach(hip, hip + Vector3.down * _spec.RideHeight);
+            _footTarget = ClampToReach(hip, hip - Up * _spec.RideHeight);
             _initialised = true;
 
             _joints[0] = hip;
@@ -554,13 +557,13 @@ namespace Leeway.CreatureEditor
             _holding = false;
 
             Vector3 hip = _hip.position;
-            Vector3 flat = new Vector3(velocity.x, 0f, velocity.z);
+            Vector3 flat = Vector3.ProjectOnPlane(velocity, Up);
             float speed = flat.magnitude;
 
             // Aim a little ahead of where the hip is: by the time the foot lands the body will be there.
             float lead = Mathf.Clamp(0.10f + speed * 0.04f, 0.1f, 0.3f);
-            Vector3 offset = hip - center; offset.y = 0f;
-            Vector3 turned = Quaternion.AngleAxis(yawRate * Mathf.Rad2Deg * lead, Vector3.up) * offset;
+            Vector3 offset = Vector3.ProjectOnPlane(hip - center, Up);
+            Vector3 turned = Quaternion.AngleAxis(yawRate * Mathf.Rad2Deg * lead, Up) * offset;
             // Land ahead of the hip by about a quarter of a stride, so the foot passes under the body and trails
             // it again by the time it lifts - a step that lands under the hip would be taken again at once.
             float stride = Mathf.Max(0.05f, _gait.StepLength);
@@ -573,12 +576,12 @@ namespace Leeway.CreatureEditor
             Vector3 direction = moving ? flat / speed : Vector3.zero;
             Vector3 aim = hip + direction * ahead + (turned - offset);
 
-            Vector3 ideal = aim + Vector3.down * _spec.RideHeight;
+            Vector3 ideal = aim - Up * _spec.RideHeight;
             PlannerHasGround = TryGround(aim, groundMask, 0.35f, out RaycastHit support);
             if (PlannerHasGround)
             {
                 GroundNormal = support.normal;
-                ideal = support.point + Vector3.up * 0.015f;
+                ideal = support.point + Up * 0.015f;
             }
             HasGroundContact = PlannerHasGround;
 
@@ -597,8 +600,9 @@ namespace Leeway.CreatureEditor
             if (!_stepping)
             {
                 Vector3 drift = ideal - _plant;
-                float horizontal = new Vector2(drift.x, drift.z).magnitude;
-                StepNeed = horizontal + Mathf.Abs(drift.y) * 0.5f;
+                float vertical = Vector3.Dot(drift, Up);
+                float horizontal = Vector3.ProjectOnPlane(drift, Up).magnitude;
+                StepNeed = horizontal + Mathf.Abs(vertical) * 0.5f;
 
                 float stretch = (_plant - hip).magnitude / Mathf.Max(0.01f, _spec.Reach * MaxReachFactor);
                 // A leg that is merely near the end of its reach still waits for its turn - lifting both legs of a pair
@@ -633,7 +637,7 @@ namespace Leeway.CreatureEditor
                 float eased = t * t * (3f - 2f * t);
                 // The landing spot is smoothed: on broken ground the raw sample jumps between facets.
                 _landing = Vector3.Lerp(_landing, ideal, 1f - Mathf.Exp(-22f * deltaTime));
-                target = Vector3.Lerp(_stepFrom, _landing, eased) + Vector3.up * (Mathf.Sin(t * Mathf.PI) * _stepHeight);
+                target = Vector3.Lerp(_stepFrom, _landing, eased) + Up * (Mathf.Sin(t * Mathf.PI) * _stepHeight);
 
                 if (_stepProgress >= 1f)
                 {
@@ -647,7 +651,7 @@ namespace Leeway.CreatureEditor
 
             // Feet are never allowed below the ground they stand over.
             if (TryGround(target, groundMask, 0.35f, out RaycastHit beneath))
-                target.y = Mathf.Max(target.y, beneath.point.y + 0.01f);
+                target += Up * Mathf.Max(0f, Vector3.Dot(beneath.point - target, Up) + 0.01f);
 
             if (_strikeWeight > 0.001f) target = Vector3.Lerp(target, _strikeTarget, _strikeWeight);
 
@@ -683,9 +687,9 @@ namespace Leeway.CreatureEditor
         {
             // Start at the real hip, not at a neutral foot that may already be below an uphill step.
             float lift = Mathf.Max(0.2f, _spec.Reach * 0.35f);
-            var origin = new Vector3(position.x, _hip.position.y + lift, position.z);
-            return Physics.Raycast(origin, Vector3.down, out hit, _spec.Reach + lift + margin,
-                mask, QueryTriggerInteraction.Ignore) && hit.normal.y > 0.25f;
+            var origin = position + Up * (Vector3.Dot(_hip.position - position, Up) + lift);
+            return Physics.Raycast(origin, -Up, out hit, _spec.Reach + lift + margin,
+                mask, QueryTriggerInteraction.Ignore) && Vector3.Dot(hit.normal, Up) > 0.25f;
         }
 
         /// <summary>

@@ -25,7 +25,8 @@ Shader "Hidden/Leeway/PaletteGrade"
 
             float _LeewayDayNightEnabled;
             float _LeewayDaylight;
-            float _LeewayPlanetView; // 0 on the ground, 1 when the camera has left for the planet: the stylisation fades out
+            float _LeewayPlanetView; // 0 on the ground, 1 when the camera has left for the planet: only atmospheric haze fades out
+            float4 _LeewayPlanet; // xyz centre, w radius; zero for the flat editor
             float4 _Palette[6];
             float4 _Grade;        // x intensity, y blackPoint, z whitePoint, w bands
             float4 _Grade2;       // x bandSoftness, y chromaKeep, z accentThreshold, w accentKeep
@@ -98,7 +99,8 @@ Shader "Hidden/Leeway/PaletteGrade"
                 {
                     float3 wpos = ComputeWorldSpacePosition(uv, rawDepth, UNITY_MATRIX_I_VP);
                     float dist = saturate((eye - _Fog.x) / (_Fog.y - _Fog.x));
-                    float low = exp(-max(wpos.y - _FogHeight.x, 0.0) * _FogHeight.y);
+                    float altitude = _LeewayPlanet.w > 0 ? length(wpos - _LeewayPlanet.xyz) - _LeewayPlanet.w : wpos.y;
+                    float low = exp(-max(altitude - _FogHeight.x, 0.0) * _FogHeight.y);
                     fog = saturate(dist * lerp(0.4, 1.0, low)) * _Fog.z;
                     fog *= 1.0 - _LeewayPlanetView;
                 }
@@ -137,7 +139,7 @@ Shader "Hidden/Leeway/PaletteGrade"
                 float day=lerp(1.0,_LeewayDaylight,_LeewayDayNightEnabled);
                 graded*=lerp(float3(0.22,0.30,0.46),float3(1,1,1),day);
                 if(sky && _LeewayDayNightEnabled>0.5) return half4(src,1);
-                return half4(lerp(src, graded, _Grade.x * (1.0 - _LeewayPlanetView)), 1.0);
+                return half4(lerp(src, graded, _Grade.x * (sky ? 1.0 - _LeewayPlanetView : 1.0)), 1.0);
             }
             ENDHLSL
         }

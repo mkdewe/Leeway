@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using Leeway.Creature.Domain;
 using UnityEngine;
@@ -101,7 +102,8 @@ namespace Leeway.CreatureEditor
 
         private CreatureBody _body;
         private Vector3 _lastPosition;
-        private float _lastYaw;
+        private Vector3 _lastForward;
+        private Vector3 Up => GravityWorld.UpAt(transform.position, gameObject.scene);
         private float _phase;
         private float _gaitWeight;
         private float _standHeight;
@@ -147,7 +149,7 @@ namespace Leeway.CreatureEditor
         {
             _body = GetComponent<CreatureBody>();
             _lastPosition = transform.position;
-            _lastYaw = transform.eulerAngles.y;
+            _lastForward = transform.forward;
         }
 
         private void OnEnable() => _body.BodyRebuilt += OnBodyRebuilt;
@@ -201,7 +203,7 @@ namespace Leeway.CreatureEditor
         {
             _suspended = false;
             _lastPosition = transform.position;
-            _lastYaw = transform.eulerAngles.y;
+            _lastForward = transform.forward;
 
             Vector3 forward = transform.forward;
             foreach (ProceduralLeg leg in _legs) leg.Rest(forward);
@@ -305,7 +307,7 @@ namespace Leeway.CreatureEditor
                 if (leg.IsStepping || !leg.HasGroundContact) continue;
 
                 Vector3 local = transform.InverseTransformPoint(leg.HipPosition);
-                float height = leg.HipPosition.y - leg.FootPosition.y;
+                float height = Vector3.Dot(leg.HipPosition - leg.FootPosition, Up);
                 float compression = Mathf.Clamp(leg.Spec.RideHeight - height, -0.5f, 0.5f);
 
                 _supportBuffer.Add(new Vector3(local.x, local.z, compression));
@@ -401,9 +403,9 @@ namespace Leeway.CreatureEditor
             Vector3 travel = position - _lastPosition;
             _lastPosition = position;
 
-            float yaw = transform.eulerAngles.y;
-            float yawDelta = Mathf.DeltaAngle(_lastYaw, yaw);
-            _lastYaw = yaw;
+            Vector3 previousForward = Vector3.ProjectOnPlane(_lastForward, Up);
+            float yawDelta = Vector3.SignedAngle(previousForward, transform.forward, Up);
+            _lastForward = transform.forward;
 
             // In the air the legs keep their pose relative to the body: no stepping, no reaching for a
             // ground that is not there. The bookkeeping above still runs, so landing does not count the
@@ -423,7 +425,7 @@ namespace Leeway.CreatureEditor
             // spot - therefore makes the legs react. Nothing here is driven by a walking phase.
             Vector3 velocity = travel / Mathf.Max(Time.deltaTime, 1e-4f);
             float yawRate = yawDelta * Mathf.Deg2Rad / Mathf.Max(Time.deltaTime, 1e-4f);
-            float flatSpeed = new Vector2(velocity.x, velocity.z).magnitude;
+            float flatSpeed = Vector3.ProjectOnPlane(velocity, Up).magnitude;
             IsMoving = flatSpeed > 0.4f;
 
             // The legs that need a step most go first, and only a share of them may be in the air at once -
@@ -471,7 +473,7 @@ namespace Leeway.CreatureEditor
 
             float reach = _standHeight + _airborneMargin;
             const float lift = 0.05f;
-            if (Physics.Raycast(position + Vector3.up * lift, Vector3.down, reach + lift, _groundMask, QueryTriggerInteraction.Ignore)) return false;
+            if (Physics.Raycast(position + Up * lift, -Up, reach + lift, _groundMask, QueryTriggerInteraction.Ignore)) return false;
 
             // Over a hollow the torso can have nothing under it while the feet still stand on the crests either side.
             foreach (ProceduralLeg leg in _legs)
@@ -532,7 +534,7 @@ namespace Leeway.CreatureEditor
             foreach (ProceduralLeg leg in _legs)
             {
                 Vector3 offset = leg.HipPosition - center;
-                offset.y = 0f;
+                offset = Vector3.ProjectOnPlane(offset, Up);
                 total += offset.magnitude;
             }
 

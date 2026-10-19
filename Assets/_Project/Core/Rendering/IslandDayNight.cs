@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Leeway.World.Domain;
@@ -51,18 +52,23 @@ namespace Leeway.Rendering
             bool preview=!Application.isPlaying||_freezeForPreview;
             double elapsed=preview?0:(_wind?_wind.WeatherTime:Time.timeAsDouble);
             var state=SolarCycle.Evaluate(elapsed,preview?_previewHour:_startHour,_cycleMinutes);
-            CurrentHour=state.Hour;Daylight=state.Daylight;
-            float altitude=state.SunDirection.y;
+            CurrentHour=state.Hour;
+            var camera=Camera.main;
+            Vector3 position=camera?camera.transform.position:transform.position;
+            Vector3 up=GravityWorld.UpAt(position,gameObject.scene);
+            bool radial=GravityWorld.ForScene(gameObject.scene)?.IsRadial==true;
+            float altitude=Vector3.Dot(state.SunDirection,up);
+            Daylight=radial?Fade(-0.12f,0.2f,altitude):state.Daylight;
             float warm=1-Fade(0.02f,0.5f,altitude);
             _sun.transform.rotation=Quaternion.LookRotation(-state.SunDirection,Vector3.up);
             _moon.transform.rotation=Quaternion.LookRotation(-state.MoonDirection,Vector3.up);
             _sun.color=Color.Lerp(C(1,0.95f,0.83f),C(1,0.53f,0.29f),warm);
-            _sun.intensity=_sunIntensity*Fade(-0.03f,0.2f,altitude);
+            _sun.intensity=radial?_sunIntensity:_sunIntensity*Fade(-0.03f,0.2f,altitude);
             _moon.color=C(0.57f,0.70f,1);
             _moon.intensity=_moonIntensity*Fade(0,0.22f,-altitude);
             // Only one directional shadow map; switch at the horizon where both lights fade out.
             bool sunUp=altitude>=0;
-            _sun.enabled=sunUp;_moon.enabled=!sunUp;
+            _sun.enabled=radial||sunUp;_moon.enabled=radial||!sunUp;
             RenderSettings.sun=sunUp?_sun:_moon;
             RenderSettings.ambientMode=AmbientMode.Trilight;
             RenderSettings.ambientSkyColor=Color.Lerp(C(0.045f,0.075f,0.15f),C(0.43f,0.55f,0.56f),Daylight);

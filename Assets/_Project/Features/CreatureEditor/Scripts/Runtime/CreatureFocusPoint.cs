@@ -27,6 +27,7 @@ namespace Leeway.CreatureEditor
     /// bounds every frame would tie the framing to the step cycle and the camera would breathe along
     /// with the legs.</para>
     /// </remarks>
+    [DefaultExecutionOrder(10)]
     [DisallowMultipleComponent]
     public class CreatureFocusPoint : MonoBehaviour
     {
@@ -37,6 +38,9 @@ namespace Leeway.CreatureEditor
 
         /// <summary>Whether the body is currently on the ground, driven by physics rather than by its legs.</summary>
         private bool _sprawled;
+        private CreaturePuppet _puppet;
+        private Vector3 _restOffset, _trackedPosition, _focusVelocity;
+        [SerializeField, Min(0.02f)] private float _fallSmoothTime = 0.18f;
 
         private CreatureBody _body;
         private CreatureBodyPreview _preview;
@@ -61,6 +65,7 @@ namespace Leeway.CreatureEditor
             // It watches its own rebuild source, so adding it to a creature is a one-liner and needs
             // nothing wired up in the scene.
             TryGetComponent(out _body);
+            TryGetComponent(out _puppet);
             TryGetComponent(out _preview);
 
             if (_body != null) _body.BodyRebuilt += OnRebuilt;
@@ -123,26 +128,30 @@ namespace Leeway.CreatureEditor
         private void TrackSprawl()
         {
             bool down = _body != null && _body.IsKnockedDown;
-
-            if (!down)
+            if (!down && !_sprawled) return;
+            if (!_sprawled)
             {
-                if (!_sprawled) return;
-
-                _sprawled = false;
-                Refocus();
-                return;
+                _trackedPosition = Pivot.position;
+                Pivot.SetParent(transform.parent, true);
+                _focusVelocity = Vector3.zero;
+                _sprawled = true;
             }
 
-            _sprawled = true;
-
-            Transform[] bones = _body.Built?.Bones;
-            if (bones == null || bones.Length == 0) return;
-
-            var bounds = new Bounds(bones[0].position, Vector3.zero);
-            for (int i = 1; i < bones.Length; i++)
-                if (bones[i] != null) bounds.Encapsulate(bones[i].position);
-
-            Pivot.position = bounds.center;
+            Vector3 desired = transform.TransformPoint(_restOffset);
+            // Read the simulated spine, not the animated targets or their moving AABB.
+            // A rolling extremity must not pull the camera away from the body's mass.
+            if (down && _puppet != null && _puppet.TryGetBodyCentre(out var centre))
+                desired = centre;
+            _trackedPosition = Vector3.SmoothDamp(_trackedPosition, desired, ref _focusVelocity,
+                _fallSmoothTime, Mathf.Infinity, Time.unscaledDeltaTime);
+            Pivot.position = _trackedPosition;
+            if (!down && (desired - _trackedPosition).sqrMagnitude < 0.000025f)
+            {
+                Pivot.SetParent(transform, true);
+                Pivot.localPosition = _restOffset;
+                _focusVelocity = Vector3.zero;
+                _sprawled = false;
+            }
         }
 
         /// <summary>Moves the axis to the centre of the visible silhouette.</summary>
@@ -154,11 +163,13 @@ namespace Leeway.CreatureEditor
             {
                 pivot.localPosition = Vector3.zero;
                 SilhouetteRadius = 0f;
+                _restOffset = pivot.localPosition;
                 return;
             }
 
             pivot.position = bounds.center;
             SilhouetteRadius = bounds.extents.magnitude;
+            _restOffset = pivot.localPosition;
         }
 
         /// <summary>
@@ -247,12 +258,24 @@ namespace Leeway.CreatureEditor
             }
         }
 
+        private void OnDestroy()
+        {
+            if (_pivot != null) Destroy(_pivot.gameObject);
+        }
+
         private Transform CreatePivot()
         {
             _pivot = new GameObject(PivotName).transform;
             _pivot.SetParent(transform, false);
+            _pivot.gameObject.AddComponent<CreatureFocusAnchor>().Owner = this;
 
             return _pivot;
         }
+    }
+
+    // A fallen focus is independent of the locomotion root, but still knows its silhouette.
+    public sealed class CreatureFocusAnchor : MonoBehaviour
+    {
+        public CreatureFocusPoint Owner { get; set; }
     }
 }

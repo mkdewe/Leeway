@@ -1,0 +1,7 @@
+{
+  "name": "Leeway.Gravity",
+  "rootNamespace": "Leeway.Gravity",
+  "references": [
+    "Leeway.Domain"
+  ]
+}

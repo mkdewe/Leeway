@@ -129,7 +129,7 @@ namespace Leeway.CreatureEditor
             CreatureLegFactory.Build(_genome, Rules, _body, _legs);
 
             Vector3 forward = transform.rotation * SpineAnchor.Forward;
-            foreach (ProceduralLeg leg in _legs) leg.Rest(forward);
+            foreach (ProceduralLeg leg in _legs) { leg.UpOverride = Vector3.up; leg.Rest(forward); }
         }
 
         [ContextMenu("Rebuild from starter genome")]

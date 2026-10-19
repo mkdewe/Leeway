@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using FishNet.Object;
 using FishNet.Object.Synchronizing;
@@ -133,6 +134,38 @@ namespace Leeway.World
             RefreshAllFruit();
         }
 
+        public void BuildArchipelago(PlanetModel model,Vector3 center)
+        {
+            if(_set==null || model.PatchCount==0)return;
+            Clear();
+            _builtForSeed=model.GetPatch(0).Field.Seed;
+            _container=new GameObject("PlanetFlora").transform;
+            for(int island=0;island<model.PatchCount;island++)
+            {
+                var patch=model.GetPatch(island);
+                var plan=IslandScatter.Plan(patch.Field,FloraRules.Rules(),FloraRules.VariantCounts());
+                foreach(var point in plan)
+                {
+                    var kind=(FloraKind)point.Rule;
+                    var prefab=_set.PrefabFor(kind);
+                    if(prefab==null)continue;
+                    Vector3 world=patch.ToWorld(point.Position,center);
+                    var instance=Instantiate(prefab,world,patch.RotationAt(point.Position)*Quaternion.Euler(0,point.Yaw,0),_container);
+                    instance.name=FloraRules.Of(kind).Name+" "+_plants.Count;
+                    var plant=new Plant
+                    {
+                        Kind=kind,Position=world,Object=instance,
+                        Fruit=instance.transform.Find(FloraSet.FruitName)?.gameObject,
+                        FullScale=Vector3.one*point.Scale,BornAt=Time.time,ShowsFruit=true
+                    };
+                    instance.transform.localScale=plant.FullScale;
+                    LodConvention.Ensure(instance);
+                    _plants.Add(plant);
+                }
+            }
+            RefreshAllFruit();
+        }
+
         private void Clear()
         {
             if (_container != null) Destroy(_container.gameObject);
@@ -218,8 +251,9 @@ namespace Leeway.World
 
                 FloraSpec candidate = FloraRules.Of(plant.Kind);
                 Vector3 offset = plant.Position - position;
-                float vertical = Mathf.Abs(offset.y);
-                offset.y = 0f;
+                Vector3 up = GravityWorld.UpAt(position, gameObject.scene);
+                float vertical = Mathf.Abs(Vector3.Dot(offset, up));
+                offset = Vector3.ProjectOnPlane(offset, up);
 
                 float distance = offset.magnitude;
                 if (distance > candidate.Reach || vertical > candidate.Reach + 1.2f || distance >= best) continue;

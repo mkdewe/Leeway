@@ -3,6 +3,7 @@
     "rootNamespace": "Leeway.CreatureEditor",
     "references": [
         "Leeway.Domain",
+        "Leeway.Gravity",
         "FishNet.Runtime",
         "MessagePipe",
         "UniTask",

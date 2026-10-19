@@ -89,7 +89,7 @@ namespace Leeway.CreatureEditor
                 {
                     case Activity.Sniff:
                         // Nose to the ground a little ahead, the mouth working, the pupils wide.
-                        _actLook = transform.position + transform.forward * 0.9f + Vector3.up * 0.05f;
+                        _actLook = transform.position + transform.forward * 0.9f + _body.Up * 0.05f;
                         _actJaw = 0.14f * (0.5f + 0.5f * Mathf.Sin(t * 19f)) * envelope;
                         pupil = 1f + 0.18f * envelope;
                         pose.x = 7f * envelope;
@@ -110,7 +110,7 @@ namespace Leeway.CreatureEditor
                         lid = 0.9f * gape;
                         _actBreath = 1f + 3f * gape;
                         pose.x = -6f * gape;
-                        _actLook = transform.position + transform.forward * 4f + Vector3.up * 2.2f;
+                        _actLook = transform.position + transform.forward * 4f + _body.Up * 2.2f;
                         break;
 
                     case Activity.Stretch:
@@ -119,12 +119,12 @@ namespace Leeway.CreatureEditor
                         _actJaw = 0.35f * envelope;
                         lid = 0.35f * envelope;
                         _actBreath = 1f + 1.5f * envelope;
-                        _actLook = transform.position + transform.forward * 1.2f + Vector3.down * 0.1f;
+                        _actLook = transform.position + transform.forward * 1.2f + -_body.Up * 0.1f;
                         break;
 
                     case Activity.Curious:
                         // The head cocked at something that is not there.
-                        _actLook = transform.position + transform.forward * 3f + transform.right * (_activitySide * 2.6f) + Vector3.up * 0.9f;
+                        _actLook = transform.position + transform.forward * 3f + transform.right * (_activitySide * 2.6f) + _body.Up * 0.9f;
                         pupil = 1f + 0.3f * envelope;
                         pose.z = 6f * _activitySide * envelope;
                         break;
@@ -195,7 +195,7 @@ namespace Leeway.CreatureEditor
             Vector3 position = transform.position;
             Vector3 velocity = (position - _lastPosition) / rawDt;
             _lastPosition = position;
-            _speed = Mathf.Lerp(_speed, new Vector2(velocity.x, velocity.z).magnitude, 1f - Mathf.Exp(-8f * dt));
+            _speed = Mathf.Lerp(_speed, _body.Surface.Tangent(velocity).magnitude, 1f - Mathf.Exp(-8f * dt));
 
             if (down || !alive || _locomotion == null)
             {
@@ -219,7 +219,7 @@ namespace Leeway.CreatureEditor
             if (!_wasAirborne && airborne) _squashVelocity += 0.9f;
             if (_wasAirborne && !airborne) _squashVelocity -= Mathf.Clamp(Mathf.Abs(_lastVerticalSpeed) * 0.35f, 0.3f, 2.2f);
             _wasAirborne = airborne;
-            _lastVerticalSpeed = velocity.y;
+            _lastVerticalSpeed = Vector3.Dot(velocity, _body.Up);
 
             _bobVelocity += (-220f * _bob - 16f * _bobVelocity) * dt;
             _bob += _bobVelocity * dt;

@@ -7,6 +7,17 @@ namespace Leeway.Tests
 {
     public class PlanetModelTests
     {
+        [TestCase(false)]
+        [TestCase(true)]
+        public void FineTileBoundsContainGeometryWithoutPlanetScaleInflation(bool water)
+        {
+            var tile=PlanetTerrain.Build(Make(),2,9,256,256,water);
+            var bounds=tile.LocalBounds;
+            foreach(var vertex in tile.Vertices)
+                Assert.That(Vector3.Distance(bounds.ClosestPoint(vertex.Position),vertex.Position),Is.LessThan(0.001f),"Terrain and skirt vertices must survive renderer culling.");
+            Assert.That(bounds.size.magnitude,Is.LessThan(40f),"A fine tile must not inherit a planet-wide mountain-height bound.");
+        }
+
         private const float Home = 190f;
 
         private static PlanetModel Make(float radius = 3500f, float water = 0.7f, int islands = 9, int seed = 5) =>
@@ -111,7 +122,7 @@ namespace Leeway.Tests
             for (int i = 0; i < side * side; i++)
             {
                 Vector3 world = tile.Vertices[i].Position + tile.Origin;
-                Assert.That(world.magnitude, Is.InRange(model.Radius - 0.01f, model.Radius + model.MaxHeight + 0.01f));
+                Assert.That(world.magnitude, Is.EqualTo(model.Radius + model.Sample(world.normalized).GroundHeight).Within(0.01f), "terrain includes the same physical ocean floor as the model");
                 Assert.That(Vector3.Dot(tile.Vertices[i].Normal, world.normalized), Is.GreaterThan(0.2f), "the ground faces out");
             }
 

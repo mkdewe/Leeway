@@ -52,6 +52,7 @@ namespace Leeway.Planet
             public Vertex[] Vertices;
             public Vector3 Origin;
             public float Radius;
+            public Bounds LocalBounds;
         }
 
         private enum State { Empty, Building, Ready }
@@ -86,6 +87,11 @@ namespace Leeway.Planet
         private readonly Stack<Mesh> _meshPool = new();
 
         private readonly PlanetModel _model;
+        private readonly Dictionary<PlanetTileKey,Node> _nodes=new();
+        private readonly HashSet<PlanetTileKey> _fixedTiles=new(), _fixedParents=new(), _anchorKeys=new(), _nextAnchorKeys=new();
+        private int _fixedLevel=-1;
+        private readonly bool _water;
+        private readonly Func<Vector3,PlanetModel.Point,Color32> _colour;
         private readonly Transform _parent;
         private readonly Material _material;
         private readonly Node[] _roots;
@@ -94,9 +100,23 @@ namespace Leeway.Planet
         private readonly List<Node> _building = new();
         private readonly List<Node> _shown = new();
         private readonly List<Node> _previous = new();
+        private readonly HashSet<Node> _coverageParents = new();
         private readonly Stack<GameObject> _pool = new();
         private int _frame;
-        private int _nextEvict;
+        private int _residentCount,_nextBudgetAdjustment;
+        private float _pressurePixels;
+        private bool _disposed;
+        private const int PoolLimit=32;
+        private int _maxResidentTiles=1536;
+        public int MaxResidentTiles {get=>_maxResidentTiles;set{_maxResidentTiles=Mathf.Max(128,value);_selectionDirty=true;}}
+        public int PooledMeshes=>_meshPool.Count;
+        public int PooledObjects=>_pool.Count;
+        public int PendingTiles=>_building.Count;
+        private int _nextEvict,_evictionCursor;
+        private bool _selectionDirty=true;
+        private Matrix4x4 _lastCameraMatrix,_lastProjection;
+        private int _lastLimit=-1,_lastPixelHeight;
+        private bool _lastShow;
 
         public float TargetPixels { get; set; } = 5f;
 
@@ -106,23 +126,68 @@ namespace Leeway.Planet
         public int UploadsPerFrame { get; set; } = 3;
 
         public PlanetModel Model => _model;
-        public int ResidentTiles
-        {
-            get
-            {
-                int count = 0;
-                foreach (Node node in _all) if (node.State == State.Ready) count++;
-                return count;
-            }
-        }
+        public int ResidentTiles => _residentCount;
         public int ShownTiles => _shown.Count;
 
         /// <summary>True once the tiles of the coarsest level are all ready: the planet can be shown whole.</summary>
         public bool CoarseReady { get; private set; }
+        public bool ViewReady => CoarseReady && _wanted.Count==0 && _building.Count==0 && !_selectionDirty;
 
-        public PlanetTerrain(PlanetModel model, Transform parent, Material material)
+
+        /// <summary>Pin gameplay geometry to the collision grid. Zoom may change distant LOD,
+        /// but never the triangles under a player. Anchors are quantised and padded by a tile.</summary>
+        public void SetGroundAnchors(IReadOnlyList<Vector3> points,int level)
+        {
+            _nextAnchorKeys.Clear();
+            foreach(var point in points)_nextAnchorKeys.Add(PlanetTileKey.At(point-_parent.position,level));
+            if(level==_fixedLevel&&_anchorKeys.SetEquals(_nextAnchorKeys))return;
+            _fixedLevel=level;_anchorKeys.Clear();_anchorKeys.UnionWith(_nextAnchorKeys);
+            _fixedTiles.Clear();_fixedParents.Clear();_selectionDirty=true;
+            float width=Mathf.PI*0.5f*_model.Radius/(1<<level),step=width*0.4f;
+            var home=_model.GetPatch(0);
+            var homeKey=home!=null?PlanetTileKey.At(home.DirectionAt(home.Field.HubCenter.x,home.Field.HubCenter.z),level):default;
+            foreach(var anchor in _anchorKeys)
+            {
+                // Prepare the home island as one finished landscape, including directions
+                // initially behind the camera. Keep a bounded ring around travelling players.
+                float radius=48f;
+                if(home!=null&&anchor.Equals(homeKey))
+                {
+                    var hub=home.Field.HubCenter;
+                    float reach=(home.Field.Settings.HalfSize+new Vector2(hub.x,hub.z).magnitude)*home.HorizontalScale+24f;
+                    radius=Mathf.Min(reach,Mathf.Min(384f,width*10f));
+                }
+                int count=Mathf.CeilToInt((radius+width*1.75f)/step);
+                var frame=new SurfaceFrame(anchor.CenterDirection);
+                for(int y=-count;y<=count;y++)
+                for(int x=-count;x<=count;x++)
+                {
+                    var key=PlanetTileKey.At(anchor.CenterDirection+
+                        (frame.Right*x+frame.Forward*y)*(step/_model.Radius),level);
+                    if(!_fixedTiles.Add(key))continue;
+                    for(int l=key.Level-1;l>=MinLevel;l--)
+                        _fixedParents.Add(new PlanetTileKey(key.Face,l,key.X>>(key.Level-l),key.Y>>(key.Level-l)));
+                }
+            }
+        }
+
+        public bool StableGroundReadyAt(Vector3 point)
+        {
+            if(_fixedLevel<0)return true;
+            var key=PlanetTileKey.At(point-_parent.position,_fixedLevel);
+            if(!_fixedTiles.Contains(key))return true;
+            if(!_nodes.TryGetValue(key,out var node)||node.State!=State.Ready)return false;
+            for(var parent=node.Parent;parent!=null;parent=parent.Parent)
+                foreach(var sibling in ChildrenOf(parent))if(sibling.State!=State.Ready)return false;
+            return true;
+        }
+
+        public PlanetTerrain(PlanetModel model, Transform parent, Material material, bool water = false,
+            Func<Vector3,PlanetModel.Point,Color32> colour = null)
         {
             _model = model;
+            _water = water;
+            _colour = colour;
             _parent = parent;
             _material = material;
 
@@ -138,7 +203,8 @@ namespace Leeway.Planet
         // ---------------------------------------------------------------- tiles
 
         /// <summary>Samples one tile of the planet. Safe to call from any thread.</summary>
-        public static Data Build(PlanetModel model, int face, int level, int x, int y)
+        public static Data Build(PlanetModel model, int face, int level, int x, int y, bool water = false,
+            Func<Vector3,PlanetModel.Point,Color32> colour = null)
         {
             int cells = 1 << level;
             float u0 = -1f + 2f * x / cells, v0 = -1f + 2f * y / cells;
@@ -155,8 +221,9 @@ namespace Leeway.Planet
                 {
                     Vector3 dir = DirectionOf(face, u0 + (s - 1) * step, v0 + (t - 1) * step);
                     PlanetModel.Point sample = model.Sample(dir);
-                    points[t * Ring + s] = dir * (model.Radius + sample.Height);
-                    colours[t * Ring + s] = PlanetPalette.Of(model, sample);
+                    points[t * Ring + s] = dir * (model.Radius + (water ? 0f : sample.GroundHeight));
+                    colours[t * Ring + s] = water ? new Color32((byte)(Mathf.Clamp01(-sample.GroundHeight / 3f) * 255), 0, 255,
+                        (byte)(Mathf.Clamp01(0.5f - sample.GroundHeight / 4f) * 255)) : colour != null ? colour(dir, sample) : PlanetPalette.Of(model, sample);
                 }
             }
 
@@ -191,12 +258,64 @@ namespace Leeway.Planet
                 }
             }
 
-            PointPool.Add(points);
-            ColourPool.Add(colours);
-            return new Data { Vertices = vertices, Origin = origin, Radius = size * 0.8f + model.MaxHeight };
+            ReturnBuffer(PointPool,points);
+            ReturnBuffer(ColourPool,colours);
+            var localBounds=new Bounds(vertices[0].Position,Vector3.zero);
+            for(int i=1;i<vertices.Length;i++)localBounds.Encapsulate(vertices[i].Position);
+            localBounds.Expand(water?4f:0.02f); // Include ocean-wave displacement.
+            return new Data { Vertices = vertices, Origin = origin, Radius = size * 0.8f + model.MaxHeight, LocalBounds=localBounds };
         }
 
         /// <summary>The indices every tile shares: a grid of two triangles to the cell, then the skirts, drawn both ways round.</summary>
+        public sealed class CollisionData
+        {
+            public Vector3[] Vertices;
+            public int[] Indices;
+            public Vector3 Origin;
+        }
+
+        /// <summary>Same surface samples and triangle diagonal as rendering, with one extra cell
+        /// outside each edge. The overlap prevents floating-point raycast cracks at tile/cube seams;
+        /// render skirts never become physical walls.</summary>
+        public static CollisionData BuildCollision(PlanetModel model, PlanetTileKey key)
+        {
+            int cells=1<<key.Level;
+            float u0=-1f+2f*key.X/cells, v0=-1f+2f*key.Y/cells;
+            float step=2f/cells/Grid;
+            Vector3 origin=key.CenterDirection*model.Radius;
+            int side=Grid+3;
+            var vertices=new Vector3[side*side];
+            for(int y=0;y<side;y++)
+            for(int x=0;x<side;x++)
+            {
+                Vector3 dir=PlanetTileKey.Direction(key.Face,u0+(x-1)*step,v0+(y-1)*step);
+                vertices[y*side+x]=dir*(model.Radius+model.Sample(dir).GroundHeight)-origin;
+            }
+            var indices=new int[(side-1)*(side-1)*6];
+            int next=0;
+            for(int y=0;y<side-1;y++)
+            for(int x=0;x<side-1;x++)
+            {
+                int a=y*side+x,b=a+1,c=a+side,d=c+1;
+                indices[next++]=a;indices[next++]=b;indices[next++]=c;
+                indices[next++]=b;indices[next++]=d;indices[next++]=c;
+            }
+            return new CollisionData {Vertices=vertices,Indices=indices,Origin=origin};
+        }
+
+        private static void ReturnBuffer<T>(ConcurrentBag<T[]> pool,T[] buffer)
+        {
+            if(buffer==null)return;
+            lock(pool){if(pool.Count<PoolLimit)pool.Add(buffer);}
+        }
+
+        internal static void ReleaseData(Data data)
+        {
+            if (data?.Vertices == null) return;
+            ReturnBuffer(VertexPool,data.Vertices);
+            data.Vertices = null;
+        }
+
         public static ushort[] Indices()
         {
             if (_indices != null) return _indices;
@@ -239,8 +358,7 @@ namespace Leeway.Planet
         // the tiles near the middle of a face and those near its corners are about the same size.
         private static Vector3 DirectionOf(int face, float u, float v)
         {
-            float a = Mathf.Tan(u * Mathf.PI * 0.25f), b = Mathf.Tan(v * Mathf.PI * 0.25f);
-            return (FaceNormal[face] + FaceU[face] * a + FaceV[face] * b).normalized;
+            return PlanetTileKey.Direction(face, u, v);
         }
 
         // ---------------------------------------------------------------- the tree
@@ -255,6 +373,7 @@ namespace Leeway.Planet
                 Size = Mathf.PI * 0.5f * _model.Radius / cells,
             };
             _all.Add(node);
+            _nodes.Add(new PlanetTileKey(face,level,x,y),node);
             return node;
         }
 
@@ -277,8 +396,30 @@ namespace Leeway.Planet
         /// </summary>
         public void Update(UnityEngine.Camera camera, bool show)
         {
+            if(_disposed)return;
             _frame++;
             Collect();
+            if(_frame>=_nextBudgetAdjustment)
+            {
+                float current=Mathf.Max(TargetPixels,_pressurePixels);
+                if(_residentCount+_building.Count>=MaxResidentTiles*0.85f &&
+                    (_shown.Count>MaxResidentTiles*0.55f||_wanted.Count>_building.Count))
+                {_pressurePixels=Mathf.Min(80f,current*1.25f);_selectionDirty=true;}
+                else if(_residentCount<MaxResidentTiles*0.5f&&_pressurePixels>TargetPixels)
+                {_pressurePixels=Mathf.Max(TargetPixels,current/1.25f);_selectionDirty=true;}
+                _nextBudgetAdjustment=_frame+30;
+            }
+            var cameraMatrix=camera.transform.localToWorldMatrix;
+            var projection=camera.projectionMatrix;
+            if(!_selectionDirty&&((Vector3)_lastCameraMatrix.GetColumn(3)-camera.transform.position).sqrMagnitude<0.01f&&
+                Quaternion.Angle(_lastCameraMatrix.rotation,camera.transform.rotation)<0.05f&&_lastProjection==projection&&
+                _lastLimit==LimitLevel&&_lastPixelHeight==camera.pixelHeight&&_lastShow==show)
+            {
+                if(_frame>=_nextEvict){_nextEvict=_frame+1;Evict();}
+                return;
+            }
+            _selectionDirty=false;_lastCameraMatrix=cameraMatrix;_lastProjection=projection;
+            _lastLimit=LimitLevel;_lastPixelHeight=camera.pixelHeight;_lastShow=show;
 
             Vector3 eye = camera.transform.position - _parent.position;
             float pixelsPerRadian = camera.pixelHeight / (2f * Mathf.Tan(camera.fieldOfView * 0.5f * Mathf.Deg2Rad));
@@ -302,12 +443,16 @@ namespace Leeway.Planet
 
             Dispatch();
 
+            // Hidden prewarming needs the same coverage retention as a visible world.
+            _coverageParents.Clear();
+            foreach(var leaf in _shown)
+                for(var ancestor=leaf.Parent;ancestor!=null;ancestor=ancestor.Parent)_coverageParents.Add(ancestor);
             if (show) Present();
             else HideAll();
 
             if (_frame >= _nextEvict)
             {
-                _nextEvict = _frame + 120;
+                _nextEvict = _frame + 1;
                 Evict();
             }
         }
@@ -317,18 +462,41 @@ namespace Leeway.Planet
         {
             node.LastUsed = _frame;
 
-            if (!Visible(node, eye, frustum)) return true;
+            var address=new PlanetTileKey(node.Face,node.Level,node.X,node.Y);
+            bool fixedLeaf=_fixedTiles.Contains(address),fixedBranch=_fixedParents.Contains(address);
+            bool visible=Visible(node,eye,frustum);
+            if(!visible&&!fixedLeaf&&!fixedBranch)return true;
+            // Build parents first. Descending through missing ancestors requests thousands of
+            // invisible leaves, sorts them every frame, and delays the first useful refinements.
+            if(node.State!=State.Ready)
+            {
+                Want(node,(eye-node.Direction*_model.Radius).magnitude);
+                return false;
+            }
 
             float distance = Mathf.Max((eye - node.Direction * _model.Radius).magnitude - node.Size * 0.75f, 1f);
             float cellPixels = node.Size / Grid / distance * pixelsPerRadian;
-            bool split = node.Level < Mathf.Min(MaxLevel, LimitLevel) && cellPixels > TargetPixels;
+            bool split = node.Level < Mathf.Min(MaxLevel, LimitLevel) && cellPixels > Mathf.Max(TargetPixels,_pressurePixels);
+
+            split=fixedBranch||(!fixedLeaf&&split);
 
             if (split)
             {
                 int mark = _shown.Count;
                 bool all = true;
-                foreach (Node child in ChildrenOf(node))
-                    all &= Visit(child, eye, pixelsPerRadian, frustum);
+                var children=ChildrenOf(node);
+                // Complete this replacement before requesting finer descendants. Otherwise
+                // near leaves starve their siblings and the whole patch stays at the root LOD.
+                bool childrenReady=true;
+                foreach(var child in children)
+                {
+                    if(child.State==State.Ready)continue;
+                    childrenReady=false;
+                    Want(child,(eye-child.Direction*_model.Radius).magnitude);
+                }
+                if(childrenReady)
+                    foreach(Node child in children)all &= Visit(child,eye,pixelsPerRadian,frustum);
+                else all=false;
 
                 if (all) return true;
 
@@ -338,7 +506,7 @@ namespace Leeway.Planet
 
             if (node.State == State.Ready)
             {
-                _shown.Add(node);
+                if(visible)_shown.Add(node);
                 return true;
             }
 
@@ -377,16 +545,16 @@ namespace Leeway.Planet
             if (_wanted.Count == 0 || _building.Count >= MaxParallel) return;
 
             // Coarse tiles come first: with them in place the planet is whole whatever else is missing.
-            _wanted.Sort(ByKey);
+            _wanted.Sort((a,b)=>{int level=a.Level.CompareTo(b.Level);return level!=0?level:ByKey(a,b);});
 
             foreach (Node node in _wanted)
             {
-                if (_building.Count >= MaxParallel) break;
+                if (_building.Count >= MaxParallel || _residentCount+_building.Count>=MaxResidentTiles) break;
                 if (node.State != State.Empty) continue;
                 PlanetModel model = _model;
                 int face = node.Face, level = node.Level, x = node.X, y = node.Y;
                 node.State = State.Building;
-                node.Job = Task.Run(() => Build(model, face, level, x, y));
+                node.Job = Task.Run(() => Build(model, face, level, x, y, _water, _colour));
                 _building.Add(node);
             }
         }
@@ -397,7 +565,8 @@ namespace Leeway.Planet
         private void Collect()
         {
             int uploads = 0;
-            for (int i = _building.Count - 1; i >= 0 && uploads < UploadsPerFrame; i--)
+            var uploadBudget=System.Diagnostics.Stopwatch.StartNew();
+            for (int i = _building.Count - 1; i >= 0 && uploads < UploadsPerFrame && uploadBudget.Elapsed.TotalMilliseconds<0.75; i--)
             {
                 Node node = _building[i];
                 if (!node.Job.IsCompleted) continue;
@@ -419,6 +588,7 @@ namespace Leeway.Planet
 
         private void Upload(Node node)
         {
+            _selectionDirty=true;
             Data data = node.Data;
             Mesh mesh = _meshPool.Count > 0 ? _meshPool.Pop() : new Mesh();
             mesh.name = $"Tile {node.Face}/{node.Level}/{node.X},{node.Y}";
@@ -432,12 +602,14 @@ namespace Leeway.Planet
             mesh.SetIndexBufferParams(indices.Length, IndexFormat.UInt16);
             mesh.SetIndexBufferData(indices, 0, 0, indices.Length, MeshUpdateFlags.DontRecalculateBounds);
 
-            var bounds = new Bounds(Vector3.zero, Vector3.one * (data.Radius * 2f));
+            // Rendering bounds describe this mesh, including skirts, rather than the entire
+            // possible mountain range. Inflated bounds submitted thousands of off-screen tiles.
+            var bounds = data.LocalBounds;
             mesh.subMeshCount = 1;
             mesh.SetSubMesh(0, new SubMeshDescriptor(0, indices.Length) { bounds = bounds }, MeshUpdateFlags.DontRecalculateBounds);
             mesh.bounds = bounds;
             mesh.UploadMeshData(false);
-            VertexPool.Add(data.Vertices);
+            ReturnBuffer(VertexPool,data.Vertices);
             data.Vertices = null;
 
             GameObject go = _pool.Count > 0 ? _pool.Pop() : NewObject();
@@ -449,12 +621,14 @@ namespace Leeway.Planet
             node.Mesh = mesh;
             node.Object = go;
             node.State = State.Ready;
+            _residentCount++;
             node.Data = null;
         }
 
         private GameObject NewObject()
         {
             var go = new GameObject("Tile");
+            if (_water) go.layer = Mathf.Max(0, LayerMask.NameToLayer("Water"));
             go.transform.SetParent(_parent, false);
             go.AddComponent<MeshFilter>();
             var renderer = go.AddComponent<MeshRenderer>();
@@ -467,6 +641,9 @@ namespace Leeway.Planet
         // What was shown last frame and is not now goes out; what is newly chosen comes in.
         private void Present()
         {
+            _coverageParents.Clear();
+            foreach(var leaf in _shown)
+                for(var ancestor=leaf.Parent;ancestor!=null;ancestor=ancestor.Parent)_coverageParents.Add(ancestor);
             foreach (Node node in _shown)
             {
                 node.ShownFrame = _frame;
@@ -496,14 +673,18 @@ namespace Leeway.Planet
         // Tiles that have not been wanted for a good while go: the finest ones would otherwise pile up as the camera moves.
         private void Evict()
         {
-            for (int i = _all.Count - 1; i >= 0; i--)
+            var clock=System.Diagnostics.Stopwatch.StartNew();
+            int released=0;
+            bool pressure=_residentCount+_building.Count>=MaxResidentTiles-4;
+            for(int checkedNodes=0;checkedNodes<128&&_all.Count>0;checkedNodes++)
             {
-                Node node = _all[i];
-                if (node.Level <= MinLevel || node.State != State.Ready || node.Shown) continue;
-                if (_frame - node.LastUsed < 300) continue;
-
-                Release(node);
-                node.State = State.Empty;
+                if(_evictionCursor>=_all.Count)_evictionCursor=0;
+                Node node=_all[_evictionCursor++];
+                if(node.Level<=MinLevel||node.State!=State.Ready||node.Shown||_fixedTiles.Contains(new PlanetTileKey(node.Face,node.Level,node.X,node.Y))||
+                    _fixedParents.Contains(new PlanetTileKey(node.Face,node.Level,node.X,node.Y))||
+                    (node.Parent!=null&&_fixedParents.Contains(new PlanetTileKey(node.Parent.Face,node.Parent.Level,node.Parent.X,node.Parent.Y)))||(_coverageParents.Contains(node)||(node.Parent!=null&&_coverageParents.Contains(node.Parent)))||(!pressure&&_frame-node.LastUsed<300))continue;
+                Release(node);node.State=State.Empty;
+                if(++released>=4||clock.Elapsed.TotalMilliseconds>=0.5)break;
             }
         }
 
@@ -513,9 +694,14 @@ namespace Leeway.Planet
             {
                 node.Object.GetComponent<MeshFilter>().sharedMesh = null;
                 node.Object.SetActive(false);
-                _pool.Push(node.Object);
+                if(_pool.Count<PoolLimit)_pool.Push(node.Object);else UnityEngine.Object.Destroy(node.Object);
             }
-            if (node.Mesh != null) { node.Mesh.Clear(); _meshPool.Push(node.Mesh); }
+            if (node.Mesh != null)
+            {
+                _residentCount--;
+                if(_meshPool.Count<PoolLimit){node.Mesh.Clear();_meshPool.Push(node.Mesh);}
+                else UnityEngine.Object.Destroy(node.Mesh);
+            }
             node.Object = null;
             node.Mesh = null;
         }
@@ -523,6 +709,7 @@ namespace Leeway.Planet
         /// <summary>Takes every tile off the screen.</summary>
         public void Hide()
         {
+            _selectionDirty=true;
             foreach (Node node in _shown)
             {
                 if (node.Object == null) continue;
@@ -535,16 +722,32 @@ namespace Leeway.Planet
         /// <summary>Removes everything this terrain made.</summary>
         public void Dispose()
         {
+            if(_disposed)return;
+            _disposed=true;
             foreach (Node node in _all)
             {
+                if(node.Data!=null)ReleaseData(node.Data);
+                if(node.Job!=null)
+                {
+                    // Generation owns managed arrays only; return the result when it finishes.
+                    // Never retain or touch Unity objects from this continuation.
+                    node.Job.ContinueWith(task=>
+                    {
+                        if(task.Status==TaskStatus.RanToCompletion)ReleaseData(task.Result);
+                        else if(task.IsFaulted){var observed=task.Exception;}
+                    },TaskScheduler.Default);
+                    node.Job=null;
+                }
                 if (node.Mesh != null) UnityEngine.Object.Destroy(node.Mesh);
                 if (node.Object != null) UnityEngine.Object.Destroy(node.Object);
             }
             while (_pool.Count > 0) UnityEngine.Object.Destroy(_pool.Pop());
             while (_meshPool.Count > 0) UnityEngine.Object.Destroy(_meshPool.Pop());
-            _all.Clear();
+            _all.Clear();_nodes.Clear();_fixedTiles.Clear();_fixedParents.Clear();_anchorKeys.Clear();
             _shown.Clear();
             _building.Clear();
+            _coverageParents.Clear();_previous.Clear();_wanted.Clear();
+            _residentCount=0;
         }
     }
 }

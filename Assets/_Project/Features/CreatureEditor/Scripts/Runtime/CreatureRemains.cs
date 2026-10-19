@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using Leeway.Creature.Domain;
 using UnityEngine;
@@ -145,7 +146,7 @@ namespace Leeway.CreatureEditor
             Vector3 forward = head.InverseTransformDirection(transform.forward);
             if (forward.sqrMagnitude < 1e-4f) forward = Vector3.forward;
             forward.Normalize();
-            Vector3 up = head.InverseTransformDirection(Vector3.up).normalized;
+            Vector3 up = head.InverseTransformDirection(GravityWorld.UpAt(head.position,gameObject.scene)).normalized;
             Quaternion look = Quaternion.LookRotation(forward, up);
 
             piece.Knob(forward * r * 0.55f + up * r * 0.1f, r, new Vector3(0.9f, 0.85f, 1.15f), look);
@@ -157,7 +158,7 @@ namespace Leeway.CreatureEditor
         private void AddRibs(SkeletonMesh piece, Transform bone, float radius, float thickness)
         {
             Vector3 right = bone.InverseTransformDirection(transform.right).normalized;
-            Vector3 up = bone.InverseTransformDirection(Vector3.up).normalized;
+            Vector3 up = bone.InverseTransformDirection(GravityWorld.UpAt(bone.position,gameObject.scene)).normalized;
             Vector3 forward = Vector3.Cross(right, up).normalized;
 
             float r = Mathf.Max(0.06f, radius * 0.92f);
@@ -203,7 +204,7 @@ namespace Leeway.CreatureEditor
                     {
                         Vector3 foot = anchor.InverseTransformPoint(joints[i + 1]);
                         Vector3 direction = (foot - anchor.InverseTransformPoint(joints[i])).normalized;
-                        Vector3 spread = Vector3.Cross(direction, Vector3.up).normalized * 0.04f;
+                        Vector3 spread = Vector3.Cross(direction, GravityWorld.UpAt(transform.position,gameObject.scene)).normalized * 0.04f;
                         for (int toe = -1; toe <= 1; toe++)
                             piece.Bone(foot, foot + direction * 0.07f + spread * toe, 0.012f, 4);
                     }
@@ -280,7 +281,7 @@ namespace Leeway.CreatureEditor
             _remaining -= Time.deltaTime;
             if (_remaining > 0f) return;
 
-            transform.position += Vector3.down * (0.05f * Time.deltaTime);
+            transform.position -= GravityWorld.UpAt(transform.position,gameObject.scene) * (0.05f * Time.deltaTime);
             _sinkFor -= Time.deltaTime;
             if (_sinkFor <= 0f) Destroy(gameObject);
         }

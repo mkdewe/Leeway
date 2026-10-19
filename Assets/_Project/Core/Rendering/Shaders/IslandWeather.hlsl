@@ -1,5 +1,6 @@
 #ifndef LEEWAY_ISLAND_WEATHER
 #define LEEWAY_ISLAND_WEATHER
+#include "PlanetFrame.hlsl"
 // xy = world XZ direction, z = strength, w = cloud drift speed.
 float4 _LeewayWind;
 float _LeewayWindTime;

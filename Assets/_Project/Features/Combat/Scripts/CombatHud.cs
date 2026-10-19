@@ -89,7 +89,7 @@ namespace Leeway.Combat
                 float distance=Vector3.Distance(_body.transform.position,npc.transform.position);
                 float range=_fighter.ScanActive?_body.Stats.SenseRadius*2:12;
                 if(distance>range)continue;
-                var world=npc.transform.position+Vector3.up*1.2f;
+                var world=npc.transform.position+npc.GetComponent<CreatureBody>().Up*1.2f;
                 if(Physics.Linecast(camera.transform.position,world,1,QueryTriggerInteraction.Ignore))continue;
                 var p=camera.WorldToScreenPoint(world);if(p.z<=0||p.x<0||p.x>Screen.width||p.y<0||p.y>Screen.height)continue;
                 GUI.color=npc.IsPredator?new Color(1,0.65f,0.5f):npc.Disposition==NpcCreatureType.Territorial?

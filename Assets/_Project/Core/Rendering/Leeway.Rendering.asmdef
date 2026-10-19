@@ -4,7 +4,8 @@
     "references": [
         "Unity.RenderPipelines.Core.Runtime",
         "Unity.RenderPipelines.Universal.Runtime",
-        "Leeway.Domain"
+        "Leeway.Domain",
+        "Leeway.Gravity"
     ],
     "includePlatforms": [],
     "excludePlatforms": [],

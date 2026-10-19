@@ -5,6 +5,7 @@
     "UnityEngine.TestRunner",
     "UnityEditor.TestRunner",
     "Leeway.Domain",
+    "Leeway.Gravity",
     "Leeway.CreatureEditor",
     "FishNet.Runtime",
     "Leeway.CreatureEditor.Editor",

@@ -127,14 +127,17 @@ Shader "Leeway/Toon"
             if (wind.x <= 0.0 || abs(wind.y - 17.0) > 0.01 || _LeewayWindEnabled < 0.5) return positionOS;
             float3 world = TransformObjectToWorld(positionOS);
             float3 pivot = TransformObjectToWorld(grow.xyz);
-            float height = max(0, world.y - pivot.y);
+            float3 up=LeewayUpAt(pivot);
+            float3 direction=LeewayTangentDirection(pivot,LeewayWindDirection());
+            float3 crossDirection=cross(up,direction);
+            float height = max(0, dot(world-pivot,up));
             float time = LeewayWeatherTime();
             float phase = dot(pivot.xz,float2(0.17,0.23));
             float gust = 0.75 + 0.25*sin(time*0.65+dot(pivot.xz,LeewayWindDirection())*0.025);
             float sway = 0.55+0.35*sin(time*1.45+phase)+0.1*sin(time*3.1+phase*2.3);
             float bend = (height*0.055+height*height*0.002)*wind.x*_LeewayWind.z*gust;
-            world.xz += LeewayWindDirection()*bend*sway;
-            world.xz += float2(-_LeewayWind.y,_LeewayWind.x)*sin(time*2.4+phase)*bend*0.12;
+            world += direction*bend*sway;
+            world += crossDirection*sin(time*2.4+phase)*bend*0.12;
             return TransformWorldToObject(world);
         }
         ENDHLSL

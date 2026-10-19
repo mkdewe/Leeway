@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Leeway.World.Domain;
@@ -42,7 +43,8 @@ namespace Leeway.Rendering
 #if UNITY_EDITOR
         private double _editorStart,_nextRepaint;
 #endif
-        public Vector3 Direction=>new(_state.Direction.x,0,_state.Direction.y);
+        public Vector3 Direction=>DirectionAt(Camera.main?Camera.main.transform.position:transform.position);
+        public Vector3 DirectionAt(Vector3 position)=>GravityWorld.FrameAt(position,gameObject.scene).ToWorld(new Vector3(_state.Direction.x,0,_state.Direction.y));
         public float Strength=>_effectiveStrength;
         public float CloudSpeed=>_cloudSpeed;
         public int ChangeIndex=>_state.ChangeIndex;
@@ -186,7 +188,7 @@ namespace Leeway.Rendering
                 if(life>=1){s.Active=false;s.Line.enabled=false;continue;}
                 s.Heading=Vector3.Slerp(s.Heading,Direction,1-Mathf.Exp(-Time.deltaTime*2));
                 s.Travel+=Direction*(2.5f+_effectiveStrength*2)*Time.deltaTime;
-                Vector3 cross=Vector3.Cross(Vector3.up,s.Heading);
+                Vector3 cross=Vector3.Cross(GravityWorld.UpAt(s.Origin+s.Travel,gameObject.scene),s.Heading);
                 float alpha=Mathf.Pow(Mathf.Sin(life*Mathf.PI),2)*_streakOpacity*(0.5f+0.5f*Mathf.Clamp01(_effectiveStrength));
                 s.Line.startColor=s.Line.endColor=new Color(0.86f,0.96f,0.91f,alpha);
                 for(int j=0;j<s.Points.Length;j++)
@@ -200,7 +202,7 @@ namespace Leeway.Rendering
                     float vertical=Mathf.Sin(phase+1.2f)*0.6f;
                     s.Points[j]=s.Origin+s.Travel-s.Heading*u*s.Length+
                         cross*sideways*amplitude*envelope+
-                        Vector3.up*(Mathf.Sin(u*Mathf.PI)*0.22f+vertical*amplitude*envelope);
+                        GravityWorld.UpAt(s.Origin+s.Travel,gameObject.scene)*(Mathf.Sin(u*Mathf.PI)*0.22f+vertical*amplitude*envelope);
                 }
                 s.Line.SetPositions(s.Points);
             }

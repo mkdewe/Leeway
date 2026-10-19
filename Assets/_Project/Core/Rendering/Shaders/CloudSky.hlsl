@@ -38,26 +38,28 @@ float LeewayStars(float3 ray, float density, float size) {
 
 half3 LeewayCloudSky(float3 ray, float time) {
  ray=normalize(ray);
+ float3 localUp=LeewayUpAt(_WorldSpaceCameraPos);
+ float3 horizonRay=float3(dot(ray,LeewayRightAt(localUp)),dot(ray,localUp),dot(ray,LeewayForwardAt(localUp)));
  float3 fixedRay=mul((float3x3)_LeewaySkyRotation,ray);
  fixedRay=dot(fixedRay,fixedRay)>0.5?normalize(fixedRay):ray;
  float space=saturate(_LeewaySpace);
- half3 sky=lerp(half3(0.64,0.76,0.68),half3(0.24,0.48,0.62),pow(saturate(ray.y),0.6));
+ half3 sky=lerp(half3(0.64,0.76,0.68),half3(0.24,0.48,0.62),pow(saturate(horizonRay.y),0.6));
  float2 drift=_LeewayWindEnabled>0.5?_LeewayCloudOffset.xy:LeewayWindDirection()*LeewayWeatherTime()*0.025;
- float2 p=ray.xz/max(ray.y+0.12,0.04)*2.1-drift;
+ float2 p=horizonRay.xz/max(horizonRay.y+0.12,0.04)*2.1-drift;
  float n=LeewayCloudNoise(p)*0.62+LeewayCloudNoise(p*2.03+7.1)*0.26+LeewayCloudNoise(p*4.07)*0.12;
- float cloud=smoothstep(0.53,0.58,n)*smoothstep(0.015,0.10,ray.y);
+ float cloud=smoothstep(0.53,0.58,n)*smoothstep(0.015,0.10,horizonRay.y);
  float shade=smoothstep(0.56,0.70,n);
  shade=floor(shade*3.0+0.5)/3.0;
  half3 cloudColor=lerp(half3(0.57,0.66,0.66),half3(0.95,0.95,0.84),shade);
 
  float day=lerp(1.0,_LeewayDaylight,_LeewayDayNightEnabled);
  float twilight=1-abs(day*2-1);
- half3 nightSky=lerp(half3(0.025,0.045,0.085),half3(0.008,0.016,0.044),pow(saturate(ray.y),0.6));
+ half3 nightSky=lerp(half3(0.025,0.045,0.085),half3(0.008,0.016,0.044),pow(saturate(horizonRay.y),0.6));
  sky=lerp(nightSky,sky,day);
- float sunset=pow(saturate(dot(ray,normalize(_LeewaySunDirection+float3(0,0.12,0)))),5)*twilight;
+ float sunset=pow(saturate(dot(ray,normalize(_LeewaySunDirection+localUp*0.12))),5)*twilight;
  sky=lerp(sky,half3(0.92,0.38,0.20),sunset*0.7);
  // By night the stars come out, turning with the planet and hidden by clouds; outside the air they fill the whole sky.
- float nightStars=LeewayStars(fixedRay,0.05,0.0018)*smoothstep(0.05,0.25,ray.y)*(1-day);
+ float nightStars=LeewayStars(fixedRay,0.05,0.0018)*smoothstep(0.05,0.25,horizonRay.y)*(1-day);
  float deepStars=LeewayStars(fixedRay,lerp(0.05,0.16,space),0.0016)+LeewayStars(fixedRay*1.9+3.1,0.2,0.0011)*0.8;
  float starLight=lerp(nightStars,deepStars,space);
  sky+=starLight*half3(0.65,0.75,1)*0.9;
@@ -72,12 +74,12 @@ half3 LeewayCloudSky(float3 ray, float time) {
  // beyond it the bodies themselves are drawn.
  float discs=1.0-smoothstep(0.1,0.7,space);
  float sunDot=dot(ray,_LeewaySunDirection),moonDot=dot(ray,_LeewayMoonDirection);
- float sunDisc=smoothstep(cos(0.018),cos(0.014),sunDot)*smoothstep(-0.02,0.03,ray.y);
+ float sunDisc=smoothstep(cos(0.018),cos(0.014),sunDot)*smoothstep(-0.02,0.03,horizonRay.y);
  float moonRadius=_LeewayMoonSize>0.0?_LeewayMoonSize:0.02;
- float moonDisc=smoothstep(cos(moonRadius*1.1),cos(moonRadius*0.9),moonDot)*smoothstep(-0.02,0.03,ray.y);
+ float moonDisc=smoothstep(cos(moonRadius*1.1),cos(moonRadius*0.9),moonDot)*smoothstep(-0.02,0.03,horizonRay.y);
  sky+=_LeewayDayNightEnabled*discs*(sunDisc*half3(2.5,1.65,0.75)+pow(saturate(sunDot),180)*half3(0.18,0.08,0.025));
  // A softly mottled moon remains readable without a photographic texture.
- float crater=0.85+0.15*LeewayCloudNoise(ray.xz*420);
+ float crater=0.85+0.15*LeewayCloudNoise(horizonRay.xz*420);
  sky=lerp(sky,half3(0.69,0.79,0.95)*crater,moonDisc*_LeewayDayNightEnabled*discs);
  cloudColor=lerp(half3(0.055,0.075,0.125),cloudColor,day);
  cloudColor=lerp(cloudColor,half3(0.68,0.40,0.32),sunset*0.4);

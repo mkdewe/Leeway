@@ -18,7 +18,7 @@ namespace Leeway.World
     /// props with colliders or lights get an instance - stripped of its renderers. That keeps a
     /// 500 m island with thousands of plants at a few hundred draw calls.
     /// </remarks>
-    public sealed class IslandGenerator : MonoBehaviour
+    public sealed partial class IslandGenerator : MonoBehaviour
     {
         private const string RootName = "GeneratedIsland";
         private const float PropChunkSize = 64f;
@@ -59,6 +59,9 @@ namespace Leeway.World
         public IslandHeightField Field { get; private set; }
         public bool IsGenerated => Field != null;
 
+        // The flat field is input data while a planet is loading, never a second visible world.
+        public bool PlanetSurfaceOwnsGround { get; set; }
+
         public event Action<IslandHeightField> Generated;
 
         public void Generate(int seed)
@@ -71,7 +74,7 @@ namespace Leeway.World
 
             var timer = System.Diagnostics.Stopwatch.StartNew();
             Clear();
-            Field = IslandHeightField.Build(_biome.Shape, seed);
+            Field = _providedField ?? IslandHeightField.Build(_biome.Shape, seed);
 
             _root = new GameObject(RootName).transform;
             _root.SetParent(transform, false);
@@ -79,7 +82,7 @@ namespace Leeway.World
             // The edit-mode preview must not end up saved in the scene.
             if (!Application.isPlaying) _root.gameObject.hideFlags = HideFlags.DontSave;
 
-            BuildTerrain();
+            if (_projection == null || _buildPlanetGround) BuildTerrain();
             BuildWater();
 
             _growActive = _growIn && Application.isPlaying;
@@ -87,9 +90,11 @@ namespace Leeway.World
             var batches = new PropBatches();
             PlaceCaves(batches);
             PlaceHubStones(batches);
-            ScatterProps(batches);
-            BuildBatches(batches);
+            var scatterWork=ScatterPropsAsync(batches);while(scatterWork.MoveNext()) { }
+            var batchWork=BuildBatchesAsync(batches);while(batchWork.MoveNext()) { }
+            ProjectGenerated();
             if (_growActive) StartGrow();
+            if (PlanetSurfaceOwnsGround) _root.gameObject.SetActive(false);
 
             Debug.Log($"[{nameof(IslandGenerator)}] Island seed {seed} built in {timer.ElapsedMilliseconds} ms " +
                       $"({Field.Lakes.Count} lakes, {Field.Rivers.Count} rivers, {Field.Caves.Count} caves).", this);
@@ -113,7 +118,7 @@ namespace Leeway.World
         {
             if (Field == null) return around;
 
-            Vector3 local = _root.InverseTransformPoint(around);
+            Vector3 local = WorldToField(around);
             for (int attempt = 0; attempt < 40; attempt++)
             {
                 float angle = (float)(rng.NextDouble() * Math.PI * 2.0);
@@ -122,18 +127,20 @@ namespace Leeway.World
                 float z = local.z + Mathf.Sin(angle) * distance;
                 float h = Field.SampleHeight(x, z);
                 if (h >= Field.Settings.SeaLevel + minHeight && Field.IsLand(x, z) && !Field.IsInsideCave(x, z))
-                    return _root.TransformPoint(new Vector3(x, h, z));
+                    return FieldToWorld(new Vector3(x, h, z));
             }
             return HubPosition;
         }
 
-        public Vector3 FieldToWorld(Vector3 point) => _root != null ? _root.TransformPoint(point) : transform.TransformPoint(point);
-        public Vector3 WorldToField(Vector3 point) => _root != null ? _root.InverseTransformPoint(point) : transform.InverseTransformPoint(point);
+        public Vector3 FieldToWorld(Vector3 point) => _projection != null ? _projection.ToWorld(point, _planetCenter)
+            : _root != null ? _root.TransformPoint(point) : transform.TransformPoint(point);
+        public Vector3 WorldToField(Vector3 point) => _projection != null ? _projection.ToField(point, _planetCenter)
+            : _root != null ? _root.InverseTransformPoint(point) : transform.InverseTransformPoint(point);
 
-        public Vector3 HubPosition => Field == null ? transform.position : _root.TransformPoint(Field.HubCenter);
+        public Vector3 HubPosition => Field == null ? transform.position : FieldToWorld(Field.HubCenter);
 
         /// <summary>World position of the island's own origin (its centre at sea level).</summary>
-        public Vector3 IslandCenter => Field == null ? transform.position : _root.position;
+        public Vector3 IslandCenter => Field == null ? transform.position : FieldToWorld(Vector3.zero);
 
         /// <summary>Ground height under a world position, in world space.</summary>
         public float GroundHeight(Vector3 world)
@@ -203,6 +210,7 @@ namespace Leeway.World
 
             Mesh surface = IslandMeshBuilder.BuildWaterSurface(Field);
             if (surface != null) AddWaterRenderer("Water", surface, _biome.WaterMaterial);
+            if (_projection != null) return;
             GameObject openSea = AddWaterRenderer("OpenSea", IslandMeshBuilder.BuildSeaRing(_waterSize, Field.Settings.Size, Field.Settings.SeaLevel + 0.008f, Field.Settings.CellSize),
                 _biome.WaterMaterial, meshCollider: false);
 
@@ -243,7 +251,7 @@ namespace Leeway.World
             {
                 // The cave prefab is authored for a 7 m radius; scale it to the carved footprint.
                 float scale = cave.Radius / 7f;
-                Matrix4x4 m = Matrix4x4.TRS(cave.Position, Quaternion.Euler(0f, cave.Yaw, 0f), Vector3.one * scale);
+                Matrix4x4 m = Matrix4x4.TRS(cave.Position, Quaternion.Euler(0f, cave.Yaw, 0f), new Vector3(scale * (_projection?.HorizontalScale ?? 1f), scale, scale * (_projection?.HorizontalScale ?? 1f)));
                 Place(batches, _biome.CavePrefab, m, parent, combine: true);
             }
         }
@@ -276,7 +284,7 @@ namespace Leeway.World
 
         // ---------------------------------------------------------------- props
 
-        private void ScatterProps(PropBatches batches)
+        private System.Collections.IEnumerator ScatterPropsAsync(PropBatches batches)
         {
             IReadOnlyList<IslandBiome.ScatterLayer> layers = _biome.Layers;
             var rules = new List<ScatterRule>(layers.Count);
@@ -291,8 +299,14 @@ namespace Leeway.World
             for (int i = 0; i < layers.Count; i++)
                 parents[i] = Group(string.IsNullOrEmpty(layers[i].Name) ? $"Layer{i}" : layers[i].Name);
 
-            foreach (ScatterPoint point in IslandScatter.Plan(Field, rules, variantCounts))
+            var field=Field;
+            var plan=System.Threading.Tasks.Task.Run(()=>IslandScatter.Plan(field,rules,variantCounts));
+            while(!plan.IsCompleted)yield return null;
+            if(plan.IsFaulted)throw plan.Exception.GetBaseException();
+            var workClock=System.Diagnostics.Stopwatch.StartNew();
+            foreach (ScatterPoint point in plan.Result)
             {
+                if(workClock.Elapsed.TotalMilliseconds>2){yield return null;workClock.Restart();}
                 IslandBiome.ScatterLayer layer = layers[point.Rule];
                 GameObject prefab = layer.Prefabs[point.Variant];
                 if (prefab == null) continue;
@@ -338,7 +352,7 @@ namespace Leeway.World
             }
         }
 
-        private void BuildBatches(PropBatches batches)
+        private System.Collections.IEnumerator BuildBatchesAsync(PropBatches batches)
         {
             Transform parent = Group("PropMeshes");
             var chunkParents = new Dictionary<int, Transform>();
@@ -373,7 +387,7 @@ namespace Leeway.World
                     for (int v = 0; v < source.Vertices.Length; v++)
                     {
                         vertices.Add(instance.Transform.MultiplyPoint3x4(source.Vertices[v]));
-                        normals.Add(instance.Transform.MultiplyVector(source.Normals[v]).normalized);
+                        normals.Add(instance.Transform.inverse.transpose.MultiplyVector(source.Normals[v]).normalized);
                         uvs.Add(source.Uvs[v]);
                         grow.Add(growData);
                         wind.Add(new Vector2(instance.WindStrength, 17f));
@@ -409,10 +423,11 @@ namespace Leeway.World
                 renderer.sharedMaterial = batch.Key.Material;
                 renderer.shadowCastingMode = batch.Key.CastShadows ? ShadowCastingMode.On : ShadowCastingMode.Off;
                 chunkRenderers[batch.Key.Chunk].Add((renderer, batch.Key.Lod));
+                yield return null;
             }
 
             foreach (KeyValuePair<int, List<(Renderer Renderer, int Lod)>> chunk in chunkRenderers)
-                GroupLevels(chunkParents[chunk.Key], chunk.Value);
+            { GroupLevels(chunkParents[chunk.Key], chunk.Value); yield return null; }
         }
 
         // The merged meshes of a chunk are one LODGroup when the models in it come with levels of detail: far from the

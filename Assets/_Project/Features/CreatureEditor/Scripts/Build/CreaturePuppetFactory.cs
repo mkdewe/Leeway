@@ -1,3 +1,4 @@
+using Leeway.Gravity;
 using System.Collections.Generic;
 using System.Reflection;
 using Leeway.Creature.Domain;
@@ -77,6 +78,7 @@ namespace Leeway.CreatureEditor
                 muscleObject.transform.SetPositionAndRotation(bone.position, bone.rotation);
 
                 var rigidbody = muscleObject.AddComponent<Rigidbody>();
+                muscleObject.AddComponent<GravityBody>().SourceScene = creatureRoot.gameObject.scene;
                 rigidbody.mass = perBoneMass;
                 rigidbody.linearDamping = settings.Drag;
                 rigidbody.angularDamping = settings.AngularDrag;
